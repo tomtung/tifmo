@@ -1,0 +1,110 @@
+package tifmo
+
+import knowledge.SemRole.SemRole
+import scala.collection.mutable
+
+package stree {
+	
+	class STree(pnl: List[PreNode]) {
+		
+		val streeNodeList = for (pn <- pnl) yield {
+			val ret = new STreeNode(pn.word, pn.coref, pn.outr, pn.qtfier, pn.slction, 
+				pn.sortedChildren.toList.map(x => (x._1, x._2.correspondingSTreeNode)))
+			pn.correspondingSTreeNode = ret
+			ret.children.foreach(_._2.parent = ret)
+			ret
+		}
+		
+		def meaning(getLexRoles: String => Set[SemRole]) = {
+			var ret = Nil:List[AtomSt]
+			val corefMap = mutable.Map.empty[String, PI]
+			for (n <- streeNodeList) {
+				val anaph = if (n.coref != null && corefMap.contains(n.coref)) {
+					corefMap(n.coref)
+				} else {
+					null
+				}
+				if (n.word.isPronoun) {
+					n.setAnaphora(anaph)
+				} else {
+					n.approximation(anaph)
+					n.selection()
+					n.halfExecution(getLexRoles(n.word.lex))
+				}
+				
+				def recur(x: STreeNode) {
+					if (x.coref != null && x.refPI != null) corefMap(x.coref) = x.refPI
+					if (!x.word.isPronoun) {
+						x.refinement()
+						for ((r, c) <- x.children; if c.qtfier == null) {
+							recur(c)
+						}
+					}
+				}
+				
+				if (n.parent == null) {
+					recur(n)
+					def state(x: STreeNode) {
+						if (!x.word.isPronoun) {
+							x.fullExecution()
+							ret = x.atomst ::: ret
+							for ((r, c) <- x.children; if c.qtfier == null) {
+								state(c)
+							}
+						}
+					}
+					state(n)
+				} else if (n.qtfier != null) {
+					recur(n)
+				}
+			}
+			ret
+		}
+		
+		def partial = {
+			var ret = Nil:List[(AtomSt, Int)]
+			
+			for (n <- streeNodeList; if n.parent == null && !n.word.isPronoun) {
+				
+				def recpart(x: STreeNode) {
+					if (x.nontrivial) {
+						ret = x.atomst.map((_, n.weight)) ::: ret
+					}
+					for ((r, c) <- x.children; if c.qtfier == null) {
+						if (c.halfexecPI != null) ret = (NonEmpty(c.halfexecPI), c.weight) :: ret
+						if (!c.word.isPronoun) recpart(c)
+					}
+				}
+				recpart(n)
+				
+				def parpart(x: STreeNode, r: SemRole) {
+					
+					def pifollow(x: STreeNode): (Int, PI) = {
+						for (rr <- x.execorder; if rr != x.outRole) {
+							parpart(x, rr)
+						}
+						var counter = 1
+						val sats = (for ((rr, c) <- x.children; if c.qtfier == null && !c.word.isPronoun && rr == x.outRole) yield {
+							val (num, pi) = pifollow(c)
+							counter += num
+							(rr, pi)
+						}).toSet
+						(counter, new PI(IR(WORD(x.word), sats), x.outRole))
+					}
+					
+					var counter = 1
+					val sats = (for ((rr, c) <- x.children; if c.qtfier == null && !c.word.isPronoun && rr == r) yield {
+						val (num, pi) = pifollow(c)
+						counter += num
+						(r, pi)
+					}).toSet
+					ret = (NonEmpty(new PI(IR(WORD(x.word), sats), r)), counter) :: ret
+				}
+				n.execorder.foreach(parpart(n, _))
+			}
+			ret
+		}
+		
+		override def toString = streeNodeList.mkString("", " ", "")
+	}
+}

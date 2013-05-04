@@ -1,0 +1,11 @@
+package tifmo
+
+package knowledge {
+	
+	abstract class WordInfo {
+		def lex: String
+		def sign: Boolean
+		def isPronoun: Boolean
+		def neg: WordInfo
+	}
+}

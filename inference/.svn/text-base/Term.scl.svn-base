@@ -1,0 +1,343 @@
+package rite.main
+
+
+import model.SemRole
+
+package inference {
+
+	abstract class Term {
+		
+		def roles: Set[SemRole]
+		
+		def tmref: IETermRef
+		
+		private[inference] def register(rs: Set[SemRole], mgr: RoleMgr): Unit
+		
+		def tmprj(rs: Set[SemRole]) = {
+			if (rs == roles) {
+				tmref.to
+			} else {
+				assert(rs.subsetOf(roles))
+				tmref.to.engine.getPI(tmref.to, rs)
+			}
+		}
+		
+		def tmprjAux(rs: Set[SemRole]) = {
+			if (rs == roles) {
+				//tmref.to.setAux()
+				tmref.to
+			} else {
+				assert(rs.subsetOf(roles))
+				tmref.to.engine.auxPI(tmref.to, rs)
+			}
+		}
+		
+		//def setAux() { tmref.to.setAux() }
+		
+		def checkNonEmpty = {
+			tmref.to.engine.explore()
+			tmref.to.knownNE
+		}
+		
+		def claimNonEmpty() { tmref.to.notEmpty() }
+		
+		def checkSubsume(that: Term) = {
+			val crs = roles.intersect(that.roles)
+			if (crs.isEmpty) {
+				if (roles.size == 1 && that.roles.size == 1) {
+					tmref.to.engine.explore()
+					tmref.to == that.tmref.to || tmref.to.hasSuper(that.tmref.to)
+				} else {
+					false
+				}
+			} else {
+				tmref.to.engine.explore()
+				val a = tmprj(crs)
+				val b = that.tmprj(crs)
+				a == b || a.hasSuper(b)
+			}
+		}
+		
+		def claimSubsume(that: Term) {
+			val crs = roles.intersect(that.roles)
+			if (!crs.isEmpty) {
+				tmprj(crs).subsume(that.tmprj(crs))
+			} else if (roles.size == 1 && that.roles.size == 1) {
+				tmref.to.subsume(that.tmref.to)
+			}
+		}
+		
+		def checkDisjoint(that: Term) = {
+			val crs = roles.intersect(that.roles)
+			if (crs.isEmpty) {
+				if (roles.size == 1 && that.roles.size == 1) {
+					tmref.to.engine.explore()
+					tmref.to.hasDjt(that.tmref.to)
+				} else {
+					true
+				}
+			} else {
+				tmref.to.engine.explore()
+				val a = tmprj(crs)
+				val b = that.tmprj(crs)
+				a.hasDjt(b)
+			}
+		}
+		
+		def claimDisjoint(that: Term) {
+			val crs = roles.intersect(that.roles)
+			if (!crs.isEmpty) {
+				tmprj(crs).disjoint(that.tmprj(crs))
+			} else if (roles.size == 1 && that.roles.size == 1) {
+				tmref.to.disjoint(that.tmref.to)
+			}
+		}
+	}
+	
+	class PRED(val word: String, val sign: Boolean) extends Term {
+		
+		private[this] var mgr = null:RoleMgr
+		
+		def roles = {
+			val pre = mgr.getRole(word)
+			if (pre.isEmpty) {
+				val ret = Set(SemRole.Argument)
+				mgr.addRoles(word, ret)
+				ret
+			} else {
+				pre
+			}
+		}
+		
+		def tmref = mgr.getTermRef(word, sign)
+		
+		private[inference] def register(rs: Set[SemRole], m: RoleMgr) {
+			mgr = m
+			m.addRoles(word, rs)
+		}
+	}
+	
+	class IA(val terms: Set[Term]) extends Term {
+		
+		private[this] var rcache = null:Set[SemRole]
+		def roles = if (rcache != null) rcache else {
+			val ret = terms.head.roles.filter(x => terms.tail.forall(_.roles.contains(x)))
+			rcache = ret
+			ret
+		}
+		
+		private[this] var tcache = null:IETermRef
+		def tmref = if (tcache != null) tcache else {
+			assert(!roles.isEmpty)
+			val engine = terms.head.tmref.to.engine
+			val ret = engine.getIN(terms.map(_.tmprj(roles))).ref
+			tcache = ret
+			ret
+		}
+		
+		private[inference] def register(rs: Set[SemRole], m: RoleMgr) {
+			rcache = null
+			tcache = null
+			terms.foreach(_.register(rs, m))
+		}
+	}
+	
+	class IR(val core: Term, val sats: Set[(SemRole, PI)]) extends Term {
+		
+		private[this] var rcache = null:Set[SemRole]
+		def roles = if (rcache != null) rcache else {
+			val ret = core.roles
+			rcache = ret
+			ret
+		}
+		
+		private[this] var tcache = null:IETermRef
+		def tmref = if (tcache != null) tcache else {
+			val engine = core.tmref.to.engine
+			val srs = sats.map(_._1)
+			val side = for (r <- srs) yield {
+				val fil = sats.filter(_._1 == r)
+				val pre = engine.getIN(fil.map(_._2.tmref.to))
+				val rrs = roles - r
+				if (rrs.isEmpty) {
+					pre
+				} else {
+					val of = Set((engine.getW(rrs), if (rrs.size == 1) rrs.head else null), (pre, r))
+					engine.getCP(of)
+				}
+			}
+			val ret = engine.getIN(side + core.tmref.to).ref
+			tcache = ret
+			ret
+		}
+		
+		private[inference] def register(rs: Set[SemRole], m: RoleMgr) {
+			rcache = null
+			tcache = null
+			val coreg = {
+				val tmp = rs ++ sats.map(_._1)
+//				if (tmp.isEmpty) {
+//					println("marker !")
+//					Set(SemRole.Argument)
+//				} else {
+					tmp
+//				}
+			}
+			core.register(coreg, m)
+			sats.foreach(_._2.register(null, m))
+		}
+	}
+	
+	class PI(val term: Term, val intoR: SemRole) extends Term {
+		
+		val roles = Set(intoR)
+		
+		private[this] var tcache = null:IETermRef
+		def tmref = if (tcache != null) tcache else {
+			val ret = term.tmprj(roles).ref
+			tcache = ret
+			ret
+		}
+		
+		private[inference] def register(rs: Set[SemRole], m: RoleMgr) {
+			tcache = null
+			term.register(roles, m)
+		}
+	}
+
+	class PIAux(val term: Term, val intoR: SemRole) extends Term {
+		
+		val roles = Set(intoR)
+		
+		private[this] var tcache = null:IETermRef
+		def tmref = if (tcache != null) tcache else {
+			val ret = term.tmprjAux(roles).ref
+			tcache = ret
+			ret
+		}
+		
+		private[inference] def register(rs: Set[SemRole], m: RoleMgr) {
+			tcache = null
+			term.register(roles, m)
+		}
+	}
+
+	class PO(val term: Term, val dropR: SemRole) extends Term {
+		
+		private[this] var rcache = null:Set[SemRole]
+		def roles = if (rcache != null) rcache else {
+			val ret = term.roles - dropR
+			rcache = ret
+			ret
+		}
+		
+		private[this] var tcache = null:IETermRef
+		def tmref = if (tcache != null) tcache else {
+			val ret = if (roles.isEmpty) null else term.tmprj(roles).ref
+			tcache = ret
+			ret
+		}
+		
+		private[inference] def register(rs: Set[SemRole], m: RoleMgr) {
+			rcache = null
+			tcache = null
+			term.register(rs + dropR, m)
+		}
+		
+		override def checkNonEmpty = term.checkNonEmpty
+		override def claimNonEmpty() { term.claimNonEmpty() }
+	}
+
+	class DI(val term: Term, val arg: PI, val r: SemRole) extends Term {
+		
+		private[this] var rcache = null:Set[SemRole]
+		def roles = if (rcache != null) rcache else {
+			val ret = term.roles - r
+			rcache = ret
+			ret
+		}
+		
+		private[this] var tcache = null:IETermRef
+		def tmref = if (tcache != null) tcache else {
+			val ret = if (roles.isEmpty) null else {
+				val engine = term.tmref.to.engine
+				val rs = if (roles.size == 1) null else roles
+				val genesis = "DI[/" + r + "](" + term.tmref + "," + arg.tmref + ")" + IETerm.roleStr(rs)
+				val tm = engine.newTerm(rs, genesis)
+				Rules.DI(tm, term.tmref.to, arg.tmref.to, r)
+				tm.ref
+			}
+			tcache = ret
+			ret
+		}
+		
+		private[inference] def register(rs: Set[SemRole], m: RoleMgr) {
+			rcache = null
+			tcache = null
+			term.register(rs + r, m)
+			arg.register(null, m)
+		}
+		
+		override def checkNonEmpty = {
+			if (!roles.isEmpty) {
+				super.checkNonEmpty
+			} else {
+				arg.checkSubsume(term)
+			}
+		}
+		override def claimNonEmpty() {
+			if (!roles.isEmpty) {
+				super.claimNonEmpty()
+			} else {
+				arg.claimSubsume(term)
+			}
+		}
+	}
+	
+	class DE(val term: Term, val arg: PI, val r: SemRole) extends Term {
+		
+		private[this] var rcache = null:Set[SemRole]
+		def roles = if (rcache != null) rcache else {
+			val ret = term.roles - r
+			rcache = ret
+			ret
+		}
+		
+		private[this] var tcache = null:IETermRef
+		def tmref = if (tcache != null) tcache else {
+			val ret = if (roles.isEmpty) null else {
+				val engine = term.tmref.to.engine
+				val rs = if (roles.size == 1) null else roles
+				val genesis = "DE[/" + r + "](" + term.tmref + "," + arg.tmref + ")" + IETerm.roleStr(rs)
+				val tm = engine.newTerm(rs, genesis)
+				Rules.DE(tm, term.tmref.to, arg.tmref.to, r)
+				tm.ref
+			}
+			tcache = ret
+			ret
+		}
+		
+		private[inference] def register(rs: Set[SemRole], m: RoleMgr) {
+			rcache = null
+			tcache = null
+			term.register(rs + r, m)
+			arg.register(null, m)
+		}
+		
+		override def checkNonEmpty = {
+			if (!roles.isEmpty) {
+				super.checkNonEmpty
+			} else {
+				arg.checkSubsume(term) && term.checkSubsume(arg)
+			}
+		}
+		override def claimNonEmpty() {
+			if (!roles.isEmpty) {
+				super.claimNonEmpty()
+			} else {
+				arg.claimSubsume(term)
+				term.claimSubsume(arg)
+			}
+		}
+	}
+}

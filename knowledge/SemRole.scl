@@ -1,0 +1,10 @@
+package tifmo
+
+
+package knowledge {
+	
+	object SemRole extends Enumeration {
+		type SemRole = Value
+		val SBJ,OBJ,IOBJ,ARG,THG,AIM,POSS,TIME = Value
+	}
+}

@@ -1,0 +1,181 @@
+package tifmo
+
+import knowledge.SemRole.SemRole
+import knowledge.WordInfo
+import stree.Qtfier.Qtfier
+import inference.Slction
+import scala.util.Sorting
+
+package stree {
+	
+	class STreeNode(
+		val word: WordInfo,
+		val coref: String,
+		val outRole: SemRole,
+		val qtfier: Qtfier,
+		val slction: Slction,
+		val children: List[(SemRole, STreeNode)]
+	) {
+		val weight: Int = (1 /: children)(_ + _._2.weight)
+		
+		private[this] var prt = null:STreeNode
+		private[stree] def parent_=(x: STreeNode) {
+			assert(x != null)
+			assert(prt == null)
+			prt = x
+		}
+		def parent = prt
+		
+		val execorder = {
+			val roles = (children.map(_._1).toSet + outRole) - null
+			
+			def orderfunc(r: SemRole) = if (r == outRole) {
+				children.lastIndexWhere(x => x._1 != outRole && x._2.qtfier != null).toDouble + 0.5
+			} else {
+				children.lastIndexWhere(_._1 == r).toDouble
+			}
+			
+			Sorting.stableSort[SemRole, Double](roles.toList, orderfunc(_)).toList
+		}
+		val gathered = execorder.map(r => {
+			val fil = children.filter(y => y._1 == r && y._2.qtfier != null)
+			if (fil.isEmpty) {
+				(r, null)
+			} else {
+				assert(fil.size == 1)
+				(r, fil.head._2)
+			}
+		}).toMap
+		
+		def execute(a: Term, r: SemRole) = {
+			if (gathered(r) == null || gathered(r).halfexecPI == null) {
+				PO(a, r)
+			} else {
+				gathered(r).qtfier match {
+					case Qtfier.ALL => {
+						DI(a, gathered(r).halfexecPI, r)
+					}
+					case Qtfier.EXACTLY => {
+						DE(a, gathered(r).halfexecPI, r)
+					}
+					case Qtfier.NO => {
+						DU(a, gathered(r).halfexecPI, r)
+					}
+				}
+			}
+		}
+		
+		private[this] var aprx = null:Term
+		def approx = aprx
+		def approximation(anaph: PI) {
+			val core = WORD(word)
+			val presats = for {
+				(r, c) <- children
+				if c.qtfier == null
+				cout = c.halfexecPI
+				if cout != null
+			} yield ((r, cout))
+			val sats = if (anaph != null && outRole != null) {
+				presats.toSet + ((outRole, anaph))
+			} else {
+				presats.toSet
+			}
+			aprx = IR(core, sats)
+		}
+		
+		private[this] var slct = null:Term
+		def select = slct
+		def selection() {
+			slct = if (slction == null) approx else SL(approx, slction)
+		}
+		
+		private[this] var hfex = null:Term
+		def halfexec = hfex
+		private[this] var hfexPI = null:PI
+		def halfexecPI = hfexPI
+		def setAnaphora(anaph: PI) {
+			hfexPI = anaph
+		}
+		def halfExecution(roles: Set[SemRole]) {
+			assert(execorder.forall(roles.contains(_)))
+			val tmp = (select /: (roles -- execorder))((a, r) => {
+				PO(a, r)
+			})
+			val toexec = execorder.takeWhile(_ != outRole)
+			hfex = (tmp /: toexec)((a, r) => {
+				execute(a, r)
+			})
+			if (outRole != null) hfexPI = new PI(hfex, outRole)
+		}
+		
+		lazy val refRole = {
+			if (parent == null || qtfier != null) {
+				null
+			} else {
+				parent.children.find(_._2 == this) match {
+					case Some((r, x)) => r
+					case None => throw new Exception("error tree!")
+				}
+			}
+		}
+		
+		lazy val refPI = {
+			if (parent == null || qtfier != null) {
+				null
+			} else {
+				new PI(parent.refine, refRole)
+			}
+		}
+		
+		private[this] var rfne = null:Term
+		def refine = rfne
+		def refinement() {
+			rfne = if (parent == null || qtfier != null) {
+				select
+			} else {
+				IR(select, Set((outRole, refPI)))
+			}
+		}
+		
+		private[this] var flex = null:Term
+		def fullexec = flex
+		private[this] var ntrvl = false
+		def nontrivial = ntrvl
+		private[this] var atst = null:List[AtomSt]
+		def atomst = atst
+		def fullExecution() = {
+			
+			val halfdash = if (parent == null || qtfier != null) {
+				halfexec
+			} else {
+				IR(halfexec, Set((outRole, refPI)))
+			}
+			
+			val toexec = execorder.dropWhile(_ != outRole)
+			
+			flex = (halfdash /: toexec)((a, r) => {
+				execute(a, r)
+			})
+			
+			ntrvl = (parent == null || toexec.exists(r => gathered(r) != null && gathered(r).halfexecPI != null))
+			
+			atst = fullexec match {
+				case PO(tm, r) => {
+					NonEmpty(new PI(tm, r)) :: Nil
+				}
+				case DI(tm, arg, r) => {
+					Subsume(arg, new PI(tm, r)) :: Nil
+				}
+				case DU(tm, arg, r) => {
+					Disjoint(arg, new PI(tm, r)) :: Nil
+				}
+				case DE(tm, arg, r) => {
+					Subsume(arg, new PI(tm, r)) :: Subsume(new PI(tm, r), arg) :: Nil
+				}
+				case _ => Nil
+			}
+		}
+		
+		override def toString = word.toString
+	}
+}

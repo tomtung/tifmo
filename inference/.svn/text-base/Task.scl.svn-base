@@ -1,0 +1,74 @@
+package rite.main
+
+
+import scala.collection.mutable
+import model.SemRole
+
+package inference {
+	
+	abstract class Task {
+		def run(): Unit
+	}
+	
+	private[inference] class NotEmptyDo(x: IETerm) extends Task {
+		def run() {
+			//println("not empty begin")
+			x.notEmpty()
+			//println("not empty end")
+		}
+	}
+	
+	private[inference] class SubsumeDo(x: IETerm, y: IETerm) extends Task {
+		def run() {
+			//println("subsume begin")
+			x.subsume(y)
+			//println("subsume end")
+		}
+	}
+	
+	private[inference] class DisjointDo(x: IETerm, y: IETerm) extends Task {
+		
+		def run() {
+			//println("disjoint begin")
+			x.disjoint(y)
+			//println("disjoint end")
+		}
+	}
+	
+	private[inference] class IsCPDo(x: IETerm, of: Set[(IETerm, SemRole)]) extends Task {
+		def run() {
+			//println("isCP begin")
+			x.isCP(of)
+			//println("isCP end")
+		}
+	}
+	
+	private[inference] class IsINDo(x: IETerm, of: Set[IETerm]) extends Task {
+		def run() {
+			//println("isIN begin")
+			x.isIN(of)
+			//println("isIN end")
+		}
+	}
+	
+	private[inference] class IsPIDo(x: IETerm, of: IETerm, r: SemRole) extends Task {
+		def run() {
+			//println("isPI begin")
+			x.isPI(of, r)
+			//println("isPI end")
+		}
+	}
+	
+	
+	private[inference] class MergeDo(x: IETerm, y: IETerm) extends Task {
+		val xr = x.ref
+		val yr = y.ref
+		def run() { IETerm.merge(xr.to, yr.to) }
+	}
+	/*
+	private[inference] class MergeIIDo(x: IETerm, y: IETerm) extends Task {
+		val xr = x.ref
+		val yr = y.ref
+		def run() { IETerm.mergeII(xr.to, yr.to) }
+	}*/
+}

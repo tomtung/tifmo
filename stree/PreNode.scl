@@ -1,0 +1,44 @@
+package tifmo
+
+import knowledge.SemRole.SemRole
+import knowledge.WordInfo
+import stree.Qtfier.Qtfier
+import inference.Slction
+import scala.collection.mutable
+import scala.util.Sorting
+
+package stree {
+	
+	class PreNode {
+		
+		var word = null:WordInfo
+		
+		var coref = null:String
+		
+		var outr = null:SemRole
+		
+		var qtfier = null:Qtfier
+		
+		var slction = null:Slction
+		
+		
+		private var prt = null:PreNode
+		private[this] var children = mutable.Map.empty[(SemRole, PreNode), Int]
+		
+		def parent = prt
+		
+		def addChild(irole: SemRole, child: PreNode, index: Int) {
+			child.prt = this
+			children((irole, child)) = -index
+		}
+		
+		lazy val sortedChildren = {
+			Sorting.stableSort[(SemRole, PreNode), Int](children.keys.toList, children(_))
+		}
+		
+		
+		private[stree] var correspondingSTreeNode = null:STreeNode
+		
+		override def toString = word.toString
+	}
+}

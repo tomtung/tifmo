@@ -1,0 +1,267 @@
+package tifmo
+
+import knowledge.SemRole.SemRole
+import knowledge.WordInfo
+import inference.IETermRef
+import inference.IEBasic
+import inference.Slction
+
+package stree {
+	
+	class Path(val acc: PI, val src: List[PI]) {
+		
+		private[this] var lger = null:List[Path]
+		private[stree] def longer_=(x: List[Path]) {
+			assert(lger == null)
+			lger = x
+		}
+		def longer = lger
+		
+		override def toString = src.map(_.term.word).mkString("", "--", "")
+	}
+	
+	class PI(val term: Term, val intoR: SemRole) {
+		
+		private[this] var pcst = null:IETermRef
+		def piconst = pcst
+		private[this] var itmr = null:IETermRef
+		def ietmref = itmr
+		def setup(ie: IEBasic) {
+			if (ietmref == null) {
+				term.setup(ie)
+				itmr = if (term.ietmref.to.roles == null) {
+					term.ietmref
+				} else {
+					ie.getPI(term.ietmref.to, Set(intoR)).ref
+				}
+				val cstr = ie.getConstant(term.word.lex)
+				pcst = if (cstr.to.roles == null) {
+					cstr
+				} else {
+					ie.getPI(cstr.to, Set(intoR)).ref
+				}
+			}
+		}
+		def clear() {
+			pcst = null
+			itmr = null
+		}
+		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit) {
+			term.demandRoles(setLexRoles, Set(intoR))
+		}
+		
+		lazy val paths: List[Path] = {
+			
+			def construct(x: Term): (Term, List[List[(Term, Path)]]) = x match {
+				case IR(core, sats) => {
+					val (a, l) = construct(core)
+					val retl = (for ((r, pi) <- sats.toList) yield {
+						for (p <- pi.paths) yield {
+							(IR(a, Set((r, p.acc))), p)
+						}
+					}) ::: l.map(_.map(y => (IR(y._1, Set.empty[(SemRole, PI)]), y._2)))
+					(IR(a, Set.empty[(SemRole, PI)]), retl)
+				}
+				case PO(tm, r) => {
+					val (a, l) = construct(tm)
+					(PO(a, r), l.map(_.map(y => (PO(y._1, r), y._2))))
+				}
+				case DI(tm, arg, r) => {
+					val (a, l) = construct(tm)
+					(DI(a, arg, r), l.map(_.map(y => (DI(y._1, arg, r), y._2))))
+				}
+				case _ => (x, Nil)
+			}
+			
+			val (a, l) = construct(term)
+			val start = new Path(new PI(a, intoR), List(this))
+			val pll = l.map(_.map(y => {
+				val acc = new PI(y._1, intoR)
+				(new Path(acc, this :: y._2.src), y._2)
+			}))
+			for (pl <- pll; (hgp, p) <- pl) {
+				hgp.longer = p.longer.map(x => pl.find(_._2 == x) match {
+					case Some((lhp, lp)) => lhp
+					case None => throw new Exception("weird path!!")
+				})
+			}
+			start.longer = pll.map(_.head._1)
+			start :: pll.flatMap(_.map(_._1))
+		}
+		
+		override def equals(a: Any) = {
+			if (a.isInstanceOf[PI]) {
+				val that = a.asInstanceOf[PI]
+				term == that.term && intoR == that.intoR
+			} else {
+				false
+			}
+		}
+		override lazy val hashCode = (("PI", term, intoR)).hashCode
+		override def toString = "PI[" + intoR + "](" + term + ")"
+	}
+	
+	sealed abstract class Term {
+		def word: WordInfo
+		def ietmref: IETermRef
+		def setup(ie: IEBasic): Unit
+		def clear(): Unit
+		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit, rs: Set[SemRole]): Unit
+	}
+	
+	case class WORD(word: WordInfo) extends Term {
+		private[this] var itmr = null:IETermRef
+		def ietmref = itmr
+		def setup(ie: IEBasic) {
+			if (ietmref == null) {
+				itmr = if (word.sign) {
+					ie.getConstant(word.lex)
+				} else {
+					ie.getComp(ie.getConstant(word.lex).to).ref
+				}
+			}
+		}
+		def clear() {
+			itmr = null
+		}
+		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit, rs: Set[SemRole]) {
+			setLexRoles(word.lex, rs)
+		}
+	}
+	
+	case class IR(core: Term, sats: Set[(SemRole, PI)]) extends Term {
+		def word = core.word
+		private[this] var itmr = null:IETermRef
+		def ietmref = itmr
+		def setup(ie: IEBasic) {
+			if (ietmref == null) {
+				core.setup(ie)
+				sats.foreach(_._2.setup(ie))
+				itmr = {
+					val coretm = core.ietmref.to
+					val side = if (coretm.roles == null) {
+						sats.map(_._2.ietmref.to)
+					} else if (coretm.roles.size == 2) {
+						sats.map(x => ie.getCP(Set((x._2.ietmref.to, x._1), (ie.getW(null), (coretm.roles - x._1).head))))
+					} else {
+						sats.map(x => ie.getCP(Set((x._2.ietmref.to, x._1), (ie.getW(coretm.roles - x._1), null))))
+					}
+					ie.getIN(side + coretm).ref
+				}
+			}
+		}
+		def clear() {
+			itmr = null
+			core.clear()
+			sats.foreach(_._2.clear())
+		}
+		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit, rs: Set[SemRole]) {
+			core.demandRoles(setLexRoles, rs ++ sats.map(_._1))
+			sats.foreach(_._2.demandRoles(setLexRoles))
+		}
+	}
+	
+	case class PO(term: Term, dropR: SemRole) extends Term {
+		def word = term.word
+		private[this] var itmr = null:IETermRef
+		def ietmref = itmr
+		def setup(ie: IEBasic) {
+			if (ietmref == null) {
+				term.setup(ie)
+				itmr = ie.getPI(term.ietmref.to, term.ietmref.to.roles - dropR).ref
+			}
+		}
+		def clear() {
+			itmr = null
+			term.clear()
+		}
+		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit, rs: Set[SemRole]) {
+			term.demandRoles(setLexRoles, rs + dropR)
+		}
+	}
+	
+	case class DI(term: Term, arg: PI, r: SemRole) extends Term {
+		def word = term.word
+		private[this] var itmr = null:IETermRef
+		def ietmref = itmr
+		def setup(ie: IEBasic) {
+			if (ietmref == null) {
+				term.setup(ie)
+				arg.setup(ie)
+				itmr = ie.getDI(term.ietmref.to, arg.ietmref.to, r).ref
+			}
+		}
+		def clear() {
+			itmr = null
+			term.clear()
+			arg.clear()
+		}
+		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit, rs: Set[SemRole]) {
+			term.demandRoles(setLexRoles, rs + r)
+			arg.demandRoles(setLexRoles)
+		}
+	}
+	
+	case class DU(term: Term, arg: PI, r: SemRole) extends Term {
+		def word = term.word
+		private[this] var itmr = null:IETermRef
+		def ietmref = itmr
+		def setup(ie: IEBasic) {
+			if (ietmref == null) {
+				term.setup(ie)
+				arg.setup(ie)
+				itmr = ie.getDU(term.ietmref.to, arg.ietmref.to, r).ref
+			}
+		}
+		def clear() {
+			itmr = null
+			term.clear()
+			arg.clear()
+		}
+		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit, rs: Set[SemRole]) {
+			term.demandRoles(setLexRoles, rs + r)
+			arg.demandRoles(setLexRoles)
+		}
+	}
+	
+	case class DE(term: Term, arg: PI, r: SemRole) extends Term {
+		def word = term.word
+		private[this] var itmr = null:IETermRef
+		def ietmref = itmr
+		def setup(ie: IEBasic) {
+			if (ietmref == null) {
+				term.setup(ie)
+				arg.setup(ie)
+				itmr = ie.getDE(term.ietmref.to, arg.ietmref.to, r).ref
+			}
+		}
+		def clear() {
+			itmr = null
+			term.clear()
+			arg.clear()
+		}
+		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit, rs: Set[SemRole]) {
+			term.demandRoles(setLexRoles, rs + r)
+			arg.demandRoles(setLexRoles)
+		}
+	}
+	
+	case class SL(term: Term, sel: Slction) extends Term {
+		def word = term.word
+		private[this] var itmr = null:IETermRef
+		def ietmref = itmr
+		def setup(ie: IEBasic) {
+			if (ietmref == null) {
+				term.setup(ie)
+				itmr = ie.getSL(term.ietmref.to, sel).ref
+			}
+		}
+		def clear() {
+			itmr = null
+			term.clear()
+		}
+		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit, rs: Set[SemRole]) {
+			term.demandRoles(setLexRoles, rs)
+		}
+	}
+}

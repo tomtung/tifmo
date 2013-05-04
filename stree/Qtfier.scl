@@ -1,0 +1,9 @@
+package tifmo
+
+package stree {
+	
+	object Qtfier extends Enumeration {
+		type Qtfier = Value
+		val ALL,EXACTLY,NO = Value
+	}
+}

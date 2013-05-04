@@ -1,0 +1,21 @@
+package tifmo
+
+import knowledge.SemRole.SemRole
+import inference.IEBasic
+
+package stree {
+	
+	class Schema {
+		
+		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit) {
+			
+		}
+		
+		def apply(x: PI) = {
+			
+			
+			Nil:List[AtomSt]
+		}
+		
+	}
+}

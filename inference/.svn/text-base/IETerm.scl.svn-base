@@ -1,0 +1,1235 @@
+package rite.main
+
+/** This is the implementation of an Inference Engine Term.
+  * An instance of the IETerm class stores all the statements it is known 
+  * to satisfy, in a form represented as relations with other IETerms. 
+  * Those relations pointing to other terms also serve as an indexing,
+  * which can be used to find certain terms.
+  */
+
+import scala.collection.mutable
+import mylib.listPartitions
+import mylib.listCoverings
+import mylib.oneFromEach
+import mylib.commPartition
+import mylib.mSet
+import model.SemRole
+
+package inference {
+
+	class IETermRef(orig: IETerm) {
+		
+		private[inference] var t = orig
+		
+		def to: IETerm = {
+			if (t != t.ref.t) t = t.ref.to
+			t
+		}
+		
+		override def toString = to.toString
+	}
+
+	private[inference] class WTerm(rs: Set[SemRole], ie: InferenceEngine) 
+		extends IETerm(rs, "W" + IETerm.roleStr(rs), ie) {
+		
+		override val isW = true
+		
+		notEmpty()
+		if (roles != null) isCP(roles.map((engine.W, _)))
+	}
+
+	private[inference] class AuxTerm(rs: Set[SemRole], gen: String, ie: InferenceEngine) 
+		extends IETerm(rs, gen, ie) {
+		
+		assert(roles == null || (roles.size >= 2 && !roles.contains(null)))
+		
+		override val aux = true
+		override private[inference] def setAux() {}
+	}
+
+	class IETerm(val roles: Set[SemRole], val genesis: String, val engine: InferenceEngine) {
+		
+		assert(roles == null || (roles.size >= 2 && !roles.contains(null)))
+		
+		val ref = new IETermRef(this)
+		
+		val isW = false
+		private[this] var ax = false
+		def aux = ax
+		private[inference] def setAux() { ax = true }
+		
+		//////////////////////////////////////////////////////////////////
+		private var kne = false
+		def knownNE = kne
+		
+		private val supers = mutable.Set.empty[IETerm]
+		def supersets = supers.toSet
+		def superSize = supers.size
+		def hasSuper(x: IETerm) = supers.contains(x)
+		
+		private val subs = mutable.Set.empty[IETerm]
+		def subsets = subs.toSet
+		def subSize = subs.size
+		def hasSub(x: IETerm) = subs.contains(x)
+		
+		private val djts = mutable.Set.empty[IETerm]
+		def djtsets = djts.toSet
+		def djtSize = djts.size
+		def hasDjt(x: IETerm) = djts.contains(x)
+		
+		private val cps = mutable.Set.empty[Set[(IETerm, SemRole)]]
+		def asCP = cps.toSet
+		def cpSize = cps.size
+		def hasCP(x: Set[(IETerm, SemRole)]) = cps.contains(x)
+		private val hkCP = mutable.Set.empty[IETerm]
+		
+		private val ins = mutable.Set.empty[Set[IETerm]]
+		def insets = ins.toSet
+		def inSize = ins.size
+		def asIN = {
+			val bs = insets.map((_, Set.empty[Set[IETerm]]))
+			calcIN(bs, mutable.Map.empty[IETerm, Set[IETerm]])
+		}
+		def hasIN(x: Set[IETerm]) = {
+			x.forall(y => y == this || hasSuper(y)) && {
+				val basis = x.flatMap(_.wholeIN)
+				ins.exists(_.subsetOf(basis))
+			}
+		}
+		private val hkIN = mutable.Set.empty[IETerm]
+		private val asINcache = mutable.Set.empty[Set[IETerm]]
+		private def wholeIN = (supersets + this).filter(_.inSize == 0)
+		private def calcIN(bs: Set[(Set[IETerm], Set[Set[IETerm]])], 
+				wholeCache: mutable.Map[IETerm, Set[IETerm]]) = {
+			def whole(x: IETerm) = {
+				if (wholeCache.contains(x)) {
+					wholeCache(x)
+				} else {
+					val ret = x.wholeIN
+					wholeCache(x) = ret
+					ret
+				}
+			}
+			val ret = mutable.Set.empty[Set[IETerm]]
+			for ((b, s) <- bs) {
+				val cands = b.flatMap(x => (x.subsets + x).filter(y => !y.aux && hasSuper(y))).map(x => (whole(x), x)).toMap
+				ret ++= listCoverings[IETerm](b, s, cands.keySet).map(_.map(cands(_)).toSet)
+			}
+			ret.toSet
+		}
+		
+		private val pis = mutable.Set.empty[(IETerm, SemRole)]
+		def asPI = pis.toSet
+		def piSize = pis.size
+		def hasPI(x: IETerm, r: SemRole) = pis.contains((x, r))
+		private val hkPI = mutable.Map.empty[Set[SemRole], IETerm]
+		///////////////////////////////////////////////////////////////////
+		
+		private[this] val neListeners = new mSet[() => Unit]
+		private[inference] def ifNotEmpty(dep: Set[IETerm], f: () => Unit) {
+			val depx = dep + this
+			if (depx.forall(y => y.ref.to == y)) {
+				if (knownNE) f() else {
+					object todis {
+						val dis: (IETerm) => Unit = (x) => {
+							neListeners.remove(f)
+							depx.foreach(_.disposers.remove(dis))
+						}
+					}
+					depx.foreach(_.disposers.add(todis.dis))
+					neListeners.add(f)
+				}
+			}
+		}
+		private def notifyNE() { neListeners.foreach(_()); neListeners.clear() }
+		
+		private[this] val superListeners = new mSet[(IETerm) => Unit]
+		private[inference] def foreachSuper(dep: Set[IETerm], f: (IETerm) => Unit) {
+			val depx = dep + this
+			if (depx.forall(y => y.ref.to == y)) {
+				f(this)
+				supersets.foreach(f(_))
+				object todis {
+					val dis: (IETerm) => Unit = (x) => {
+						superListeners.remove(f)
+						depx.foreach(_.disposers.remove(dis))
+					}
+				}
+				depx.foreach(_.disposers.add(todis.dis))
+				superListeners.add(f)
+			}
+		}
+		private def notifySuper(that: IETerm) { superListeners.foreach(_(that)) }
+		
+		private[this] val subListeners = new mSet[(IETerm) => Unit]
+		private[inference] def foreachSub(dep: Set[IETerm], f: (IETerm) => Unit) {
+			val depx = dep + this
+			if (depx.forall(y => y.ref.to == y)) {
+				f(this)
+				subsets.foreach(f(_))
+				object todis {
+					val dis: (IETerm) => Unit = (x) => {
+						subListeners.remove(f)
+						depx.foreach(_.disposers.remove(dis))
+					}
+				}
+				depx.foreach(_.disposers.add(todis.dis))
+				subListeners.add(f)
+			}
+		}
+		private def notifySub(that: IETerm) { subListeners.foreach(_(that)) }
+		
+		private[this] val djtListeners = new mSet[(IETerm) => Unit]
+		private[inference] def foreachDjt(dep: Set[IETerm], f: (IETerm) => Unit) {
+			val depx = dep + this
+			if (depx.forall(y => y.ref.to == y)) {
+				djtsets.foreach(f(_))
+				object todis {
+					val dis: (IETerm) => Unit = (x) => {
+						djtListeners.remove(f)
+						depx.foreach(_.disposers.remove(dis))
+					}
+				}
+				depx.foreach(_.disposers.add(todis.dis))
+				djtListeners.add(f)
+			}
+		}
+		private def notifyDjt(that: IETerm) { djtListeners.foreach(_(that)) }
+		
+		private[this] val cpListeners = new mSet[(Set[(IETerm, SemRole)]) => Unit]
+		private[inference] def asforCP(dep: Set[IETerm], f: (Set[(IETerm, SemRole)]) => Unit) {
+			val depx = dep + this
+			if (depx.forall(y => y.ref.to == y) && roles != null) {
+				f(Set((this, null)))
+				asCP.foreach(f(_))
+				object todis {
+					val dis: (IETerm) => Unit = (x) => {
+						cpListeners.remove(f)
+						depx.foreach(_.disposers.remove(dis))
+					}
+				}
+				depx.foreach(_.disposers.add(todis.dis))
+				cpListeners.add(f)
+			}
+		}
+		private def notifyCP(of: Set[(IETerm, SemRole)]) { cpListeners.foreach(_(of)) }
+		
+		private[this] val inListeners = new mSet[(Set[IETerm]) => Unit]
+		private[inference] def asforIN(dep: Set[IETerm], f: (Set[IETerm]) => Unit) {
+			val depx = dep + this
+			if (depx.forall(y => y.ref.to == y)) {
+				f(Set(this))
+				asIN.foreach(f(_))
+				object todis {
+					val dis: (IETerm) => Unit = (x) => {
+						inListeners.remove(f)
+						depx.foreach(_.disposers.remove(dis))
+					}
+				}
+				depx.foreach(_.disposers.add(todis.dis))
+				inListeners.add(f)
+			}
+		}
+		private def notifyIN(of: Set[IETerm]) { inListeners.foreach(_(of)) }
+		
+		private[this] val asPIListeners = new mSet[(IETerm, SemRole) => Unit]
+		private[inference] def asforPI(dep: Set[IETerm], f: (IETerm, SemRole) => Unit) {
+			val depx = dep + this
+			if (depx.forall(y => y.ref.to == y)) {
+				asPI.foreach(x => f(x._1, x._2))
+				object todis {
+					val dis: (IETerm) => Unit = (x) => {
+						asPIListeners.remove(f)
+						depx.foreach(_.disposers.remove(dis))
+					}
+				}
+				depx.foreach(_.disposers.add(todis.dis))
+				asPIListeners.add(f)
+			}
+		}
+		private def notifyAsPI(of: IETerm, r: SemRole) { asPIListeners.foreach(_(of, r)) }
+		
+		private[this] val hkPIListeners = new mSet[(Set[SemRole], IETerm) => Unit]
+		private[inference] def whenPrjed(dep: Set[IETerm], f: (Set[SemRole], IETerm) => Unit) {
+			val depx = dep + this
+			if (depx.forall(y => y.ref.to == y) && roles != null) {
+				for ((rs, hk) <- hkPI) f(rs, hk)
+				object todis {
+					val dis: (IETerm) => Unit = (x) => {
+						hkPIListeners.remove(f)
+						depx.foreach(_.disposers.remove(dis))
+					}
+				}
+				depx.foreach(_.disposers.add(todis.dis))
+				hkPIListeners.add(f)
+			}
+		}
+		private def notifyPrjed(rs: Set[SemRole], t: IETerm) { hkPIListeners.foreach(_(rs, t)) }
+		
+		private val disposers = new mSet[(IETerm) => Unit]
+		private[inference] def forSpecific(f: (IETerm) => Unit) {
+			if (ref.to != this) {
+				ref.to.forSpecific(f)
+			} else {
+				f(this)
+				disposers.add(x => f(x))
+			}
+		}
+		
+		///////////////////////////////////////////////////////////////////
+		
+		private def SubPIdo(of: IETerm, rs: Set[SemRole]) {
+			engine.constructPI(of, rs, Set(this), x => if (x != this && !x.hasSuper(this)) engine.addTask(new SubsumeDo(x, this)))
+		}
+		
+		private def INCPdo(ll: Set[Set[Set[(IETerm, SemRole)]]]) {
+			
+			if (!ll.contains(Set.empty[Set[(IETerm, SemRole)]])) {
+			
+				val ls = oneFromEach.map[Set[(IETerm, SemRole)], (Set[Map[Set[SemRole], (IETerm, SemRole)]], Set[Set[SemRole]])](ll, null, 
+					(a, b) => {
+						val rm = IETerm.cpRoleMap(b)
+						if (a == null) {
+							(Set(rm), rm.keySet)
+						} else {
+							(a._1 + rm, commPartition[SemRole](List(a._2, rm.keySet)))
+						}
+					}, _._2.size == 1)
+			
+			//for (l <- oneFromEach[Set[(IETerm, SemRole)]](ll)) {
+			//	val rms = l.map(IETerm.cpRoleMap(_)).toSet
+			//	val part = commPartition[SemRole](rms.map(_.keySet))
+				
+			//	if (part.size >= 2) {
+				for ((rms, part) <- ls) {
+					val tmp0 = (a: Set[(IETerm, SemRole)], b: Set[IETerm]) => {
+						if (!hasCP(a)) engine.addTask(new IsCPDo(this, a))
+					}
+					val tmp2 = (tmp0 /: part)((tmp, pt) => {
+						val r = if (pt.size == 1) pt.head else null
+						val tmp1 = (a: Set[(IETerm, SemRole)], b: Set[IETerm]) => {
+							engine.constructIN(b, a.map(_._1) ++ b + this, 
+								x => tmp(a + ((x, r)), Set.empty[IETerm]))
+						}
+						(tmp1 /: rms)((tmp, rm) => {
+							val fil = rm.keySet.filter(_.subsetOf(pt)).map(rm(_))
+							(a, b) => {
+								engine.constructCP(fil, a.map(_._1) ++ b + this, x => tmp(a, b + x))
+							}
+						})
+					})
+					tmp2(Set.empty[(IETerm, SemRole)], Set.empty[IETerm])
+				}
+			}
+		}
+		
+		private def PIINWCPdo(ll: Set[Set[(Set[(IETerm, SemRole)], Set[(IETerm, SemRole)])]], 
+						out: Set[IETerm], br: Set[SemRole]) {
+			
+			//for (l <- oneFromEach[(Set[(IETerm, SemRole)], Set[(IETerm, SemRole)])](ll)) {
+				
+				val l = ll.flatten
+				
+				val fms = l.map(_._1) //.toSet
+				val alt = l.map(_._2 + ((engine.getW(br), if (br.size == 1) br.head else null))) //.toSet
+				
+				val dep = out + this
+				
+				val tmp0 = (a: Set[IETerm], b: Set[IETerm]) => {
+					engine.constructIN(a ++ out, b + this, x => {
+						engine.constructPI(x, br, b + this, y => {
+							if (!hasIN(b + y)) engine.addTask(new IsINDo(this, b + y))
+						})
+					})
+				}
+				val tmp1 = (tmp0 /: alt)((tmp, x) => {
+					(a, b) => engine.constructCP(x, a ++ b ++ dep, y => tmp(a + y, b))
+				})
+				val tmp2 = (tmp1 /: fms)((tmp, x) => {
+					(a, b) => engine.constructCP(x, a ++ b ++ dep, y => tmp(a, b + y))
+				})
+				tmp2(Set.empty[IETerm], Set.empty[IETerm])
+				
+			//}
+		}
+		
+		///////////////////////////////////////////////////////////////////
+		
+		private[inference] def notEmpty() {
+			
+			var news = Nil:List[IETerm]
+			
+			def setNESuperNE(x: IETerm) {
+				
+				def setNE(x: IETerm) {
+					if (!x.knownNE) {
+						x.kne = true
+						news = x :: news
+						
+						if (x.hasDjt(x)) engine.contradict(x)
+						for (hk <- x.hkCP; hkof <- hk.asCP) {
+							val fil = hkof.filter(!_._1.knownNE)
+							if (fil.isEmpty) {
+								setNESuperNE(hk)
+								for ((t, r) <- hkof) if (!t.hasPI(hk, r)) engine.addTask(new IsPIDo(t, hk, r))
+							} else if (fil.size == 1) {
+								val (t, r) = fil.head
+								if (!t.hasPI(hk, r)) engine.addTask(new IsPIDo(t, hk, r))
+							}
+						}
+						x.asCP.foreach(_.foreach(y => setNESuperNE(y._1)))
+						x.asPI.foreach(y => setNESuperNE(y._1))
+						x.hkPI.values.foreach(setNESuperNE(_))
+					}
+				}
+				
+				if (!x.knownNE) {
+					setNE(x)
+					x.supersets.foreach(setNE(_))
+				}
+			}
+			
+			setNESuperNE(this)
+			
+			for (x <- news) {
+				for (hk <- x.hkCP; if !hk.knownNE && hk.hasDjt(hk); hkof <- hk.asCP) {
+					val fil = hkof.map(_._1).filter(!_.knownNE)
+					if (fil.size == 1) {
+						val h = fil.head
+						if (!h.hasDjt(h)) engine.addTask(new DisjointDo(h, h))
+					}
+				}
+			}
+			
+			for (x <- news) {
+				x.notifyNE()
+			}
+		}
+		
+		def subsume(that: IETerm) {
+			
+			var newsIN = Nil:List[(IETerm, Set[IETerm])]
+			var newsSub = Nil:List[(IETerm, IETerm)]
+			
+			def check(a: IETerm, c: IETerm) = {
+				if (a == c || a.hasSuper(c)) {
+					false
+				} else if (a.hasSub(c)) {
+					engine.addProc(new MergeDo(a, c))
+					false
+				} else {
+					true
+				}
+			}
+			
+			def addSuper(a: IETerm, c: IETerm) {
+				def addSuperSuper(a: IETerm, c: IETerm) {
+					def addSuperOne(a: IETerm, c: IETerm) {
+						if (check(a, c)) {
+							a.supers.add(c)
+							c.subs.add(a)
+							newsSub = (a, c) :: newsSub
+							
+							if (c.inSize == 0) {
+								for (hk <- c.hkIN) {
+									for(bs <- hk.insets; if bs.contains(c)) {
+										if (bs.forall(_.hasSub(a))) {
+											addSuper(a, hk)
+										}
+										if (bs.contains(a)) {
+											if (!hk.hasIN(bs)) engine.addTask(new IsINDo(hk, bs))
+										}
+									}
+								}
+							}
+							for (ahk <- a.hkCP; chk <- c.hkCP; if ahk.roles == chk.roles && ahk != chk && !ahk.hasSuper(chk)) {
+								def findSuper(ahk: IETerm, chk: IETerm) {
+									for (ahkof <- ahk.asCP; chkof <- chk.asCP) {
+										val arm = IETerm.cpRoleMap(ahkof)
+										val crm = IETerm.cpRoleMap(chkof)
+										if (arm.keySet == crm.keySet) {
+											if (arm.keys.forall(k => arm(k) == crm(k) || arm(k)._1.hasSuper(crm(k)._1))) {
+												addSuper(ahk, chk)
+												return
+											}
+										}
+									}
+								}
+								findSuper(ahk, chk)
+							}
+						}
+					}
+					
+					if (check(a, c)) {
+						addSuperOne(a, c)
+						c.supersets.foreach(addSuperOne(a, _))
+					}
+				}
+				
+				if (check(a, c)) {
+					addSuperSuper(a, c)
+					a.subsets.foreach(addSuperSuper(_, c))
+					
+					if (a.knownNE && !c.knownNE) engine.addTask(new NotEmptyDo(c))
+					c.djtsets.foreach(x => if (!a.hasDjt(x)) engine.addTask(new DisjointDo(a, x)))
+				}
+			}
+			
+			addSuper(this, that)
+			
+			for ((a, b) <- newsSub; if !b.isW) {
+				for ((brs, bhk) <- b.hkPI) {
+					bhk.SubPIdo(a, brs)
+				}
+			}
+			
+			for ((a, c) <- newsSub; if a.cpSize > 0 && c.inSize == 0) {
+				val awhole = a.wholeIN
+				val cache = mutable.Map((a -> awhole))
+				for (hk <- c.hkIN; if !hk.aux && a.hasSub(hk)) {
+					val rb = for(bs <- hk.insets; if bs.contains(c)) yield {
+						val (in, out) = bs.partition(awhole.contains(_))
+						(out, Set(in))
+					}
+					for (ss <- hk.calcIN(rb, cache)) {
+						val cs = ss + a
+						if (hk.asINcache.add(cs)) {
+							hk.INCPdo(cs.map(x => x.asCP.filter(!_.exists(y => y._1.isW && y._2 == null))))
+							for ((br, bt) <- hk.hkPI) {
+								val (in, out) = IETerm.compExtract(cs, br)
+								if (!in.isEmpty) bt.PIINWCPdo(in, out, br)
+							}
+						}
+						//newsIN = (hk, ss + a) :: newsIN
+					}
+				}
+			}
+			
+				
+			for ((a, b) <- newsSub) {
+				a.notifySuper(b)
+				b.notifySub(a)
+			}
+			/*
+			for ((x, of) <- newsIN) {
+				//if (x.asINcache.add(of)) x.notifyIN(of)
+				x.notifyIN(of)
+			}*/
+		}
+		
+		private[inference] def disjoint(that: IETerm) {
+			
+			var news = Nil:List[(IETerm, IETerm)]
+			
+			def addDjt(a: IETerm, b: IETerm) {
+				
+				def djtPair(a: IETerm, b: IETerm) {
+					if (a.djts.add(b)) {
+						news = (a, b) :: news
+						if (a == b) {
+							if (a.knownNE) {
+								engine.contradict(a)
+							} else {
+								for (cpof <- a.asCP) {
+									val fil = cpof.map(_._1).filter(!_.knownNE)
+									if (fil.size == 1) {
+										val em = fil.head
+										addDjt(em, em)
+									}
+								}
+							}
+						} else {
+							assert(b.djts.add(a))
+							
+							for (ahk <- a.hkCP; bhk <- b.hkCP; if ahk.roles == bhk.roles && !ahk.hasDjt(bhk)) {
+								def findDjt(ahk: IETerm, bhk: IETerm) {
+									for (ahkof <- ahk.asCP; fil = ahkof.filter(_._1 == a); (t, r) <- fil; bhkof <- bhk.asCP) {
+										if (bhkof.contains((b, r))) {
+											addDjt(ahk, bhk)
+											return
+										}
+									}
+								}
+								findDjt(ahk, bhk)
+							}
+						}
+					}
+				}
+				
+				if (!a.hasDjt(b)) {
+					djtPair(a, b)
+					b.subsets.foreach(djtPair(a, _))
+					if (a == b) {
+						for (t <- b.subsets.tails; if !t.isEmpty; x = t.head; y <- t) {
+							djtPair(x, y)
+						}
+					} else {
+						a.subsets.foreach(djtPair(_, b))
+						b.subsets.foreach(y => a.subsets.foreach(x => djtPair(x, y)))
+					}
+				}
+			}
+			
+			addDjt(this, that)
+			/*
+			for ((a, b) <- news) {
+				if (a.inSize != 0 || b.inSize != 0) {
+					for {
+						ain <- if (a.inSize == 0) Set(Set(a)) else a.insets
+						bin <- if (b.inSize == 0) Set(Set(b)) else b.insets
+						both = ain ++ bin
+						sbs <- both.subsets
+						if !sbs.isEmpty && both != sbs
+						rbs = both -- sbs
+					} {
+						engine.constructIN(sbs, rbs, x => {
+							engine.constructIN(rbs, Set(x), y => {
+								if (!x.hasDjt(y)) engine.addTask(new DisjointDo(x, y))
+							})
+						})
+					}
+				}
+			}*/
+			
+			for ((a, b) <- news) {
+				a.notifyDjt(b)
+				if (b != a) b.notifyDjt(a)
+			}
+		}
+		
+		private[inference] def isCP(of: Set[(IETerm, SemRole)]) {
+			
+			var news = Nil:List[(IETerm, Set[(IETerm, SemRole)])]
+			
+			def check(x: IETerm, cc: Set[(IETerm, SemRole)]) = {
+				if (x.hasCP(cc)) {
+					false
+				} else {
+					val tm = IETerm.findCP(cc)
+					if (tm != null) {
+						engine.addProc(new MergeDo(x, tm))
+						false
+					} else {
+						true
+					}
+				}
+			}
+			
+			def addCP(x: IETerm, cc: Set[(IETerm, SemRole)]) {
+			
+				def addCPhkCP(x: IETerm, cc: Set[(IETerm, SemRole)]) {
+					
+					for (hk <- x.hkCP; hkof <- hk.asCP; if hkof.contains((x, null))) {
+						val nof = (hkof - ((x, null))) ++ cc
+						addCP(hk, nof)
+					}
+					
+					def addCPone(x: IETerm, cc: Set[(IETerm, SemRole)]) {
+						if (check(x, cc)) {
+							x.cps.add(cc)
+							cc.foreach(_._1.hkCP.add(x))
+							news = (x, cc) :: news
+						}
+					}
+				
+					val cands = mutable.Map.empty[Set[(IETerm, SemRole)], (IETerm, SemRole)]
+					cands ++= cc.map(y => (Set(y), y))
+					
+					val hks = (Set.empty[IETerm] /: cc)((a, b) => a ++ b._1.hkCP)
+					for (hk <- hks; hkof <- hk.asCP) {
+						if (hkof.subsetOf(cc)) {
+							cands(hkof) = (hk, null)
+						} else if (cc.subsetOf(hkof)) {
+							addCPone(hk, (hkof -- cc) + ((x, null)))
+						}
+					}
+					
+					for (p <- listPartitions[(IETerm, SemRole)](cc, cands.keys)) {
+						addCPone(x, p.map(cands(_)).toSet)
+					}
+				}
+				
+				if (check(x, cc)) {
+					val ll = for ((t, r) <- cc) yield {
+						if (r == null) t.asCP + Set((t, null)) else Set(Set((t, r)))
+					}
+					for (l <- oneFromEach[Set[(IETerm, SemRole)]](ll)) {
+						val nof = l.toSet.flatten
+						if (check(x, nof)) addCPhkCP(x, nof)
+					}
+				}
+			}
+			
+			addCP(this, of)
+			
+			for ((x, cc) <- news; if x.knownNE) {
+				cc.map(_._1).foreach(y => if (!y.knownNE) engine.addTask(new NotEmptyDo(y)))
+			}
+			
+			for ((x, cc) <- news) {
+				val llsuper = cc.map(y => y._1.supersets.map((_, y._2)) + y)
+				for (tm <- IETerm.findAllCPs(llsuper)) {
+					if (x != tm && !x.hasSuper(tm)) engine.addTask(new SubsumeDo(x, tm))
+				}
+			}
+			
+			for ((x, cc) <- news) {
+				val wnum = cc.filter(_._1.isW).size
+				if (wnum <= 1) {
+					val llsub = cc.map(y => y._1.subsets.map((_, y._2)) + y)
+					for (tm <- IETerm.findAllCPs(llsub)) {
+						if (tm != x && !tm.hasSuper(x)) engine.addTask(new SubsumeDo(tm, x))
+					}
+				}
+			}
+			
+			for ((x, cc) <- news) {
+				for ((t, r) <- cc; tdjt <- t.djtsets; hk <- tdjt.hkCP; if hk.roles == x.roles) {
+					if (hk.asCP.exists(_.contains((tdjt, r)))) {
+						if (!x.hasDjt(hk)) engine.addTask(new DisjointDo(x, hk))
+					}
+				}
+			}
+			
+			for ((x, cc) <- news) {
+				val fcc = cc.filter(!_._1.knownNE)
+				if (fcc.isEmpty) {
+					x.notEmpty()
+					for ((t, r) <- cc) if (!t.hasPI(x, r)) engine.addTask(new IsPIDo(t, x, r))
+				} else if (fcc.size == 1) {
+					val (t, r) = fcc.head
+					if (!t.hasPI(x, r)) engine.addTask(new IsPIDo(t, x, r))
+				}
+			}
+			/*
+			for ((x, cc) <- news) {
+				val cands = cc.map{case(t, r) => t.asPI.filter(_._2 == r).map(_._1)}
+				val fil = cands.head.filter(x => cands.tail.forall(_.contains(x)))
+				for (t <- fil) {
+					if (t != x && !t.hasSuper(x)) engine.addTask(new SubsumeDo(t, x))
+				}
+				if (!fil.isEmpty) {
+					for ((tt, rr) <- cc) {
+						if (!tt.hasPI(x, rr)) engine.addTask(new IsPIDo(tt, x, rr))
+					}
+				}
+			}*/
+			
+			for ((x, cc) <- news) {
+				if (x.hasDjt(x) && !x.knownNE) {
+					val fil = cc.map(_._1).filter(!_.knownNE)
+					if (fil.size == 1) {
+						val h = fil.head
+						if (!h.hasDjt(h)) engine.addTask(new DisjointDo(h, h))
+					}
+				}
+			}
+			
+			for ((x, cc) <- news) {
+				//if (!x.aux) x.INCPdo(Set(x.asCP - cc, Set(cc)))
+				for (at <- x.subsets; if !at.aux) {
+					
+					val xwhole = x.wholeIN
+					val cache = mutable.Map((x -> xwhole))
+					val rb = for(bs <- at.insets; if bs.exists(xwhole.contains(_))) yield {
+						val (in, out) = bs.partition(xwhole.contains(_))
+						(out, Set(in))
+					}
+					for (rcs <- at.calcIN(rb, cache)) {
+						val cs = rcs + x
+						at.INCPdo(rcs.map(_.asCP.filter(!_.exists(y => y._1.isW && y._2 == null))) + Set(cc))
+						for ((br, bt) <- at.hkPI) {
+							val rm = IETerm.cpRoleMap(cc)
+							val fks = rm.keySet.filter(_.subsetOf(br))
+							if (fks.flatten == br && !fks.forall(rm(_)._1.isW)) {
+								//val (in, out) = IETerm.compExtract(rcs, br)
+								//val inf = fks.map(rm(_))
+								//bt.PIINWCPdo(in + Set((inf, cc -- inf)), out, br)
+								val (in, out) = IETerm.compExtract(cs, br)
+								bt.PIINWCPdo(in, out, br)
+							}
+						}
+					}
+				}
+			}
+			
+			for ((x, cc) <- news) {
+				x.notifyCP(cc)
+			}
+		}
+		
+		private[inference] def isIN(of: Set[IETerm]) {
+			
+			var news = Nil:List[(IETerm, Set[IETerm])]
+			var bnews = Nil:List[(IETerm, Set[IETerm])]
+			var subtask = Nil:List[(IETerm, IETerm)]
+			
+			def check(x: IETerm, pre: Set[IETerm]) = {
+				val bs = pre.filter(y => pre.forall(!_.hasSuper(y)))
+				if (bs.size == 1) {
+					engine.addProc(new MergeDo(x, bs.head))
+					null
+				} else if (bs.contains(x) || bs.exists(_.hasSuper(x)) || x.insets.exists(_.subsetOf(bs))) {
+					bs.foreach(y => subtask = (x, y) :: subtask)
+					null
+				} else {
+					bs
+				}
+			}
+			
+			val cache = mutable.Map.empty[IETerm, Set[IETerm]]
+					
+			def addBasicIN(x: IETerm, bs: Set[IETerm]) {
+				
+				for (b <- x.insets; if bs.subsetOf(b)) {
+					x.ins.remove(b)
+					val rest = x.insets.flatten
+					for (t <- b; if !rest.contains(t)) t.hkIN.remove(x)
+				}
+				
+				bs.foreach(y => subtask = (x, y) :: subtask)
+				val cs = bs.minBy[Int](_.subSize).subsets.filter(y => bs.forall(_.hasSub(y)))
+				cs.foreach(y => subtask = (y, x) :: subtask)
+				
+				if (x.roles != null) {
+					for (y <- x.calcIN(Set((bs, x.insets)), cache); if y.size >= 2) {
+						news = (x, y) :: news
+					}
+				}
+				x.ins.add(bs)
+				bs.foreach(_.hkIN.add(x))
+				bnews = (x, bs) :: bnews
+			}
+			
+			var whole = null:Set[IETerm]
+			def addSubBasic(bs: Set[IETerm]) {
+				for (xsb <- subsets) {
+					val sbbs = for (b <- xsb.insets; if b.exists(whole.contains(_))) yield {
+						val (in, out) = b.partition(whole.contains(_))
+						(out, Set(in))
+					}
+					for (ss <- xsb.calcIN(sbbs, cache)) {
+						val ll = ss.map(y => if (y.inSize == 0) Set(Set(y)) else y.insets)
+						for (l <- oneFromEach[Set[IETerm]](ll)) {
+							
+							val sbbs = check(xsb, (bs /: l)(_ ++ _))
+							if (sbbs != null) {
+								addBasicIN(xsb, sbbs)
+							}
+						}
+					}
+				}
+			}
+			
+			val mof = of.filter(y => of.forall(!_.hasSuper(y)))
+			val ll = mof.map(y => if (y.inSize == 0) Set(Set(y)) else y.insets)
+			
+			val ls = if (inSize == 0) {
+				var ret = oneFromEach[Set[IETerm]](ll)
+				var stop = false
+				while (!ret.isEmpty && !stop) {
+					val bs = check(this, (Set.empty[IETerm] /: ret.head)(_ ++ _))
+					if (bs != null) {
+						if (!bs.forall(hasSuper(_))) {
+							bs.foreach(subsume(_))
+						} else {
+							var pretask = Nil:List[(IETerm, Set[IETerm])]
+							for (hk <- hkIN) {
+								val replaces = for (hkbs <- hk.insets; if hkbs.contains(this)) yield {
+									hk.ins.remove(hkbs)
+									for (hkb <- hkbs; if hkb != this) {
+										if (hk.insets.forall(!_.contains(hkb))) hkb.hkIN.remove(hk)
+									}
+									(hkbs - this) ++ bs
+								}
+								for (replace <- replaces) {
+									pretask = (hk, replace) :: pretask
+								}
+							}
+							hkIN.clear()
+							addBasicIN(this, bs)
+							for ((x, pre) <- pretask) {
+								val xbs = check(x, pre)
+								if (xbs != null) addBasicIN(x, xbs)
+							}
+							whole = wholeIN
+							addSubBasic(bs)
+							ret = ret.tail
+							stop = true
+						}
+					} else {
+						ret = ret.tail
+					}
+				}
+				ret
+			} else {
+				whole = wholeIN
+				oneFromEach[Set[IETerm]](ll)
+			}
+			
+			for (l <- ls) {
+				var bs = check(this, (Set.empty[IETerm] /: l)(_ ++ _))
+				if (bs != null) {
+					addBasicIN(this, bs)
+					addSubBasic(bs)
+				}
+			}
+			
+			for ((a, b) <- subtask) a.subsume(b)
+			/*
+			for ((x, bs) <- bnews) {
+				for (xdjt <- x.djtsets) {
+					val xdins = if (xdjt.inSize == 0) Set(Set(xdjt)) else xdjt.insets
+					for (xdin <- xdins) {
+						val both = bs ++ xdin
+						for (sbs <- both.subsets; if !sbs.isEmpty && sbs != both) {
+							val rbs = both -- sbs
+							engine.constructIN(sbs, rbs, x => {
+								engine.constructIN(rbs, Set(x), y => {
+									if (!x.hasDjt(y)) engine.addTask(new DisjointDo(x, y))
+								})
+							})
+						}
+					}
+				}
+			}*/
+			/*
+			for ((at, cs) <- bnews) {
+				if (at.roles != null) {
+					at.INCPdo(cs.map(x => x.asCP + Set((x, null))))
+					for ((br, bt) <- at.hkPI) {
+						val (in, out) = IETerm.compExtract(cs, br)
+						if (!in.isEmpty) bt.PIINWCPdo(in, out, br)
+					}
+				}
+			}*/
+			
+			for ((at, cs) <- news; if !at.aux) {
+				//if (x.asINcache.add(of)) x.notifyIN(of)
+				//x.notifyIN(of)
+				if (at.asINcache.add(cs)) {
+					at.INCPdo(cs.map(x => x.asCP.filter(!_.exists(y => y._1.isW && y._2 == null))))
+					for ((br, bt) <- at.hkPI) {
+						val (in, out) = IETerm.compExtract(cs, br)
+						if (!in.isEmpty) bt.PIINWCPdo(in, out, br)
+					}
+				}
+			}
+			
+		}
+		
+		private[inference] def isPI(of: IETerm, r: SemRole) {
+			
+			var news = Nil:List[(IETerm, IETerm, SemRole)]
+			
+			def check(y: IETerm, of: IETerm, yrs: Set[SemRole]) = {
+				if (y.hasPI(of, if (yrs.size == 1) yrs.head else null)) {
+					false
+				} else {
+					if (of.hkPI.contains(yrs)) {
+						engine.addProc(new MergeDo(y, of.hkPI(yrs)))
+						false
+					} else {
+						true
+					}
+				}
+			}
+			
+			def addPI(y: IETerm, of: IETerm, r: SemRole) {
+				
+				def addPIhkPI(y: IETerm, of: IETerm, r: SemRole) {
+					
+					val yrs = if (r == null) y.roles else Set(r)
+					for ((hrs, x) <- of.hkPI) {
+						if (hrs.subsetOf(yrs)) {
+							addPI(x, y, if (hrs.size == 1) hrs.head else null)
+						}
+					}
+					
+					def addPIone(y: IETerm, of: IETerm, r: SemRole) {
+						val yrs = if (r == null) y.roles else Set(r)
+						if (check(y, of, yrs)) {
+							y.pis.add((of, r))
+							of.hkPI(yrs) = y
+							news = (y, of, r) :: news
+						}
+					}
+					
+					for ((hrs, x) <- of.hkPI) {
+						if (yrs.subsetOf(hrs)) {
+							addPIone(y, x, r)
+							x.asPI.foreach(each => addPIone(y, each._1, r))
+						}
+					}
+					addPIone(y, of, r)
+					of.asPI.foreach(each => addPIone(y, each._1, r))
+				}
+				
+				val yrs = if (r == null) y.roles else Set(r)
+				if (check(y, of, yrs)) {
+					for ((hrs, x) <- y.hkPI) {
+						if (check(x, of, hrs)) {
+							addPIhkPI(x, of, if (hrs.size == 1) hrs.head else null)
+						}
+					}
+					addPIhkPI(y, of, r)
+				}
+			}
+			
+			addPI(this, of, r)
+			
+			for ((y, of, r) <- news) {
+				if (y.knownNE && !of.knownNE) engine.addTask(new NotEmptyDo(of))
+				if (of.knownNE && !y.knownNE) engine.addTask(new NotEmptyDo(y))
+			}
+			
+			for ((y, of, r) <- news; if !of.isW) {
+				val yrs = if (r == null) y.roles else Set(r)
+				for (sb <- of.subsets) {
+					y.SubPIdo(sb, yrs)
+				}
+			}
+			/*
+			for ((y, of, r) <- news) {
+				val yrs = if (r == null) y.roles else Set(r)
+				
+				for (par <- listPartitions[SemRole](of.roles -- yrs, of.hkPI.keySet - yrs)) {
+					val pre = par.map(x => (of.hkPI(x), if (x.size == 1) x.head else null)).toSet
+					val alt = pre + ((y, r))
+					val tm = IETerm.findCP(alt)
+					if (tm != null) {
+						if (of != tm && !of.hasSuper(tm)) engine.addTask(new SubsumeDo(of, tm))
+						alt.foreach(y => if (!y._1.isPI(tm, y._2)) engine.addTask(new IsPIDo(y._1, tm, y._2)))
+					}
+				}
+			}*/
+			
+			for ((bt, at, r) <- news; if !at.aux) {
+				val br = if (r == null) bt.roles else Set(r)
+				for (cs <- at.asIN; if cs.size >= 2) {
+					val (in, out) = IETerm.compExtract(cs, br)
+					if (!in.isEmpty) bt.PIINWCPdo(in, out, br)
+				}
+			}
+			
+			for ((y, of, r) <- news) {
+				val yrs = if (r == null) y.roles else Set(r)
+				y.notifyAsPI(of, r)
+				of.notifyPrjed(yrs, y)
+			}
+		}
+		
+		///////////////////////////////////////////////////////////////////
+		
+		private[inference] def spoof(that: IETerm) {
+			//println("merge: " + genesis + " to " + that)
+
+			asINcache.clear()
+			subsets.foreach(_.asINcache.retain(!_.contains(this)))
+			
+			supersets.foreach(_.subs.remove(this))
+			subsets.foreach(_.supers.remove(this))
+			djtsets.foreach(_.djts.remove(this))
+			
+			supers.clear()
+			subs.clear()
+			djts.clear()
+			
+			var tmptask = Nil:List[() => Unit]
+			
+			for (hk <- hkCP; of <- hk.asCP) {
+				val (fil, rest) = of.partition(_._1 == this)
+				if (!fil.isEmpty) {
+					hk.cps.remove(of)
+					rest.map(_._1).foreach(x => {
+						if (!hk.asCP.exists(_.exists(_._1 == x))) x.hkCP.remove(hk)
+					})
+					tmptask = (() => hk.isCP(rest ++ fil.map(x => (that, x._2)))) :: tmptask
+				}
+			}
+			for (hk <- hkIN; of <- hk.insets; if of.contains(this)) {
+				hk.ins.remove(of)
+				for (t <- of; if t != this) {
+					if (hk.insets.forall(!_.contains(t))) t.hkIN.remove(hk)
+				}
+				tmptask = (() => hk.isIN(of - this + that)) :: tmptask
+			}
+			for ((hrs, hk) <- hkPI) {
+				val hr = if (hrs.size == 1) hrs.head else null
+				hk.pis.remove((this, hr))
+				tmptask = (() => hk.isPI(that, hr)) :: tmptask
+			}
+			
+			hkCP.clear()
+			hkIN.clear()
+			hkPI.clear()
+			
+			for (of <- asCP) {
+				tmptask = (() => that.isCP(of)) :: tmptask
+				of.foreach(_._1.hkCP.remove(this))
+			}
+			for (of <- insets) {
+				tmptask = (() => that.isIN(of)) :: tmptask
+				of.foreach(_.hkIN.remove(this))
+			}
+			for ((of, r) <- asPI) {
+				tmptask = (() => that.isPI(of, r)) :: tmptask
+				of.hkPI.remove(if (r == null) roles else Set(r))
+			}
+			
+			cps.clear()
+			ins.clear()
+			pis.clear()
+			
+			ref.t = that
+			
+			disposers.onceAndClear(_(that))
+			
+			tmptask.foreach(_())
+		}
+		
+		///////////////////////////////////////////////////////////////////
+		
+		override def toString = genesis
+	}
+	
+	object IETerm {
+		
+		private[inference] def merge(a: IETerm, b: IETerm) {
+			if (a != b) {
+				a.subsume(b)
+				b.subsume(a)
+				a.engine.profit()
+				if (a.isW) {
+					b.spoof(a)
+				} else if (b.isW) {
+					a.spoof(b)
+				} else if (a.aux && !b.aux) {
+					a.spoof(b)
+				} else if (b.aux && !a.aux) {
+					b.spoof(a)
+				} else {
+					val asize = a.cpSize + a.inSize + a.piSize + a.hkCP.size + a.hkIN.size + a.hkPI.size
+					val bsize = b.cpSize + b.inSize + b.piSize + b.hkCP.size + b.hkIN.size + b.hkPI.size
+					if (bsize < asize) {
+						b.spoof(a)
+					} else {
+						a.spoof(b)
+					}
+				}
+			}
+		}
+		
+		private[inference] def compExtract(cs: Set[IETerm], br: Set[SemRole]) = {
+			val calc = mutable.Map.empty[IETerm, Set[(Set[(IETerm, SemRole)], Set[(IETerm, SemRole)])]]
+			val (in, out) = cs.partition(x => {
+				val res = mutable.Set.empty[(Set[(IETerm, SemRole)], Set[(IETerm, SemRole)])]
+				for (of <- x.asCP) {
+					val rm = IETerm.cpRoleMap(of)
+					val fil = rm.keySet.filter(_.subsetOf(br))
+					if (fil.flatten == br && fil.filter(rm(_)._1.isW).size <= 1 && !fil.forall(rm(_)._1.isW)) {
+						val inf = fil.map(rm(_))
+						res.add((inf, of -- inf))
+					}
+				}
+				if (!res.isEmpty) {
+					calc(x) = res.toSet
+					true
+				} else {
+					false
+				}
+			})
+			(in.map(calc(_)), out)
+		}
+		
+		private[inference] def findAllCPs(ll: Iterable[Set[(IETerm, SemRole)]]) = {
+			
+			val pre = oneFromEach.map[(IETerm, SemRole), 
+					(Set[(IETerm, SemRole)], Set[IETerm])](ll, null, (a, b) => {
+				if (a == null) {
+					(Set(b), b._1.hkCP.toSet)
+				} else {
+					(a._1 + b, a._2.intersect(b._1.hkCP))
+				}
+			}, _._2.isEmpty)
+			
+			var ret = Nil:List[IETerm]
+			for ((of, ts) <- pre) {
+				ts.find(_.hasCP(of)) match {
+					case Some(t) => ret = t :: ret
+					case None => {}
+				}
+			}
+			
+			ret
+		}
+		
+		def findCP(of: Set[(IETerm, SemRole)]) = {
+			if (of.size == 1) {
+				of.head._1
+			} else {
+				val (t, r) = of.minBy[Int](_._1.hkCP.size)
+				t.hkCP.find(_.hasCP(of)) match {
+					case Some(x) => x
+					case None => null
+				}
+			}
+		}
+		
+		def findIN(pre: Set[IETerm]) = {
+			val mpre = pre.filter(x => pre.forall(!_.hasSuper(x)))
+			if (mpre.size == 1) {
+				mpre.head
+			} else {
+				val c = mpre.minBy[Int](_.subSize)
+				val rgh = c.subsets.filter(x => (mpre - c).forall(_.hasSub(x)))
+				val cands = rgh.filter(x => rgh.forall(!_.hasSub(x)))
+				val basis = mpre.flatMap(_.wholeIN)
+				cands.find(_.insets.exists(_.subsetOf(basis))) match {
+					case Some(x) => x
+					case None => null
+				}
+			}
+		}
+		
+		def findPI(of: IETerm, rs: Set[SemRole]) = {
+			if (of.hkPI.contains(rs)) of.hkPI(rs) else null
+		}
+		
+		def cpRoleMap(x: Set[(IETerm, SemRole)]) = {
+			x.map{case(t, r) => if (r == null) {
+				(t.roles, (t, r))
+			} else {
+				(Set(r), (t, r))
+			}}.toMap
+		}
+		
+		def roleStr(roles: Set[SemRole]) = {
+			if (roles == null) "" else roles.mkString("[", ",", "]")
+		}
+		
+		def genesisCP(of: Set[(IETerm, SemRole)]) = {
+			val rs = (Set.empty[SemRole] /: of)((a, b) => {
+				if (b._2 == null) a ++ b._1.roles else a + b._2
+			})
+			of.map{case(t, r) => t.genesis + (if (r == null) {
+				""
+			} else {
+				"[" + r + "]"
+			})}.mkString("CP{", ",", "}" + roleStr(rs))
+		}
+		
+		def genesisIN(of: Set[IETerm]) = {
+			val rs = of.head.roles
+			of.mkString("IN{", ",", "}" + roleStr(rs))
+		}
+		
+		def genesisPI(of: IETerm, rs: Set[SemRole]) = {
+			if (rs.size == 1) {
+				"PI" + roleStr(rs) + "(" + of.genesis + ")"
+			} else {
+				"PI" + "(" + of.genesis + ")" + roleStr(rs)
+			}
+		}
+	}
+}

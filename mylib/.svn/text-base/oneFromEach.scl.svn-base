@@ -1,0 +1,41 @@
+package rite.main
+
+
+package mylib {
+
+	object oneFromEach {
+		
+		def apply[T](ll: Iterable[_ <: Iterable[T]]) = {
+			
+			def recurse(i: Iterable[_ <: Iterable[T]], a: List[List[T]], s: List[T]): List[List[T]] = {
+				if (i.isEmpty) {
+					s :: a
+				} else {
+					(a /: i.head)((x, y) => recurse(i.tail, x, y :: s))
+				}
+			}
+			recurse(ll, Nil, Nil)
+		}
+		
+		def map[T, S](ll: Iterable[_ <: Iterable[T]], init: S, proc: (S, T) => S, skip: S => Boolean) = {
+			
+			def recurse(i: Iterable[_ <: Iterable[T]], a: List[S], s: S): List[S] = {
+				
+				if (i.isEmpty) {
+					s :: a
+				} else {
+					(a /: i.head)((x, y) => {
+						val tmp = proc(s, y)
+						if (skip(tmp)) {
+							x
+						} else {
+							recurse(i.tail, x, tmp)
+						}
+					})
+				}
+			}
+			recurse(ll, Nil, init)
+		}
+		
+	}
+}

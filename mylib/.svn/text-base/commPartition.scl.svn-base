@@ -1,0 +1,25 @@
+package rite.main
+
+
+package mylib {
+
+	object commPartition {
+		
+		type Partition[T] = Set[Set[T]]
+		
+		def apply[T](pars: Iterable[Partition[T]]): Partition[T] = {
+			
+			var ret = pars.head
+			
+			for (par <- pars.tail) {
+				for (s <- par) {
+					val (in, out) = ret.partition(x => s.exists(x.contains(_)))
+					ret = out + in.flatten
+					if (ret.size == 1) return ret
+				}
+			}
+			
+			ret
+		}
+	}
+}

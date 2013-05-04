@@ -1,0 +1,323 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html>
+        <head>
+          <title>tifmo.stree</title>
+          <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+          
+      <link type="text/css" media="screen" rel="stylesheet" href="../../lib/template.css" />
+      <script type="text/javascript" src="../../lib/jquery.js"></script>
+      <script type="text/javascript" src="../../lib/jquery-ui.js"></script>
+      <script type="text/javascript" src="../../lib/template.js"></script>
+      <script type="text/javascript" src="../../lib/tools.tooltip.js"></script>
+    
+        </head>
+        <body class="value">
+      <div id="definition">
+        <img src="../../lib/package_big.png" />
+        <p id="owner"><a name="tifmo" class="extype" href="../package.html">tifmo</a></p>
+        <h1>stree</h1>
+      </div>
+
+      <h4 class="signature" id="signature">
+      <span class="kind">package</span>
+      <span class="symbol"> 
+        <span class="name">stree</span>
+        
+        
+      </span>
+      </h4>
+      
+          <div class="fullcommenttop" id="comment"><div class="comment cmt"><p>Implementation of DCS trees.</p><p>Includes the conversion algorithm from DCS trees to algebraic forms,
+and intuitive abduction based on properties of relational algebra operators.</p><h4>How to use</h4><p>First,</p></div></div>
+        
+
+      <div id="template">
+
+        <div id="mbrsel">
+          <div id="textfilter"><span class="pre"></span><span class="input"><input accesskey="/" type="text" /></span><span class="post"></span></div>
+          
+          
+          <div id="visbl">
+              <span class="filtertype">Visibility</span>
+              <ol><li class="public in"><span>Public</span></li><li class="all out"><span>All</span></li></ol>
+            </div>
+        </div>
+
+        
+
+        <div class="types members" id="types">
+              <h3>Type Members</h3>
+              <ol><li visbl="pub" name="tifmo.stree.Align" data-isabs="false">
+      <a id="Align:Align"></a>
+      <h4 class="signature">
+      <span class="kind">class</span>
+      <span class="symbol"> 
+        <a href="Align.html"><span class="name">Align</span></a>
+        
+        <span class="result"> extends AnyRef</span>
+      </span>
+      </h4>
+      
+    </li><li visbl="pub" name="tifmo.stree.AtomSt" data-isabs="true">
+      <a id="AtomSt:AtomSt"></a>
+      <h4 class="signature">
+      <span class="kind">class</span>
+      <span class="symbol"> 
+        <a href="AtomSt.html"><span class="name">AtomSt</span></a>
+        
+        <span class="result"> extends AnyRef</span>
+      </span>
+      </h4>
+      <div class="fullcomment"><dl class="attributes block"> <dt>Attributes</dt><dd>sealed abstract </dd></dl></div>
+    </li><li visbl="pub" name="tifmo.stree.DE" data-isabs="false">
+      <a id="DE:DE"></a>
+      <h4 class="signature">
+      <span class="kind">case class</span>
+      <span class="symbol"> 
+        <a href="DE.html"><span class="name">DE</span></a>
+        
+        <span class="params">(<span name="term">term: Term</span>, <span name="arg">arg: PI</span>, <span name="r">r: SemRole</span>)</span><span class="result"> extends Term with Product with Serializable</span>
+      </span>
+      </h4>
+      
+    </li><li visbl="pub" name="tifmo.stree.DI" data-isabs="false">
+      <a id="DI:DI"></a>
+      <h4 class="signature">
+      <span class="kind">case class</span>
+      <span class="symbol"> 
+        <a href="DI.html"><span class="name">DI</span></a>
+        
+        <span class="params">(<span name="term">term: Term</span>, <span name="arg">arg: PI</span>, <span name="r">r: SemRole</span>)</span><span class="result"> extends Term with Product with Serializable</span>
+      </span>
+      </h4>
+      
+    </li><li visbl="pub" name="tifmo.stree.DU" data-isabs="false">
+      <a id="DU:DU"></a>
+      <h4 class="signature">
+      <span class="kind">case class</span>
+      <span class="symbol"> 
+        <a href="DU.html"><span class="name">DU</span></a>
+        
+        <span class="params">(<span name="term">term: Term</span>, <span name="arg">arg: PI</span>, <span name="r">r: SemRole</span>)</span><span class="result"> extends Term with Product with Serializable</span>
+      </span>
+      </h4>
+      
+    </li><li visbl="pub" name="tifmo.stree.Disjoint" data-isabs="false">
+      <a id="Disjoint:Disjoint"></a>
+      <h4 class="signature">
+      <span class="kind">case class</span>
+      <span class="symbol"> 
+        <a href="Disjoint.html"><span class="name">Disjoint</span></a>
+        
+        <span class="params">(<span name="a">a: PI</span>, <span name="b">b: PI</span>)</span><span class="result"> extends AtomSt with Product with Serializable</span>
+      </span>
+      </h4>
+      
+    </li><li visbl="pub" name="tifmo.stree.IR" data-isabs="false">
+      <a id="IR:IR"></a>
+      <h4 class="signature">
+      <span class="kind">case class</span>
+      <span class="symbol"> 
+        <a href="IR.html"><span class="name">IR</span></a>
+        
+        <span class="params">(<span name="core">core: Term</span>, <span name="sats">sats: Set[(SemRole, PI)]</span>)</span><span class="result"> extends Term with Product with Serializable</span>
+      </span>
+      </h4>
+      
+    </li><li visbl="pub" name="tifmo.stree.InferMgr" data-isabs="false">
+      <a id="InferMgr:InferMgr"></a>
+      <h4 class="signature">
+      <span class="kind">class</span>
+      <span class="symbol"> 
+        <a href="InferMgr.html"><span class="name">InferMgr</span></a>
+        
+        <span class="result"> extends AnyRef</span>
+      </span>
+      </h4>
+      
+    </li><li visbl="pub" name="tifmo.stree.NonEmpty" data-isabs="false">
+      <a id="NonEmpty:NonEmpty"></a>
+      <h4 class="signature">
+      <span class="kind">case class</span>
+      <span class="symbol"> 
+        <a href="NonEmpty.html"><span class="name">NonEmpty</span></a>
+        
+        <span class="params">(<span name="a">a: PI</span>)</span><span class="result"> extends AtomSt with Product with Serializable</span>
+      </span>
+      </h4>
+      
+    </li><li visbl="pub" name="tifmo.stree.PI" data-isabs="false">
+      <a id="PI:PI"></a>
+      <h4 class="signature">
+      <span class="kind">class</span>
+      <span class="symbol"> 
+        <a href="PI.html"><span class="name">PI</span></a>
+        
+        <span class="result"> extends AnyRef</span>
+      </span>
+      </h4>
+      
+    </li><li visbl="pub" name="tifmo.stree.PO" data-isabs="false">
+      <a id="PO:PO"></a>
+      <h4 class="signature">
+      <span class="kind">case class</span>
+      <span class="symbol"> 
+        <a href="PO.html"><span class="name">PO</span></a>
+        
+        <span class="params">(<span name="term">term: Term</span>, <span name="dropR">dropR: SemRole</span>)</span><span class="result"> extends Term with Product with Serializable</span>
+      </span>
+      </h4>
+      
+    </li><li visbl="pub" name="tifmo.stree.Path" data-isabs="false">
+      <a id="Path:Path"></a>
+      <h4 class="signature">
+      <span class="kind">class</span>
+      <span class="symbol"> 
+        <a href="Path.html"><span class="name">Path</span></a>
+        
+        <span class="result"> extends AnyRef</span>
+      </span>
+      </h4>
+      
+    </li><li visbl="pub" name="tifmo.stree.PreNode" data-isabs="false">
+      <a id="PreNode:PreNode"></a>
+      <h4 class="signature">
+      <span class="kind">class</span>
+      <span class="symbol"> 
+        <a href="PreNode.html"><span class="name">PreNode</span></a>
+        
+        <span class="result"> extends AnyRef</span>
+      </span>
+      </h4>
+      
+    </li><li visbl="pub" name="tifmo.stree.SL" data-isabs="false">
+      <a id="SL:SL"></a>
+      <h4 class="signature">
+      <span class="kind">case class</span>
+      <span class="symbol"> 
+        <a href="SL.html"><span class="name">SL</span></a>
+        
+        <span class="params">(<span name="term">term: Term</span>, <span name="sel">sel: Slction</span>)</span><span class="result"> extends Term with Product with Serializable</span>
+      </span>
+      </h4>
+      
+    </li><li visbl="pub" name="tifmo.stree.STree" data-isabs="false">
+      <a id="STree:STree"></a>
+      <h4 class="signature">
+      <span class="kind">class</span>
+      <span class="symbol"> 
+        <a href="STree.html"><span class="name">STree</span></a>
+        
+        <span class="result"> extends AnyRef</span>
+      </span>
+      </h4>
+      
+    </li><li visbl="pub" name="tifmo.stree.STreeNode" data-isabs="false">
+      <a id="STreeNode:STreeNode"></a>
+      <h4 class="signature">
+      <span class="kind">class</span>
+      <span class="symbol"> 
+        <a href="STreeNode.html"><span class="name">STreeNode</span></a>
+        
+        <span class="result"> extends AnyRef</span>
+      </span>
+      </h4>
+      
+    </li><li visbl="pub" name="tifmo.stree.Schema" data-isabs="false">
+      <a id="Schema:Schema"></a>
+      <h4 class="signature">
+      <span class="kind">class</span>
+      <span class="symbol"> 
+        <a href="Schema.html"><span class="name">Schema</span></a>
+        
+        <span class="result"> extends AnyRef</span>
+      </span>
+      </h4>
+      
+    </li><li visbl="pub" name="tifmo.stree.SelNum" data-isabs="false">
+      <a id="SelNum:SelNum"></a>
+      <h4 class="signature">
+      <span class="kind">case class</span>
+      <span class="symbol"> 
+        <a href="SelNum.html"><span class="name">SelNum</span></a>
+        
+        <span class="params">(<span name="num">num: String</span>)</span><span class="result"> extends Slction with Product with Serializable</span>
+      </span>
+      </h4>
+      
+    </li><li visbl="pub" name="tifmo.stree.Subsume" data-isabs="false">
+      <a id="Subsume:Subsume"></a>
+      <h4 class="signature">
+      <span class="kind">case class</span>
+      <span class="symbol"> 
+        <a href="Subsume.html"><span class="name">Subsume</span></a>
+        
+        <span class="params">(<span name="a">a: PI</span>, <span name="b">b: PI</span>)</span><span class="result"> extends AtomSt with Product with Serializable</span>
+      </span>
+      </h4>
+      
+    </li><li visbl="pub" name="tifmo.stree.Term" data-isabs="true">
+      <a id="Term:Term"></a>
+      <h4 class="signature">
+      <span class="kind">class</span>
+      <span class="symbol"> 
+        <a href="Term.html"><span class="name">Term</span></a>
+        
+        <span class="result"> extends AnyRef</span>
+      </span>
+      </h4>
+      <div class="fullcomment"><dl class="attributes block"> <dt>Attributes</dt><dd>sealed abstract </dd></dl></div>
+    </li><li visbl="pub" name="tifmo.stree.WORD" data-isabs="false">
+      <a id="WORD:WORD"></a>
+      <h4 class="signature">
+      <span class="kind">case class</span>
+      <span class="symbol"> 
+        <a href="WORD.html"><span class="name">WORD</span></a>
+        
+        <span class="params">(<span name="word">word: WordInfo</span>)</span><span class="result"> extends Term with Product with Serializable</span>
+      </span>
+      </h4>
+      
+    </li></ol>
+            </div>
+        
+        
+
+        <div class="values members" id="values">
+              <h3>Value Members</h3>
+              <ol><li visbl="pub" name="tifmo.stree.Align" data-isabs="false">
+      <a id="Align:Align"></a>
+      <h4 class="signature">
+      <span class="kind">object</span>
+      <span class="symbol"> 
+        <a href="Align$.html"><span class="name">Align</span></a>
+        
+        <span class="result"> extends AnyRef</span>
+      </span>
+      </h4>
+      
+    </li><li visbl="pub" name="tifmo.stree.Qtfier" data-isabs="false">
+      <a id="Qtfier:Qtfier"></a>
+      <h4 class="signature">
+      <span class="kind">object</span>
+      <span class="symbol"> 
+        <a href="Qtfier$.html"><span class="name">Qtfier</span></a>
+        
+        <span class="result"> extends Enumeration</span>
+      </span>
+      </h4>
+      
+    </li></ol>
+            </div>
+
+        
+
+        
+
+      </div>
+      
+      <div id="tooltip"></div>
+      
+    </body>
+      </html>

@@ -1,0 +1,346 @@
+package tifmo
+
+import ac.biu.nlp.normalization.BiuNormalizer
+
+import edu.stanford.nlp.process.DocumentPreprocessor
+import edu.stanford.nlp.ling.HasWord
+import edu.stanford.nlp.ling.TaggedWord
+import edu.stanford.nlp.ling.CoreAnnotations.AnswerAnnotation
+import edu.stanford.nlp.ie.crf.CRFClassifier
+import edu.stanford.nlp.tagger.maxent.MaxentTagger
+import edu.stanford.nlp.parser.lexparser.LexicalizedParser
+import edu.stanford.nlp.trees.PennTreebankLanguagePack
+
+import knowledge.SemRole
+import knowledge.SemRole.SemRole
+import knowledge.EnWord
+import stree.PreNode
+import stree.STree
+import stree.Qtfier
+import stree.Qtfier.Qtfier
+import stree.SelNum
+
+import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
+import scala.collection.JavaConversions._
+
+package proc {
+
+	object mkSTreeEnglish {
+		
+		private[this] val biun = new BiuNormalizer(new java.io.File("ac/biu/nlp/normalization/rules/string_rules.txt"))
+		private[this] val ner = CRFClassifier.getClassifierNoExceptions("edu/stanford/nlp/classifiers/english.all.3class.distsim.crf.ser.gz")
+		private[this] val tagger = new MaxentTagger("edu/stanford/nlp/models/postagger/english-bidirectional-distsim.tagger")
+		private[this] val lp = LexicalizedParser.loadModel("edu/stanford/nlp/models/lexparser/englishPCFG.ser.gz")
+		private[this] val tlp = new PennTreebankLanguagePack
+		private[this] val gsf = tlp.grammaticalStructureFactory
+		private[this] val ANSWER = (new AnswerAnnotation).getClass.asInstanceOf[java.lang.Class[Nothing]]
+		
+		def sentSeg(raw: String): Array[java.util.List[HasWord]] = {
+			val norm = biun.normalize(raw)
+			val sr = new java.io.StringReader(norm)
+			val dp = new DocumentPreprocessor(sr)
+			dp.iterator.toArray
+		}
+		
+		def chunking(sent: java.util.List[HasWord]): ArrayBuffer[EnWord] = {
+			val labels = ner.classifySentence(sent)
+			val ret = ArrayBuffer.empty[EnWord]
+			var acat = null:String
+			var aword = null:String
+			for (cl <- labels) {
+				val cat = cl.get(ANSWER).toString
+				if (cat == "O" || cat != acat) {
+					if (aword != null) {
+						ret += new EnWord(aword, acat, true)
+					}
+					acat = cat
+					aword = cl.word
+				} else {
+					aword = aword + " " + cl.word
+				}
+			}
+			if (aword != null) {
+				ret += new EnWord(aword, acat, true)
+			}
+			for (i <- 0 until ret.length) {
+				ret(i).index = i
+			}
+			ret
+		}
+		
+		def tagging(lew: ArrayBuffer[EnWord]): java.util.List[TaggedWord] = {
+			val sent = for (ew <- lew) yield {
+				assert(ew.sign)
+				new edu.stanford.nlp.ling.Word(ew.surf)
+			}
+			val ret = tagger.tagSentence(sent)
+			for (i <- 0 until lew.length) {
+				lew(i).pos = ret.get(i).tag
+			}
+			ret
+		}
+		
+		//def coref() {}
+		
+		def dep(sent: java.util.List[TaggedWord], lew: ArrayBuffer[EnWord]): Set[(EnWord, String, EnWord)] = {
+			val parse = lp.apply(sent)
+			val gs = gsf.newGrammaticalStructure(parse)
+			val dct = gs.typedDependenciesCollapsedTree.toSet
+			for (td <- dct) yield {
+				val rel = td.reln.toString
+				if (rel == "root") {
+					(null, rel, lew(td.dep.index - 1))
+				} else {
+					(lew(td.gov.index - 1), rel, lew(td.dep.index - 1))
+				}
+			}
+		}
+		
+		private[this] def trimUnder(s: String) = {
+			val i = s.indexOf("_")
+			if (i == -1) s else s.substring(0, i)
+		}
+		
+		private[this] def getSubDeps(dep: Iterable[(EnWord, String, EnWord)], n: EnWord) = {
+			val subnodes = mutable.Set(n)
+			val ret = mutable.Set.empty[(EnWord, String, EnWord)]
+			var hadnew = true
+			while(hadnew) {
+				hadnew = false
+				for ((p, rel, c) <- dep) {
+					if (p != null && subnodes.contains(p) && subnodes.add(c)) {
+						ret.add((p, rel, c))
+						hadnew = true
+					}
+				}
+			}
+			ret.toSet
+		}
+		
+		def split(dep: Set[(EnWord, String, EnWord)]): List[Set[(EnWord, String, EnWord)]] = {
+				var checklst = List(dep)
+				var retlst = Nil:List[Set[(EnWord, String, EnWord)]]
+				while (!checklst.isEmpty) {
+					val tocheck = checklst.head
+					checklst = checklst.tail
+					tocheck.find(x => trimUnder(x._2) == "conj") match {
+						case Some(x) => {
+							val depsub = getSubDeps(tocheck, x._3)
+							val govsub = getSubDeps(tocheck, x._1)
+							val slim = tocheck -- govsub
+							val paredge = tocheck.find(_._3 == x._1) match {
+								case Some(y) => y
+								case None => throw new Exception("no parent of conj!!!")
+							}
+							val s1 = ((slim ++ depsub) - paredge) + ((paredge._1, paredge._2, x._3))
+							val s2 = slim ++ ((govsub -- depsub) - x)
+							checklst = s1 :: s2 :: checklst
+						}
+						case None => {
+							retlst = tocheck :: retlst
+						}
+					}
+				}
+				retlst
+		}
+		
+		def annotate(dep: Set[(EnWord, String, EnWord)]): List[PreNode] = {
+			
+			val pnpool = mutable.Map.empty[EnWord, PreNode]
+			def getNode(x: EnWord) = {
+				if (pnpool.contains(x)) {
+					pnpool(x)
+				} else {
+					val ret = new PreNode
+					ret.word = x
+					pnpool(x) = ret
+					ret
+				}
+			}
+			
+			var recroot = null:PreNode
+			for ((p, rel, c) <- dep) {
+				if (rel == "root") {
+					recroot = getNode(c)
+				} else {
+					val (np, nc) = (getNode(p), getNode(c))
+					val nci = c.index
+					trimUnder(rel) match {
+						case "abbrev" => {
+							nc.outr = SemRole.ARG
+							np.addChild(SemRole.ARG, nc, nci)
+						}
+						case "acomp" => {
+							nc.outr = SemRole.ARG
+							np.addChild(SemRole.SBJ, nc, nci)
+						}
+						case "advcl" => {
+							nc.outr = SemRole.THG
+							np.addChild(SemRole.THG, nc, nci)
+						}
+						case "advmod" => {
+							nc.outr = SemRole.ARG
+							np.addChild(SemRole.THG, nc, nci)
+						}
+						case "agent" => {
+							nc.outr = SemRole.ARG
+							np.addChild(SemRole.SBJ, nc, nci)
+						}
+						case "amod" => {
+							nc.outr = SemRole.ARG
+							np.addChild(SemRole.POSS, nc, nci)
+						}
+						case "appos" => {
+							nc.outr = SemRole.ARG
+							np.addChild(SemRole.ARG, nc, nci)
+						}
+						case "ccomp" => {
+							nc.outr = SemRole.THG
+							np.addChild(SemRole.OBJ, nc, nci)
+						}
+						case "csubj" => {
+							nc.outr = SemRole.THG
+							val tmp = if (p.pos.substring(0, 2) == "VB") SemRole.SBJ else SemRole.ARG
+							np.addChild(tmp, nc, nci)
+						}
+						case "csubjpass" => {
+							nc.outr = SemRole.THG
+							np.addChild(SemRole.OBJ, nc, nci)
+						}
+						case "dep" => {
+							nc.outr = SemRole.THG
+							np.addChild(SemRole.THG, nc, nci)
+						}
+						case "det" => {
+							if (p.lex == "all" || p.lex == "every" || p.lex == "each") {
+								np.qtfier = Qtfier.ALL
+							} else if (p.lex == "no") {
+								np.qtfier = Qtfier.NO
+							}
+						}
+						case "dobj" => {
+							nc.outr = SemRole.ARG
+							np.addChild(SemRole.OBJ, nc, nci)
+						}
+						case "infmod" => {
+							nc.outr = SemRole.OBJ
+							np.addChild(SemRole.ARG, nc, nci)
+						}
+						case "iobj" => {
+							nc.outr = SemRole.ARG
+							np.addChild(SemRole.IOBJ, nc, nci)
+						}
+						case "neg" => {
+							np.word = np.word.neg
+						}
+						case "nn" => {
+							nc.outr = SemRole.ARG
+							np.addChild(SemRole.ARG, nc, nci)
+						}
+						case "npadvmod" => {
+							nc.outr = SemRole.ARG
+							np.addChild(SemRole.THG, nc, nci)
+						}
+						case "nsubj" => {
+							nc.outr = SemRole.ARG
+							val tmp = if (p.pos.substring(0, 2) == "VB") SemRole.SBJ else SemRole.ARG
+							np.addChild(tmp, nc, nci)
+						}
+						case "nsubjpass" => {
+							nc.outr = SemRole.ARG
+							np.addChild(SemRole.OBJ, nc, nci)
+						}
+						case "num" => {
+							np.qtfier = Qtfier.EXACTLY
+							np.slction = new SelNum(c.lex)
+						}
+						case "parataxis" => {
+							nc.outr = SemRole.OBJ
+							np.addChild(SemRole.THG, nc, nci)
+						}
+						case "partmod" => {
+							nc.outr = if (c.surf.length >= 3 && c.surf.substring(c.surf.length - 3, c.surf.length) == "ing") SemRole.SBJ else SemRole.OBJ
+							val tmp = if (p.pos.substring(0, 2) == "VB") SemRole.SBJ else SemRole.ARG
+							np.addChild(tmp, nc, nci)
+						}
+						case "poss" => {
+							nc.outr = SemRole.ARG
+							np.addChild(SemRole.POSS, nc, nci)
+						}
+						case "predet" => {
+							if (p.lex == "all") {
+								np.qtfier = Qtfier.ALL
+							}
+						}
+						case "prep" => {
+							nc.outr = SemRole.ARG
+							np.addChild(SemRole.IOBJ, nc, nci)
+						}
+						case "prepc" => {
+							nc.outr = SemRole.THG
+							np.addChild(SemRole.IOBJ, nc, nci)
+						}
+						case "prt" => {
+							val nword = new EnWord(p.surf + " " + c.surf, "O", p.sign)
+							nword.pos = p.pos
+							nword.index = p.index
+							np.word = nword
+						}
+						case "purpcl" => {
+							nc.outr = SemRole.THG
+							np.addChild(SemRole.AIM, nc, nci)
+						}
+						case "rcmod" => {
+							nc.outr = SemRole.OBJ
+							np.addChild(SemRole.ARG, nc, nci)
+						}
+						case "rel" => {
+							nc.outr = SemRole.ARG
+							np.addChild(SemRole.OBJ, nc, nci)
+						}
+						case "tmod" => {
+							nc.outr = SemRole.ARG
+							np.addChild(SemRole.TIME, nc, nci)
+						}
+						case "xcomp" => {
+							nc.outr = SemRole.SBJ
+							val tmp = if (p.pos.substring(0, 2) == "VB") SemRole.SBJ else SemRole.ARG
+							np.addChild(tmp, nc, nci)
+						}
+						case "xsubj" => {
+							nc.outr = SemRole.ARG
+							np.addChild(SemRole.SBJ, nc, nci)
+						}
+						case _ => {}
+					}
+				}
+			}
+			
+			var lnodes = Nil:List[PreNode]
+			def recur(x: PreNode) {
+				lnodes = x :: lnodes
+				for ((r, c) <- x.sortedChildren) {
+					recur(c)
+				}
+			}
+			recur(recroot)
+			lnodes
+		}
+		
+		def apply(raw: String): (STree, Array[ArrayBuffer[EnWord]]) = {
+			val sents = sentSeg(raw)
+			val ewaa = for (sent <- sents) yield {
+				chunking(sent)
+			}
+			//coref
+			val pnl = (for (lew <- ewaa.toList) yield {
+				val spl = split(dep(tagging(lew), lew))
+				(for (sp <- spl) yield {
+					annotate(sp)
+				}).flatten
+			}).flatten
+			(new STree(pnl), ewaa)
+		}
+	}
+}

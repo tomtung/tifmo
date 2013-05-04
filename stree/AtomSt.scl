@@ -1,0 +1,74 @@
+package tifmo
+
+import knowledge.SemRole.SemRole
+import inference.IEBasic
+
+package stree {
+	
+	sealed abstract class AtomSt {
+		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit): Unit
+		def claim(ie: IEBasic): Unit
+		def setup(ie: IEBasic): Unit
+		def check: Boolean
+		def clear(): Unit
+	}
+	
+	case class NonEmpty(a: PI) extends AtomSt {
+		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit) {
+			a.demandRoles(setLexRoles)
+		}
+		def claim(ie: IEBasic) {
+			a.setup(ie)
+			ie.claimNonEmpty(a.ietmref.to)
+		}
+		def setup(ie: IEBasic) {
+			a.setup(ie)
+		}
+		def check = a.ietmref.to.knownNE
+		def clear() {
+			a.clear()
+		}
+	}
+	
+	case class Subsume(a: PI, b: PI) extends AtomSt {
+		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit) {
+			a.demandRoles(setLexRoles)
+			b.demandRoles(setLexRoles)
+		}
+		def claim(ie: IEBasic) {
+			a.setup(ie)
+			b.setup(ie)
+			ie.claimSubsume(a.ietmref.to, b.ietmref.to)
+		}
+		def setup(ie: IEBasic) {
+			a.setup(ie)
+			b.setup(ie)
+		}
+		def check = a.ietmref.to.hasSuper(b.ietmref.to)
+		def clear() {
+			a.clear()
+			b.clear()
+		}
+	}
+	
+	case class Disjoint(a: PI, b: PI) extends AtomSt {
+		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit) {
+			a.demandRoles(setLexRoles)
+			b.demandRoles(setLexRoles)
+		}
+		def claim(ie: IEBasic) {
+			a.setup(ie)
+			b.setup(ie)
+			ie.claimDisjoint(a.ietmref.to, b.ietmref.to)
+		}
+		def setup(ie: IEBasic) {
+			a.setup(ie)
+			b.setup(ie)
+		}
+		def check = a.ietmref.to.disjointTo(b.ietmref.to)
+		def clear() {
+			a.clear()
+			b.clear()
+		}
+	}
+}

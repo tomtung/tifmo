@@ -1,0 +1,68 @@
+package dinf
+
+
+import edu.mit.jwi.Dictionary
+import edu.mit.jwi.item.POS
+import edu.mit.jwi.item.Pointer
+import edu.mit.jwi.item.IWordID
+import edu.mit.jwi.item.IWord
+import edu.mit.jwi.item.ISynsetID
+import edu.mit.jwi.item.ISynset
+import edu.mit.jwi.morph.WordnetStemmer
+
+package knowledge {
+	
+	object WordNet {
+		
+		val dict = new Dictionary(new java.io.File("/usr/share/wordnet"))
+		dict.open()
+		
+		def javaCollection2List[T](c: java.util.Collection[T]) = {
+			var ret = Nil:List[T]
+			if (c != null) {
+				val iter = c.iterator()
+				while (iter.hasNext) {
+					ret = iter.next() :: ret
+				}
+			}
+			ret
+		}
+		
+		
+		val stemmer = new WordnetStemmer(dict)
+		
+		def stem(s: String) = {
+			for (pos <- POS.values) yield {
+				(pos, javaCollection2List[String](stemmer.findStems(s, pos)))
+			}
+		}
+		
+		def synsets(w: String) = {
+			(for {
+				(p, sl) <- stem(w)
+				s <- sl
+				idxw = dict.getIndexWord(s, p)
+				if idxw != null
+				wids = javaCollection2List[IWordID](idxw.getWordIDs)
+				wid <- wids
+			} yield {
+				dict.getWord(wid).getSynset
+			}).toSet
+		}
+		
+		def getAntonymSynsets(ss: ISynset) = {
+			val ws = javaCollection2List[IWord](ss.getWords)
+			val antws = ws.flatMap(w => javaCollection2List[IWordID](w.getRelatedWords(Pointer.ANTONYM))).toSet
+			antws.map(x => dict.getWord(x).getSynset)
+		}
+		
+		def getHyperSynsets(ss: ISynset) = {
+			val rels = List(Pointer.HYPERNYM, Pointer.HYPERNYM_INSTANCE, Pointer.HOLONYM_MEMBER, 
+				Pointer.HOLONYM_PART, Pointer.HOLONYM_SUBSTANCE, Pointer.ENTAILMENT)
+			val hss = rels.flatMap(rel => javaCollection2List[ISynsetID](ss.getRelatedSynsets(rel))).toSet
+			hss.map(x => dict.getSynset(x)) + ss
+		}
+		
+		
+	}
+}

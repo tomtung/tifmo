@@ -1,0 +1,80 @@
+package tifmo
+
+package knowledge {
+	
+	class EnWord(
+		val surf: String,
+		val ner: String,
+		val sign: Boolean
+	) extends WordInfo {
+		
+		private[this] var posvar = null:String
+		def pos = posvar
+		def pos_=(x: String) {
+			assert(posvar == null)
+			posvar = x
+		}
+		
+		private[this] var indx = -1
+		def index = indx
+		def index_=(x: Int) {
+			assert(indx == -1)
+			indx = x
+		}
+		
+		val lex = surf
+		
+		def isPronoun = false
+		
+		lazy val neg = {
+			assert(sign)
+			val ret = new EnWord(lex, ner, false)
+			ret.pos = pos
+			ret.index = index
+			ret
+		}
+		
+		override def toString = surf
+		
+		/*
+		val wordSynSets = WordNet.synsets(word)
+		
+		val antSynSets = wordSynSets.flatMap(x => WordNet.getAntonymSynsets(x))
+		
+		val hyperSynSets = wordSynSets.flatMap(x => WordNet.getHyperSynsets(x)).flatMap(x => WordNet.getHyperSynsets(x))
+		
+		def lcs(a: String, b: String) = {
+			val tab = Array.ofDim[Int](a.length + 1, b.length + 1)
+			for (i <- 0 until a.length; j <- 0 until b.length) {
+				if (a.charAt(i) == b.charAt(j)) {
+					tab(i + 1)(j + 1) = tab(i)(j) + 1
+				} else {
+					tab(i + 1)(j + 1) = tab(i)(j + 1) max tab(i + 1)(j)
+				}
+			}
+			tab(a.length)(b.length)
+		}
+		def lcsr(a: String, b: String) = (lcs(a, b).toDouble * 2.0) / (a.length.toDouble + b.length.toDouble)
+		
+		def judgeSynonym(that: WordInfo) = {
+			if (sign != that.sign) {
+				!(antSynSets intersect that.wordSynSets).isEmpty
+			} else {
+				lcsr(word, that.word) > 0.9 || !(wordSynSets intersect that.wordSynSets).isEmpty
+			}
+		}
+		
+		def judgeAntonym(that: WordInfo) = {
+			if (sign == that.sign) {
+				!(antSynSets intersect that.wordSynSets).isEmpty
+			} else {
+				lcsr(word, that.word) > 0.9 || !(wordSynSets intersect that.wordSynSets).isEmpty
+			}
+		}
+		
+		def judgeHypernym(that: WordInfo) = {
+			sign == that.sign && !(hyperSynSets intersect that.wordSynSets).isEmpty
+		}
+		*/
+	}
+}
