@@ -23,13 +23,13 @@ def confidence(algn: Align, cache: mutable.Map[Set[Set[EnWord]], Double]) = {
 		
 		0.3 + 0.4 / cws.size
 		
-	} else if (tws.subsetOf(hws) || hws.subsetOf(tws)) {
+	} else if (hws.forall(x => tws.exists(y => EnWord.judgeSynonym(x, y)))) {
 		
-		if (hws.subsetOf(tws)) {
-			0.8
-		} else {
-			0.1 + 1.0 / (3 + (hws -- tws).size)
-		}
+		0.8
+		
+	} else if (tws.forall(x => hws.exists(y => EnWord.judgeSynonym(x, y)))) {
+		
+		0.1 + 1.0 / (3 + hws.size - tws.size)
 		
 	} else if (tws.size <= 3 && hws.size <= 3) {
 		
