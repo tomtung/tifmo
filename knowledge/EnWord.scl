@@ -133,6 +133,7 @@ package knowledge {
 					ngram.get(l.mkString("", " ", ""), tmp)
 				}
 				if (tmp.isEmpty) {
+					acache(aws) = (tmp, 1.0)
 					(tmp, 1.0)
 				} else {
 					val tmpnorm = norm(tmp)
@@ -150,6 +151,7 @@ package knowledge {
 					ngram.get(l.mkString("", " ", ""), tmp)
 				}
 				if (tmp.isEmpty) {
+					bcache(bws) = (tmp, 1.0)
 					(tmp, 1.0)
 				} else {
 					val tmpnorm = norm(tmp)
