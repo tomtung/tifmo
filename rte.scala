@@ -8,14 +8,14 @@ val confidence = (algn: Align) => {
 	
 	val cws = algn.clue.src.init.map(_.word).toSet
 	val tws = if (algn.soft) {
-			algn.tp.src.init.map(_.term.word).toSet -- cws
+			algn.tp.src.init.map(_.term.word.asInstanceOf[EnWord]).toSet -- cws
 		} else {
-			algn.tp.src.map(_.term.word).toSet -- cws
+			algn.tp.src.map(_.term.word.asInstanceOf[EnWord]).toSet -- cws
 		}
 	val hws = if (algn.soft) {
-			algn.hp.src.init.map(_.term.word).toSet -- cws
+			algn.hp.src.init.map(_.term.word.asInstanceOf[EnWord]).toSet -- cws
 		} else {
-			algn.hp.src.map(_.term.word).toSet -- cws
+			algn.hp.src.map(_.term.word.asInstanceOf[EnWord]).toSet -- cws
 		}
 	if (tws.isEmpty || hws.isEmpty) {
 		
