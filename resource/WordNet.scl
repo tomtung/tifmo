@@ -1,5 +1,4 @@
-package dinf
-
+package tifmo
 
 import edu.mit.jwi.Dictionary
 import edu.mit.jwi.item.POS
@@ -10,59 +9,52 @@ import edu.mit.jwi.item.ISynsetID
 import edu.mit.jwi.item.ISynset
 import edu.mit.jwi.morph.WordnetStemmer
 
-package knowledge {
+import scala.collection.JavaConversions._
+
+package resource {
 	
 	object WordNet {
 		
-		val dict = new Dictionary(new java.io.File("/usr/share/wordnet"))
+		//private[this] val dir = "/usr/share/wordnet"
+		private[this] val dir = "/works/csisv13/tianran/wordnet"
+		
+		private[this] val dict = new Dictionary(new java.io.File(dir))
 		dict.open()
 		
-		def javaCollection2List[T](c: java.util.Collection[T]) = {
-			var ret = Nil:List[T]
-			if (c != null) {
-				val iter = c.iterator()
-				while (iter.hasNext) {
-					ret = iter.next() :: ret
+		private[this] val stemmer = new WordnetStemmer(dict)
+		private[this] val allpos = POS.values.toSet
+		
+		def synsets(lex: String, postag: String) = {
+			
+			val stems = if (postag.length >= 2) {
+				postag.substring(0, 2) match {
+					case "JJ" => stemmer.findStems(lex, POS.ADJECTIVE).map((POS.ADJECTIVE, _)).toSet
+					case "NN" => stemmer.findStems(lex, POS.NOUN).map((POS.NOUN, _)).toSet
+					case "RB" => stemmer.findStems(lex, POS.ADVERB).map((POS.ADVERB, _)).toSet
+					case "VB" => stemmer.findStems(lex, POS.VERB).map((POS.VERB, _)).toSet
+					case _ => allpos.flatMap(x => stemmer.findStems(lex, x).map((x, _)))
 				}
+			} else {
+				allpos.flatMap(x => stemmer.findStems(lex, x).map((x, _)))
 			}
-			ret
-		}
-		
-		
-		val stemmer = new WordnetStemmer(dict)
-		
-		def stem(s: String) = {
-			for (pos <- POS.values) yield {
-				(pos, javaCollection2List[String](stemmer.findStems(s, pos)))
-			}
-		}
-		
-		def synsets(w: String) = {
-			(for {
-				(p, sl) <- stem(w)
-				s <- sl
-				idxw = dict.getIndexWord(s, p)
-				if idxw != null
-				wids = javaCollection2List[IWordID](idxw.getWordIDs)
-				wid <- wids
-			} yield {
+			
+			for ((p, s) <- stems; idxw = dict.getIndexWord(s, p); if idxw != null; wid <- idxw.getWordIDs) yield {
 				dict.getWord(wid).getSynset
-			}).toSet
+			}
 		}
 		
 		def getAntonymSynsets(ss: ISynset) = {
-			val ws = javaCollection2List[IWord](ss.getWords)
-			val antws = ws.flatMap(w => javaCollection2List[IWordID](w.getRelatedWords(Pointer.ANTONYM))).toSet
+			val ws = ss.getWords.toSet
+			val antws = ws.flatMap(_.getRelatedWords(Pointer.ANTONYM))
 			antws.map(x => dict.getWord(x).getSynset)
 		}
 		
+		private[this] val hyperrels = Set(Pointer.HYPERNYM, Pointer.HYPERNYM_INSTANCE, 
+			Pointer.HOLONYM_MEMBER, Pointer.HOLONYM_PART, Pointer.HOLONYM_SUBSTANCE, Pointer.ENTAILMENT)
 		def getHyperSynsets(ss: ISynset) = {
-			val rels = List(Pointer.HYPERNYM, Pointer.HYPERNYM_INSTANCE, Pointer.HOLONYM_MEMBER, 
-				Pointer.HOLONYM_PART, Pointer.HOLONYM_SUBSTANCE, Pointer.ENTAILMENT)
-			val hss = rels.flatMap(rel => javaCollection2List[ISynsetID](ss.getRelatedSynsets(rel))).toSet
-			hss.map(x => dict.getSynset(x)) + ss
+			val hss = hyperrels.flatMap(ss.getRelatedSynsets(_))
+			hss.map(dict.getSynset(_)) + ss
 		}
-		
 		
 	}
 }

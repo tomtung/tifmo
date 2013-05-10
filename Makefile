@@ -21,6 +21,8 @@ TARGET = \
 	tifmo/stree/Schema.class \
 	tifmo/stree/Align.class \
 	tifmo/stree/InferMgr.class \
+	tifmo/resource/WordNet.class \
+	tifmo/resource/NgramDist.class \
 	tifmo/knowledge/EnWord.class \
 	tifmo/proc/mkSTreeEnglish.class
 	
@@ -86,6 +88,12 @@ tifmo/stree/Align.class: stree/Align.scl
 tifmo/stree/InferMgr.class: stree/InferMgr.scl
 	$(SCALAC) $<
 
+tifmo/resource/WordNet.class: resource/WordNet.scl
+	$(SCALAC) $<
+
+tifmo/resource/NgramDist.class: resource/NgramDist.scl
+	$(SCALAC) $<
+
 tifmo/knowledge/EnWord.class: knowledge/EnWord.scl
 	$(SCALAC) $<
 
@@ -103,4 +111,7 @@ test:
 test2:
 	$(SCALA) test2.scala
 
-.PHONY: scaladoc clean test test2
+rte:
+	$(SCALA) rte.scala
+
+.PHONY: scaladoc clean test test2 rte

@@ -355,7 +355,7 @@ package inference {
 		forAnyTerm(rCPIN5)
 		*/
 		private[this] val rCPIN0 = (args: List[Any]) => args match {
-			case (rr:List[IETermRef]) :: (revrl:List[SemRole]) :: (a:IETerm) => {
+			case (rr:List[IETermRef]) :: (revrl:List[SemRole]) :: (a:IETerm) :: Nil => {
 				val comp = rr.map(_.to).zip(revrl).toSet
 				claimCP(a, comp)
 			}
@@ -654,7 +654,9 @@ package inference {
 			}
 			case _ => throw new Exception("rDE2 error!")
 		}
-		private[this] val rDE3 = (x: IETerm, args: List[Any]) => forSpecific(List(x), args, rDE2)_
+		private[this] val rDE3 = (x: IETerm, args: List[Any]) => {
+			forSpecific(List(x), args, rDE2)_
+		}
 		private[this] val rDE4 = (x: IETerm, args: List[Any]) => args match {
 			case (tmp:(IETerm, SemRole)) :: (tm:IETerm) :: (h:IETerm) :: (a:IETerm) :: (b:IETerm) :: (r:SemRole) :: Nil => {
 				constructIN(Set(x, a), args, rDE3)_
@@ -663,7 +665,8 @@ package inference {
 		}
 		private[this] val rDE5 = (args: List[Any]) => args match {
 			case (tmp:(IETerm, SemRole)) :: (tm:IETerm) :: (h:IETerm) :: (a:IETerm) :: (b:IETerm) :: (r:SemRole) :: Nil => {
-				constructCP(Set(tmp, (getW(null), r)), args, rDE4)_
+				//constructCP(Set(tmp, (getW(null), r)), args, rDE4)_
+				forCPof(Set(tmp, (getW(null), r)), args, rDE4)_
 			}
 			case _ => throw new Exception("rDE5 error!")
 		}

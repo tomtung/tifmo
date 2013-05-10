@@ -1,5 +1,11 @@
 package tifmo
 
+import resource.WordNet
+import resource.NgramDist
+import mylib.oneFromEach
+
+import scala.collection.mutable
+
 package knowledge {
 	
 	class EnWord(
@@ -15,34 +21,61 @@ package knowledge {
 			posvar = x
 		}
 		
-		private[this] var indx = -1
-		def index = indx
-		def index_=(x: Int) {
-			assert(indx == -1)
-			indx = x
+		private[this] var sivar = -1
+		def si = sivar
+		def si_=(x: Int) {
+			assert(sivar == -1)
+			sivar = x
 		}
 		
-		val lex = surf
+		private[this] var wivar = -1
+		def wi = wivar
+		def wi_=(x: Int) {
+			assert(wivar == -1)
+			wivar = x
+		}
 		
-		def isPronoun = false
+		private[this] var lexvar = null:String
+		def lex = lexvar
+		def lex_=(x: String) {
+			assert(lexvar == null)
+			lexvar = x
+		}
+		
+		override lazy val hashCode = (surf, ner, sign, pos, si, wi, lex).hashCode
+		override def equals(a: Any) = {
+			if (a.isInstanceOf[EnWord]) {
+				val that = a.asInstanceOf[EnWord]
+				surf == that.surf && ner == that.ner && sign == that.sign && pos == that.pos && si == that.si && wi == that.wi && lex == that.lex
+			} else {
+				false
+			}
+		}
+		
+		def isPronoun = (pos.length >= 2) && (pos.substring(0, 2) == "PR")
 		
 		lazy val neg = {
 			assert(sign)
-			val ret = new EnWord(lex, ner, false)
+			val ret = new EnWord(surf, ner, false)
 			ret.pos = pos
-			ret.index = index
+			ret.si = si
+			ret.wi = wi
+			ret.lex = lex
 			ret
 		}
 		
-		override def toString = surf
+		override def toString = (if (sign) "" else "(-)") + surf
 		
-		/*
-		val wordSynSets = WordNet.synsets(word)
+		lazy val wordSynSets = WordNet.synsets(lex, pos)
 		
-		val antSynSets = wordSynSets.flatMap(x => WordNet.getAntonymSynsets(x))
+		lazy val antSynSets = wordSynSets.flatMap(WordNet.getAntonymSynsets(_))
 		
-		val hyperSynSets = wordSynSets.flatMap(x => WordNet.getHyperSynsets(x)).flatMap(x => WordNet.getHyperSynsets(x))
+		lazy val hyperSynSets = wordSynSets.flatMap(WordNet.getHyperSynsets(_)).flatMap(WordNet.getHyperSynsets(_)).flatMap(WordNet.getHyperSynsets(_))
 		
+	}
+	
+	object EnWord {
+	
 		def lcs(a: String, b: String) = {
 			val tab = Array.ofDim[Int](a.length + 1, b.length + 1)
 			for (i <- 0 until a.length; j <- 0 until b.length) {
@@ -54,27 +87,59 @@ package knowledge {
 			}
 			tab(a.length)(b.length)
 		}
-		def lcsr(a: String, b: String) = (lcs(a, b).toDouble * 2.0) / (a.length.toDouble + b.length.toDouble)
+		def lcsr(a: String, b: String) = 2.0 * lcs(a, b) / (a.length + b.length)
 		
-		def judgeSynonym(that: WordInfo) = {
-			if (sign != that.sign) {
-				!(antSynSets intersect that.wordSynSets).isEmpty
+		def judgeSynonym(a: EnWord, b: EnWord) = {
+			if (a.sign && !b.sign) {
+				!(b.antSynSets intersect a.wordSynSets).isEmpty
+			} else if (!a.sign && b.sign) {
+				!(a.antSynSets intersect b.wordSynSets).isEmpty
 			} else {
-				lcsr(word, that.word) > 0.9 || !(wordSynSets intersect that.wordSynSets).isEmpty
+				lcsr(a.lex, b.lex) > 0.9 || !(a.wordSynSets intersect b.wordSynSets).isEmpty
 			}
 		}
 		
-		def judgeAntonym(that: WordInfo) = {
-			if (sign == that.sign) {
-				!(antSynSets intersect that.wordSynSets).isEmpty
+		def judgeAntonym(a: EnWord, b: EnWord) = a.sign && b.sign && {
+			!(a.antSynSets intersect b.wordSynSets).isEmpty || !(b.antSynSets intersect a.wordSynSets).isEmpty
+		}
+		
+		def judgeHypernym(a: EnWord, b: EnWord) = (a.sign == b.sign) && {
+			if (a.sign) {
+				!(a.hyperSynSets intersect b.wordSynSets).isEmpty
 			} else {
-				lcsr(word, that.word) > 0.9 || !(wordSynSets intersect that.wordSynSets).isEmpty
+				!(b.hyperSynSets intersect a.wordSynSets).isEmpty
 			}
 		}
 		
-		def judgeHypernym(that: WordInfo) = {
-			sign == that.sign && !(hyperSynSets intersect that.wordSynSets).isEmpty
+		private[this] val ngram = new NgramDist(5, 40)
+		def cossim(aws: Set[EnWord], bws: Set[EnWord]) = {
+			
+			val adist = mutable.Map.empty[String, Long]
+			val awll = aws.toList.map(x => Set(x.surf, x.lex))
+			for (l <- oneFromEach[String](awll)) {
+				ngram.get(l.mkString("", " ", ""), adist)
+			}
+			
+			val bdist = mutable.Map.empty[String, Long]
+			val bwll = bws.toList.map(x => Set(x.surf, x.lex))
+			for (l <- oneFromEach[String](bwll)) {
+				ngram.get(l.mkString("", " ", ""), bdist)
+			}
+			
+			def norm(x: mutable.Map[String, Long]) = {
+				var retsq = 0.0
+				for ((k, v) <- x) {
+					retsq += v * v
+				}
+				math.sqrt(retsq)
+			}
+			val dot = {
+				val ck = adist.keySet intersect bdist.keySet
+				(0.0 /: ck)((a, k) => a + adist(k) * bdist(k))
+			}
+			
+			dot / norm(adist) / norm(bdist)
 		}
-		*/
+		
 	}
 }

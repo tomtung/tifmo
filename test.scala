@@ -3,22 +3,29 @@ import tifmo.proc.mkSTreeEnglish
 import tifmo.stree.InferMgr
 import tifmo.stree.Align
 
-val traw = "Jack Straw, the Foreign Secretary, will meet his Brazilian counterpart, Celso Amorim, in London today."
-val hraw = "Jack Straw is a partner of Celso Amorim."
+//val traw = "Jack Straw, the Foreign Secretary, will meet his Brazilian counterpart, Celso Amorim, in London today."
+//val hraw = "Jack Straw is a partner of Celso Amorim."
 
-val (tstree, twaa) = mkSTreeEnglish(traw)
-val (hstree, hwaa) = mkSTreeEnglish(hraw)
+//val traw = "Angola as a Portuguese colony achieved independence in 1975."
+//val hraw = "Angola became independent from Spain in the 1970s."
+
+val traw = "Anyway, maybe it's best not to plan everything."
+val hraw = "Don't plan everything."
+
+val tstree = mkSTreeEnglish(traw)
+val hstree = mkSTreeEnglish(hraw)
 
 println("============ Test Start =============")
 println(tstree)
-twaa.foreach(println(_))
 println("---")
 println(hstree)
-hwaa.foreach(println(_))
 println("----")
 
 val imgr = new InferMgr(hstree)
 imgr.addPremise(tstree)
+
+//imgr.addSynonym(tstree.streeNodeList(3).word, hstree.streeNodeList(3).word) // independence = independent
+//imgr.addHypernym(tstree.streeNodeList(4).word, hstree.streeNodeList(2).word) // 1975 -> 1970s
 
 val confidence = (algn: Align) => {
 	val bonus = if (algn.soft) 0.5 else 0.0

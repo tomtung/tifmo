@@ -357,8 +357,12 @@ package inference {
 		}
 		
 		private[inference] def change(x: IETerm, a: IETerm) = {
-			val tmp = terms.map(y => if (y == x) a else y)
-			new SpecificFunc(tmp, args, f, dep)
+			if (dep.forall(y => y.ref.to == y)) {
+				val tmp = terms.map(y => if (y == x) a else y)
+				new SpecificFunc(tmp, args, f, dep)
+			} else {
+				null
+			}
 		}
 		private[inference] def fire() {
 			f(terms, args)(dep)

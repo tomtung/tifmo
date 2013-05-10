@@ -504,11 +504,12 @@ package inference {
 						triggers.enqueue(() => {
 							h.isinTriggers.toList.foreach(_.fire(t))
 						})
-						
+						/*
 						val ins = t.minBy[Int](_.mkins.size).mkins.filter(x => x.comp == t && x.head != h)
 						assert(ins.map(_.aux).size <= 1)
 						for (in <- ins; if in.aux) {
 							(new IEPredIN(in.head, in.comp, false)).apply()
+						*/
 							/*
 							triggers.enqueue(() => {
 								val hl = in.head.isinTriggers.toList
@@ -517,12 +518,14 @@ package inference {
 								}
 							})
 							*/
+						/*
 							triggers.enqueue(() => {
 								in.head.isinTriggers.toList.foreach(_.fire(in.comp))
 							})
 							
 							in.dispose()
 						}
+						*/
 					}
 				}
 			}
@@ -541,9 +544,10 @@ package inference {
 					val comp = squeeze(t)
 					if (multi(comp)) {
 						
-						val gaux = aux && comp.minBy[Int](_.mkins.size).mkins.filter(_.comp == comp).forall(_.aux)
+						//val gaux = aux && comp.minBy[Int](_.mkins.size).mkins.filter(_.comp == comp).forall(_.aux)
 						
-						if (!gaux) {
+						//if (!gaux) {
+						if (!aux) {
 							for (in <- h.isins.toList; if in.aux && in.comp.subsetOf(comp)) {
 								val sq = squeeze(in.comp)
 								if (!h.isins.exists(_.comp.subsetOf(sq))) {
@@ -552,7 +556,8 @@ package inference {
 							}
 						}
 						if (!h.isins.exists(_.comp.subsetOf(comp))) {
-							val faux = gaux && h.isins.forall(x => x.aux || !comp.subsetOf(x.comp))
+							//val faux = gaux && h.isins.forall(x => x.aux || !comp.subsetOf(x.comp))
+							val faux = aux && h.isins.forall(x => x.aux || !comp.subsetOf(x.comp))
 							applyIN(h, comp, faux)
 							true
 						} else {
@@ -680,7 +685,7 @@ package inference {
 			for (x <- eqs) {
 				for (sp <- x.specifics) {
 					val nsp = sp.change(x, a)
-					if (nsp.isNew) {
+					if (nsp != null && nsp.isNew) {
 						task = (() => nsp.fire()) :: task
 					}
 				}

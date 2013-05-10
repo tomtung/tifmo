@@ -3,6 +3,7 @@ package tifmo
 import ac.biu.nlp.normalization.BiuNormalizer
 
 import edu.stanford.nlp.process.DocumentPreprocessor
+import edu.stanford.nlp.process.Morphology
 import edu.stanford.nlp.ling.HasWord
 import edu.stanford.nlp.ling.TaggedWord
 import edu.stanford.nlp.ling.CoreAnnotations.AnswerAnnotation
@@ -10,6 +11,7 @@ import edu.stanford.nlp.ie.crf.CRFClassifier
 import edu.stanford.nlp.tagger.maxent.MaxentTagger
 import edu.stanford.nlp.parser.lexparser.LexicalizedParser
 import edu.stanford.nlp.trees.PennTreebankLanguagePack
+import edu.stanford.nlp.trees.TreeGraphNode
 
 import knowledge.SemRole
 import knowledge.SemRole.SemRole
@@ -63,9 +65,6 @@ package proc {
 			if (aword != null) {
 				ret += new EnWord(aword, acat, true)
 			}
-			for (i <- 0 until ret.length) {
-				ret(i).index = i
-			}
 			ret
 		}
 		
@@ -77,31 +76,31 @@ package proc {
 			val ret = tagger.tagSentence(sent)
 			for (i <- 0 until lew.length) {
 				lew(i).pos = ret.get(i).tag
+				lew(i).lex = Morphology.lemmaStatic(lew(i).surf, lew(i).pos, lew(i).ner == "O")
 			}
 			ret
 		}
 		
 		//def coref() {}
 		
-		def dep(sent: java.util.List[TaggedWord], lew: ArrayBuffer[EnWord]): Set[(EnWord, String, EnWord)] = {
+		def dep(sent: java.util.List[TaggedWord]): Set[(TreeGraphNode, String, TreeGraphNode)] = {
 			val parse = lp.apply(sent)
 			val gs = gsf.newGrammaticalStructure(parse)
 			val dct = gs.typedDependenciesCollapsedTree.toSet
 			for (td <- dct) yield {
-				val rel = td.reln.toString
-				if (rel == "root") {
-					(null, rel, lew(td.dep.index - 1))
-				} else {
-					(lew(td.gov.index - 1), rel, lew(td.dep.index - 1))
-				}
+				(td.gov, td.reln.toString, td.dep)
 			}
 		}
+		
+		
+		
+		
 		
 		private[this] def trimUnder(s: String) = {
 			val i = s.indexOf("_")
 			if (i == -1) s else s.substring(0, i)
 		}
-		
+		/*
 		private[this] def getSubDeps(dep: Iterable[(EnWord, String, EnWord)], n: EnWord) = {
 			val subnodes = mutable.Set(n)
 			val ret = mutable.Set.empty[(EnWord, String, EnWord)]
@@ -117,34 +116,83 @@ package proc {
 			}
 			ret.toSet
 		}
-		
-		def split(dep: Set[(EnWord, String, EnWord)]): List[Set[(EnWord, String, EnWord)]] = {
-				var checklst = List(dep)
-				var retlst = Nil:List[Set[(EnWord, String, EnWord)]]
-				while (!checklst.isEmpty) {
-					val tocheck = checklst.head
-					checklst = checklst.tail
-					tocheck.find(x => trimUnder(x._2) == "conj") match {
-						case Some(x) => {
-							val depsub = getSubDeps(tocheck, x._3)
-							val govsub = getSubDeps(tocheck, x._1)
-							val slim = tocheck -- govsub
-							val paredge = tocheck.find(_._3 == x._1) match {
-								case Some(y) => y
-								case None => throw new Exception("no parent of conj!!!")
-							}
-							val s1 = ((slim ++ depsub) - paredge) + ((paredge._1, paredge._2, x._3))
-							val s2 = slim ++ ((govsub -- depsub) - x)
-							checklst = s1 :: s2 :: checklst
-						}
-						case None => {
-							retlst = tocheck :: retlst
-						}
+		*/
+		private[this] def getSubDeps(dep: Iterable[(TreeGraphNode, String, TreeGraphNode)], n: TreeGraphNode) = {
+			val subnodes = mutable.Set(n)
+			val ret = mutable.Set.empty[(TreeGraphNode, String, TreeGraphNode)]
+			var hadnew = true
+			while(hadnew) {
+				hadnew = false
+				for ((p, rel, c) <- dep) {
+					if (subnodes.contains(p) && subnodes.add(c)) {
+						ret.add((p, rel, c))
+						hadnew = true
 					}
 				}
-				retlst
+			}
+			ret.toSet
 		}
-		
+		def split(dep: Set[(TreeGraphNode, String, TreeGraphNode)], lew: ArrayBuffer[EnWord]): List[Set[(EnWord, String, EnWord)]] = {
+			var checklst = List(dep)
+			var retlst = Nil:List[Set[(EnWord, String, EnWord)]]
+			while (!checklst.isEmpty) {
+				val tocheck = checklst.head
+				checklst = checklst.tail
+				tocheck.find(x => trimUnder(x._2) == "conj") match {
+					case Some(x) => {
+						val depsub = getSubDeps(tocheck, x._3)
+						val govsub = getSubDeps(tocheck, x._1)
+						val slim = tocheck -- govsub
+						val paredge = tocheck.find(_._3 == x._1) match {
+							case Some(y) => y
+							case None => throw new Exception("no parent of conj!!!")
+						}
+						val s1 = ((slim ++ depsub) - paredge) + ((paredge._1, paredge._2, x._3))
+						val s2 = slim ++ ((govsub -- depsub) - x)
+						checklst = s1 :: s2 :: checklst
+					}
+					case None => {
+						val tmp = for ((p, rel, c) <- tocheck) yield {
+							if (rel == "root") {
+								(null, rel, lew(c.index - 1))
+							} else {
+								(lew(p.index - 1), rel, lew(c.index - 1))
+							}
+						}
+						retlst = tmp :: retlst
+					}
+				}
+			}
+			retlst
+		}
+		/*
+		def split(dep: Set[(EnWord, String, EnWord)]): List[Set[(EnWord, String, EnWord)]] = {
+			var checklst = List(dep)
+			var retlst = Nil:List[Set[(EnWord, String, EnWord)]]
+			while (!checklst.isEmpty) {
+				val tocheck = checklst.head
+				checklst = checklst.tail
+				tocheck.find(x => trimUnder(x._2) == "conj") match {
+					case Some(x) => {
+						val depsub = getSubDeps(tocheck, x._3)
+						val govsub = getSubDeps(tocheck, x._1)
+						val slim = tocheck -- govsub
+						val paredge = tocheck.find(_._3 == x._1) match {
+							case Some(y) => y
+							case None => throw new Exception("no parent of conj!!!")
+						}
+						val s1 = ((slim ++ depsub) - paredge) + ((paredge._1, paredge._2, x._3))
+						val s2 = slim ++ ((govsub -- depsub) - x)
+						checklst = s1 :: s2 :: checklst
+					}
+					case None => {
+						retlst = tocheck :: retlst
+					}
+				}
+			}
+			retlst
+		}
+		*/
 		def annotate(dep: Set[(EnWord, String, EnWord)]): List[PreNode] = {
 			
 			val pnpool = mutable.Map.empty[EnWord, PreNode]
@@ -165,7 +213,7 @@ package proc {
 					recroot = getNode(c)
 				} else {
 					val (np, nc) = (getNode(p), getNode(c))
-					val nci = c.index
+					val nci = c.wi
 					trimUnder(rel) match {
 						case "abbrev" => {
 							nc.outr = SemRole.ARG
@@ -264,6 +312,10 @@ package proc {
 							val tmp = if (p.pos.substring(0, 2) == "VB") SemRole.SBJ else SemRole.ARG
 							np.addChild(tmp, nc, nci)
 						}
+						case "pobj" => {
+							nc.outr = SemRole.ARG
+							np.addChild(SemRole.IOBJ, nc, nci)
+						}
 						case "poss" => {
 							nc.outr = SemRole.ARG
 							np.addChild(SemRole.POSS, nc, nci)
@@ -284,7 +336,9 @@ package proc {
 						case "prt" => {
 							val nword = new EnWord(p.surf + " " + c.surf, "O", p.sign)
 							nword.pos = p.pos
-							nword.index = p.index
+							nword.si = p.si
+							nword.wi = p.wi
+							nword.lex = p.lex + " " + c.lex
 							np.word = nword
 						}
 						case "purpcl" => {
@@ -320,27 +374,54 @@ package proc {
 			var lnodes = Nil:List[PreNode]
 			def recur(x: PreNode) {
 				lnodes = x :: lnodes
+				// eliminate multiple quantifiers at one role. this is ad hoc!!!
+				val rcpool = mutable.Map.empty[SemRole, Set[PreNode]]
+				for ((r, c) <- x.sortedChildren; if c.qtfier != null) {
+					if (rcpool.contains(r)) {
+						rcpool(r) = rcpool(r) + c
+					} else {
+						rcpool(r) = Set(c)
+					}
+				}
+				for ((r, cs) <- rcpool; if cs.size >= 2) {
+					cs.foreach(_.qtfier = null)
+				}
+				//////////////////////////////////////////
 				for ((r, c) <- x.sortedChildren) {
 					recur(c)
 				}
 			}
-			recur(recroot)
+			if (recroot != null) recur(recroot)
 			lnodes
 		}
 		
-		def apply(raw: String): (STree, Array[ArrayBuffer[EnWord]]) = {
+		def wordsArray(raw: String): Array[ArrayBuffer[EnWord]] = {
 			val sents = sentSeg(raw)
-			val ewaa = for (sent <- sents) yield {
-				chunking(sent)
+			val ewaa = for (si <- 0 until sents.length) yield {
+				val wa = chunking(sents(si))
+				for (wi <- 0 until wa.length) {
+					wa(wi).si = si
+					wa(wi).wi = wi
+				}
+				wa
 			}
+			ewaa.toArray
+		}
+		
+		def apply(ewaa: Array[ArrayBuffer[EnWord]]): STree = {
 			//coref
 			val pnl = (for (lew <- ewaa.toList) yield {
-				val spl = split(dep(tagging(lew), lew))
+				val spl = split(dep(tagging(lew)), lew)
 				(for (sp <- spl) yield {
 					annotate(sp)
 				}).flatten
 			}).flatten
-			(new STree(pnl), ewaa)
+			new STree(pnl)
+		}
+		
+		def apply(raw: String): STree = {
+			val ewaa = wordsArray(raw)
+			apply(ewaa)
 		}
 	}
 }

@@ -15,19 +15,17 @@ for (q <- (f \ "question")) {
 	println("======== New Question =========")
 	
 	val traw = (q \ "text").text
-	val (tstree, twaa) = mkSTreeEnglish(traw)
+	val tstree = mkSTreeEnglish(traw)
 	
 	println("text: ")
 	println(tstree)
-	twaa.foreach(println(_))
 	
 	for (ans <- (q \ "answer")) {
 		val hraw = ans.text
-		val (hstree, hwaa) = mkSTreeEnglish(hraw)
+		val hstree = mkSTreeEnglish(hraw)
 		
 		println("hypo: ")
 		println(hstree)
-		hwaa.foreach(println(_))
 		println("----")
 		
 		val imgr = new InferMgr(hstree)

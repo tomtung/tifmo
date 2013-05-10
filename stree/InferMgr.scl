@@ -264,10 +264,10 @@ package stree {
 			part.foreach(_._1.setup(ie))
 			
 			println("partial: " + part.map(_._2).sum)
-			part.foreach(x => {
-				println(" weight: " + x._2)
-				println(" " + x._1)
-			})
+			//part.foreach(x => {
+			//	println(" weight: " + x._2)
+			//	println(" " + x._1)
+			//})
 			println("-----------")
 			
 			def loop() {
