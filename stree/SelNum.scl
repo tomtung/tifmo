@@ -31,9 +31,9 @@ package stree {
 			}
 			case _ => throw new Exception("rSL2 error!")
 		}
-		private[this] val rSL3 = (ha: List[IETerm], args: List[Any]) => ha match {
+		private[this] val rSL3 = (ha: List[IETerm], args: List[Any]) => (dep: Set[IETerm]) => ha match {
 			case (h:IETerm) :: (a:IETerm) :: Nil => {
-				ie.ifNotEmpty(h, h :: a :: args, rSL2)_
+				ie.ifNotEmpty(h, h :: a :: args, rSL2)(dep + a)
 			}
 			case _ => throw new Exception("rSL3 error!")
 		}
