@@ -296,7 +296,8 @@ package stree {
 						}
 						
 						println("Alignments: ")
-						chosen.foreach(println(_))
+						val msgs = chosen.map(_.toString).toSet
+						msgs.foreach(println(_))
 						println("-----------")
 						
 						for (x <- chosen) {

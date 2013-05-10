@@ -52,17 +52,17 @@ val input_xml = "input/RTE_dev.xml"
 val f = xml.XML.loadFile(input_xml)
 for (p <- (f \ "pair")) {
 	
-	val traw = (p \ "t").text
+	val traw = (p \ "t").text.trim
 	val tstree = mkSTreeEnglish(traw)
 	
-	val hraw = (p \ "h").text
+	val hraw = (p \ "h").text.trim
 	val hstree = mkSTreeEnglish(hraw)
 	
 	println("text: ")
-	println(tstree)
+	println(traw)
 	println("---")
 	println("hypo: ")
-	println(hstree)
+	println(hraw)
 	println("----")
 	
 	val imgr = new InferMgr(hstree)
