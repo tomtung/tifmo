@@ -24,6 +24,7 @@ package resource {
 		private[this] val request = new BufferedWriter(new OutputStreamWriter(pssgnc.getOutputStream, "UTF-8"))
 		
 		def get(str: String, ret: mutable.Map[String, Long]) {
+System.err.println("start searching " + str + " ...")
 			request.write(str)
 			request.newLine()
 			request.flush()
@@ -48,6 +49,7 @@ package resource {
 				}
 			}
 			readResult()
+System.err.println("done.")
 		}
 	}
 }
