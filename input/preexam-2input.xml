@@ -1,0 +1,50 @@
+<reading-test>
+<question q_id=" 0 ">
+<text>
+In this country do you have to say `` Thank you '' for everything ?
+Later , I decided that domo must be a magic word that solved everything .
+`` Well , '' he said , '' My experience has taught me that it means something like ` thank you ' . ''
+</text>
+<answer a_id=" 1 "> A university student did . </answer>
+<answer a_id=" 2 "> A Frenchman at the airport . </answer>
+<answer a_id=" 3 "> A friend of the author 's . </answer>
+<answer a_id=" 4 "> A Japanese professor did . </answer>
+</question>
+
+<question q_id=" 1 ">
+<text>
+Walking beside me was a French businessman who seemed to know a lot about Japan .
+`` Well , '' he said , '' My experience has taught me that it means something like ` thank you ' . ''
+Actually , I did n't know what I was saying .
+</text>
+<answer a_id=" 1 "> He was a tennis player . </answer>
+<answer a_id=" 2 "> He was a professor of Japanese . </answer>
+<answer a_id=" 3 "> He was a visiting businessman . </answer>
+<answer a_id=" 4 "> He was a university teacher . </answer>
+</question>
+
+<question q_id=" 2 ">
+<text>
+This made me angry .
+Another day I was waiting for a friend to pick me up .
+I was very happy , since I had been in the country only a few hours and I already seemed to be mastering the rules of Japanese politeness .
+</text>
+<answer a_id=" 1 "> Because he did n't realize the student was apologizing . </answer>
+<answer a_id=" 2 "> Because the student refused to speak to him in English . </answer>
+<answer a_id=" 3 "> Because the student turned up half an hour late . </answer>
+<answer a_id=" 4 "> Because his favorite tennis racket had been broken . </answer>
+</question>
+
+<question q_id=" 3 ">
+<text>
+In the end , I came to realize that there are different types of domos , and now I can use them properly , I hope .
+He laughed a lot , and then told me , `` There are many different domos , and it seldom means ` thank you ' . ''
+Actually , I did n't know what I was saying .
+</text>
+<answer a_id=" 1 "> He realized that words seldom have their usual meaning . </answer>
+<answer a_id=" 2 "> He realized that domo does n't often mean `` Thank you '' . </answer>
+<answer a_id=" 3 "> He realized that domo means `` Thank you '' in a magic way . </answer>
+<answer a_id=" 4 "> He realized that domo means `` Thank you '' in many different ways . </answer>
+</question>
+
+</reading-test>
