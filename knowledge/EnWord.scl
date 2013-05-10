@@ -112,19 +112,9 @@ package knowledge {
 		}
 		
 		private[this] val ngram = new NgramDist(5, 40)
-		def cossim(aws: Set[EnWord], bws: Set[EnWord]) = {
-			
-			val adist = mutable.Map.empty[String, Long]
-			val awll = aws.toList.map(x => Set(x.surf, x.lex))
-			for (l <- oneFromEach[String](awll)) {
-				ngram.get(l.mkString("", " ", ""), adist)
-			}
-			
-			val bdist = mutable.Map.empty[String, Long]
-			val bwll = bws.toList.map(x => Set(x.surf, x.lex))
-			for (l <- oneFromEach[String](bwll)) {
-				ngram.get(l.mkString("", " ", ""), bdist)
-			}
+		def cossim(aws: Set[EnWord], bws: Set[EnWord], 
+				acache: mutable.Map[Set[EnWord], (mutable.Map[String, Long], Double)], 
+				bcache: mutable.Map[Set[EnWord], (mutable.Map[String, Long], Double)]) = {
 			
 			def norm(x: mutable.Map[String, Long]) = {
 				var retsq = 0.0
@@ -133,12 +123,39 @@ package knowledge {
 				}
 				math.sqrt(retsq)
 			}
+			
+			val (adist, anorm) = if (acache.contains(aws)) {
+				acache(aws)
+			} else {
+				val tmp = mutable.Map.empty[String, Long]
+				val awll = aws.toList.map(x => Set((if (x.ner == "O") x.surf.toLowerCase else x.surf), x.lex))
+				for (l <- oneFromEach[String](awll)) {
+					ngram.get(l.mkString("", " ", ""), tmp)
+				}
+				val tmpnorm = norm(tmp)
+				acache(aws) = (tmp, tmpnorm)
+				(tmp, tmpnorm)
+			}
+			
+			val (bdist, bnorm) = if (bcache.contains(bws)) {
+				bcache(bws)
+			} else {
+				val tmp = mutable.Map.empty[String, Long]
+				val bwll = bws.toList.map(x => Set((if (x.ner == "O") x.surf.toLowerCase else x.surf), x.lex))
+				for (l <- oneFromEach[String](bwll)) {
+					ngram.get(l.mkString("", " ", ""), tmp)
+				}
+				val tmpnorm = norm(tmp)
+				bcache(bws) = (tmp, tmpnorm)
+				(tmp, tmpnorm)
+			}
+			
 			val dot = {
 				val ck = adist.keySet intersect bdist.keySet
 				(0.0 /: ck)((a, k) => a + adist(k) * bdist(k))
 			}
 			
-			dot / norm(adist) / norm(bdist)
+			dot / anorm / bnorm
 		}
 		
 	}

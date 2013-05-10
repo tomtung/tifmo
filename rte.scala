@@ -3,44 +3,44 @@ import tifmo.knowledge.EnWord
 import tifmo.proc.mkSTreeEnglish
 import tifmo.stree.InferMgr
 import tifmo.stree.Align
+import tifmo.stree.PI
 
 import scala.collection.mutable
 
-def confidence(algn: Align, cache: mutable.Map[Set[Set[EnWord]], Double]) = {
+def confidence(algn: Align, 
+		acache: mutable.Map[Set[EnWord], (mutable.Map[String, Long], Double)], 
+		bcache: mutable.Map[Set[EnWord], (mutable.Map[String, Long], Double)]) = {
 	
 	val cws = algn.clue.src.init.map(_.term.word.asInstanceOf[EnWord]).toSet
+	def trimHead(x: List[PI]) = {
+		x.map(_.term.word.asInstanceOf[EnWord]).dropWhile(y => cws.exists(EnWord.judgeSynonym(y, _))).toSet
+	}
 	val tws = if (algn.soft) {
-			algn.tp.src.init.map(_.term.word.asInstanceOf[EnWord]).toSet -- cws
+			trimHead(algn.tp.src.init)
 		} else {
-			algn.tp.src.map(_.term.word.asInstanceOf[EnWord]).toSet -- cws
+			trimHead(algn.tp.src)
 		}
 	val hws = if (algn.soft) {
-			algn.hp.src.init.map(_.term.word.asInstanceOf[EnWord]).toSet -- cws
+			trimHead(algn.hp.src.init)
 		} else {
-			algn.hp.src.map(_.term.word.asInstanceOf[EnWord]).toSet -- cws
+			trimHead(algn.hp.src)
 		}
 	if (tws.isEmpty || hws.isEmpty) {
 		
 		0.3 + 0.4 / cws.size
 		
-	} else if (hws.forall(x => tws.exists(y => EnWord.judgeSynonym(x, y)))) {
+	} else if (hws.forall(x => tws.exists(EnWord.judgeSynonym(x, _)))) {
 		
 		0.8
 		
-	} else if (tws.forall(x => hws.exists(y => EnWord.judgeSynonym(x, y)))) {
+	} else if (tws.forall(x => hws.exists(EnWord.judgeSynonym(x, _)))) {
 		
 		0.1 + 1.0 / (3 + hws.size - tws.size)
 		
 	} else if (tws.size <= 3 && hws.size <= 3) {
 		
-		if (cache.contains(Set(tws, hws))) {
-			cache(Set(tws, hws))
-		} else {
-			val cossim = EnWord.cossim(tws, hws)
-			val tmp = 1.0 / (1.0 - math.log(cossim))
-			cache(Set(tws, hws)) = tmp
-			tmp
-		}
+		val cossim = EnWord.cossim(tws, hws, acache, bcache)
+		1.0 / (1.0 - math.log(cossim))
 		
 	} else {
 		0.0
@@ -103,7 +103,8 @@ for (p <- (f \ "pair")) {
 println("# words of H: " + hwords.size)
 println("# words of H syn to T: " + lap)
 	
-	val cache = mutable.Map.empty[Set[Set[EnWord]], Double]
-	imgr.trace(confidence(_, cache), 0.2)
+	val acache = mutable.Map.empty[Set[EnWord], (mutable.Map[String, Long], Double)]
+	val bcache = mutable.Map.empty[Set[EnWord], (mutable.Map[String, Long], Double)]
+	imgr.trace(confidence(_, acache, bcache), 0.2)
 	println("--------------")
 }
