@@ -15,7 +15,7 @@ def confidence(algn: Align,
 	def trimHead(x: List[PI]) = {
 		x.map(_.term.word.asInstanceOf[EnWord]).dropWhile(y => cws.exists(EnWord.judgeSynonym(y, _))).toSet
 	}
-	val tws = if (algn.soft) {
+	val tws = if (algn.soft && EnWord.judgeSynonym(algn.tp.src.last.term.word.asInstanceOf[EnWord], algn.hp.src.last.term.word.asInstanceOf[EnWord])) {
 			trimHead(algn.tp.src.init)
 		} else {
 			trimHead(algn.tp.src)
