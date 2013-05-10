@@ -132,9 +132,13 @@ package knowledge {
 				for (l <- oneFromEach[String](awll)) {
 					ngram.get(l.mkString("", " ", ""), tmp)
 				}
-				val tmpnorm = norm(tmp)
-				acache(aws) = (tmp, tmpnorm)
-				(tmp, tmpnorm)
+				if (tmp.isEmpty) {
+					(tmp, 1.0)
+				} else {
+					val tmpnorm = norm(tmp)
+					acache(aws) = (tmp, tmpnorm)
+					(tmp, tmpnorm)
+				}
 			}
 			
 			val (bdist, bnorm) = if (bcache.contains(bws)) {
@@ -145,9 +149,13 @@ package knowledge {
 				for (l <- oneFromEach[String](bwll)) {
 					ngram.get(l.mkString("", " ", ""), tmp)
 				}
-				val tmpnorm = norm(tmp)
-				bcache(bws) = (tmp, tmpnorm)
-				(tmp, tmpnorm)
+				if (tmp.isEmpty) {
+					(tmp, 1.0)
+				} else {
+					val tmpnorm = norm(tmp)
+					bcache(bws) = (tmp, tmpnorm)
+					(tmp, tmpnorm)
+				}
 			}
 			
 			val dot = {
