@@ -40,7 +40,7 @@ def confidence(algn: Align,
 	} else if (tws.size <= 3 && hws.size <= 3) {
 		
 		val cossim = EnWord.cossim(tws, hws, acache, bcache)
-		1.0 / (1.0 - math.log(cossim))
+		1.0 / (1.0 - math.log10(cossim))
 		
 	} else {
 		0.0
