@@ -4,7 +4,9 @@ import tifmo.proc.mkSTreeEnglish
 import tifmo.stree.InferMgr
 import tifmo.stree.Align
 
-val confidence = (algn: Align) => {
+import scala.collection.mutable
+
+def confidence(algn: Align, cache: mutable.Map[Set[Set[EnWord]], Double]) = {
 	
 	val cws = algn.clue.src.init.map(_.term.word.asInstanceOf[EnWord]).toSet
 	val tws = if (algn.soft) {
@@ -21,12 +23,24 @@ val confidence = (algn: Align) => {
 		
 		0.7
 		
+	} else if (tws.subsetOf(hws) || hws.subsetOf(tws)) {
+		
+		if (hws.subsetOf(tws)) {
+			0.8
+		} else {
+			0.1 + 1.0 / (3 + (hws -- tws).size)
+		}
+		
 	} else if (tws.size <= 3 && hws.size <= 3) {
 		
-		val cossim = EnWord.cossim(tws, hws)
-		
-		1.0 / (-math.log(cossim))
-		
+		if (cache.contains(Set(tws, hws))) {
+			cache(Set(tws, hws))
+		} else {
+			val cossim = EnWord.cossim(tws, hws)
+			val tmp = 1.0 / (1.0 - math.log(cossim))
+			cache(Set(tws, hws)) = tmp
+			tmp
+		}
 		
 	} else {
 		0.0
@@ -88,7 +102,8 @@ for (p <- (f \ "pair")) {
 	}
 println("# words of H: " + hwords.size)
 println("# words of H syn to T: " + lap)
-		
-	imgr.trace(confidence, 0.2)
+	
+	val cache = mutable.Map.empty[Set[Set[EnWord]], Double]
+	imgr.trace(confidence(_, cache), 0.2)
 	println("--------------")
 }
