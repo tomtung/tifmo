@@ -6,7 +6,7 @@ import tifmo.stree.Align
 
 val confidence = (algn: Align) => {
 	
-	val cws = algn.clue.src.init.map(_.word).toSet
+	val cws = algn.clue.src.init.map(_.term.word.asInstanceOf[EnWord]).toSet
 	val tws = if (algn.soft) {
 			algn.tp.src.init.map(_.term.word.asInstanceOf[EnWord]).toSet -- cws
 		} else {
