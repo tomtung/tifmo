@@ -21,7 +21,7 @@ def confidence(algn: Align, cache: mutable.Map[Set[Set[EnWord]], Double]) = {
 		}
 	if (tws.isEmpty || hws.isEmpty) {
 		
-		0.7
+		0.3 + 0.4 / cws.size
 		
 	} else if (tws.subsetOf(hws) || hws.subsetOf(tws)) {
 		
