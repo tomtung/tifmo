@@ -25,6 +25,7 @@ package resource {
 		
 		def get(str: String, ret: mutable.Map[String, Long]) {
 			if (!stopws.contains(str.toLowerCase)) {
+				val strws = str.toLowerCase.split(" ").toSet
 				System.err.println("start searching " + str + " ...")
 				request.write(str)
 				request.newLine()
@@ -38,7 +39,7 @@ package resource {
 						assert(spsp.length == ntok)
 						val freq = sptab(1).toLong
 						for (wpre <- spsp; w = wpre.toLowerCase) {
-							if (normalWord(w)) {
+							if (!strws.contains(w) && normalWord(w)) {
 								if (ret.contains(w)) {
 									ret(w) = ret(w) + freq
 								} else {
