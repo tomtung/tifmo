@@ -27,7 +27,7 @@ def confidence(algn: Align,
 		}
 	if (tws.isEmpty || hws.isEmpty) {
 		
-		0.3 + 0.4 / cws.size
+		0.3 + 0.4 / (cws.size + hws.size)
 		
 	} else if (hws.forall(x => tws.exists(EnWord.judgeSynonym(x, _)))) {
 		
