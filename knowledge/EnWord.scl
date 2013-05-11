@@ -5,6 +5,7 @@ import resource.NgramDist
 import mylib.oneFromEach
 
 import scala.collection.mutable
+import scala.util.Sorting
 
 package knowledge {
 	
@@ -113,52 +114,42 @@ package knowledge {
 		
 		private[this] val ngram = new NgramDist(5, 40)
 		def cossim(aws: Set[EnWord], bws: Set[EnWord], 
-				acache: mutable.Map[Set[EnWord], (mutable.Map[String, Long], Double)], 
-				bcache: mutable.Map[Set[EnWord], (mutable.Map[String, Long], Double)]) = {
+				cache: mutable.Map[List[Set[String]], (mutable.Map[String, Long], Double)]) = {
 			
 			def norm(x: mutable.Map[String, Long]) = {
-				var retsq = 0.0
-				for ((k, v) <- x) {
-					retsq += v * v
-				}
-				math.sqrt(retsq)
-			}
-			
-			val (adist, anorm) = if (acache.contains(aws)) {
-				acache(aws)
-			} else {
-				val tmp = mutable.Map.empty[String, Long]
-				val awll = aws.toList.map(x => Set((if (x.ner == "O") x.surf.toLowerCase else x.surf), x.lex))
-				for (l <- oneFromEach[String](awll)) {
-					ngram.get(l.mkString("", " ", ""), tmp)
-				}
-				if (tmp.isEmpty) {
-					acache(aws) = (tmp, 1.0)
-					(tmp, 1.0)
+				if (x.isEmpty) {
+					1.0
 				} else {
-					val tmpnorm = norm(tmp)
-					acache(aws) = (tmp, tmpnorm)
-					(tmp, tmpnorm)
+					var retsq = 0.0
+					for ((k, v) <- x) {
+						retsq += v * v
+					}
+					math.sqrt(retsq)
 				}
 			}
 			
-			val (bdist, bnorm) = if (bcache.contains(bws)) {
-				bcache(bws)
-			} else {
-				val tmp = mutable.Map.empty[String, Long]
-				val bwll = bws.toList.map(x => Set((if (x.ner == "O") x.surf.toLowerCase else x.surf), x.lex))
-				for (l <- oneFromEach[String](bwll)) {
-					ngram.get(l.mkString("", " ", ""), tmp)
-				}
-				if (tmp.isEmpty) {
-					bcache(bws) = (tmp, 1.0)
-					(tmp, 1.0)
+			def lookup(sss: List[Set[String]]) = {
+				if (cache.contains(sss)) {
+					cache(sss)
 				} else {
-					val tmpnorm = norm(tmp)
-					bcache(bws) = (tmp, tmpnorm)
-					(tmp, tmpnorm)
+					val tmp = mutable.Map.empty[String, Long]
+					for (l <- oneFromEach[String](sss)) {
+						ngram.get(l.mkString("", " ", ""), tmp)
+					}
+					val ret = (tmp, norm(tmp))
+					cache(sss) = ret
+					ret
 				}
 			}
+			
+			def surflex(ws: Set[EnWord]) = {
+				val wl = ws.toList
+				val wlm = wl.map(x => Set((if (x.ner == "O") x.surf.toLowerCase else x.surf), x.lex))
+				Sorting.stableSort[Set[String], (String, String)](wlm, x => (x.max, x.min)).toList
+			}
+			
+			val (adist, anorm) = lookup(surflex(aws))
+			val (bdist, bnorm) = lookup(surflex(bws))
 			
 			val dot = {
 				val ck = adist.keySet intersect bdist.keySet

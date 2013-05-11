@@ -7,9 +7,7 @@ import tifmo.stree.PI
 
 import scala.collection.mutable
 
-def confidence(algn: Align, 
-		acache: mutable.Map[Set[EnWord], (mutable.Map[String, Long], Double)], 
-		bcache: mutable.Map[Set[EnWord], (mutable.Map[String, Long], Double)]) = {
+def confidence(algn: Align, cache: mutable.Map[List[Set[String]], (mutable.Map[String, Long], Double)]) = {
 	
 	val cws = algn.clue.src.init.map(_.term.word.asInstanceOf[EnWord]).toSet
 	def trimHead(x: List[PI]) = {
@@ -39,7 +37,7 @@ def confidence(algn: Align,
 		
 	} else if (tws.size <= 3 && hws.size <= 3) {
 		
-		val cossim = EnWord.cossim(tws, hws, acache, bcache)
+		val cossim = EnWord.cossim(tws, hws, cache)
 		1.0 / (1.0 - math.log10(cossim))
 		
 	} else {
@@ -50,7 +48,11 @@ def confidence(algn: Align,
 val input_xml = "input/RTE_dev.xml"
 
 val f = xml.XML.loadFile(input_xml)
-for (p <- (f \ "pair")) {
+//for (p <- (f \ "pair")) {
+val p = <pair id="353" value="FALSE" task="MT">
+	<t>The humane organization, Caritas, quoting its branch in Iraq, announced today, in Germany, that several Iraqi hospitals, especially Saddam Hospital, which is considered the biggest hospital in Iraq, were hit in the American-British bombing of the Iraqi capital.</t>
+	<h>An official source for Caritas announced today in Germany, that several Iraqi hospitals, (excluding Saddam Hospital, which is the biggest hospital in Iraq,) were hit in the American-British shelling of Baghdad.</h>
+</pair>
 	
 	val traw = (p \ "t").text.trim
 	val tstree = mkSTreeEnglish(traw)
@@ -103,8 +105,7 @@ for (p <- (f \ "pair")) {
 println("# words of H: " + hwords.size)
 println("# words of H syn to T: " + lap)
 	
-	val acache = mutable.Map.empty[Set[EnWord], (mutable.Map[String, Long], Double)]
-	val bcache = mutable.Map.empty[Set[EnWord], (mutable.Map[String, Long], Double)]
-	imgr.trace(confidence(_, acache, bcache), 0.2)
+	val cache = mutable.Map.empty[List[Set[String]], (mutable.Map[String, Long], Double)]
+	imgr.trace(confidence(_, cache), 0.2)
 	println("--------------")
-}
+//}
