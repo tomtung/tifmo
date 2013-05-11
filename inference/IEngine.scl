@@ -638,34 +638,34 @@ package inference {
 			for (x <- eqs) {
 				for (cp <- x.iscps) {
 					if (!a.hasCP(cp.comp)) {
-						task = (() => claimCP(a, cp.comp)) :: task
+						task = (() => if (a.ref.to == a && cp.comp.forall(y => y._1.ref.to == y)) claimCP(a, cp.comp)) :: task
 					}
 				}
 				for (cp <- x.mkcps) {
-					val ncomp = cp.comp.map(y => if (y._1 == x) (a, y._2) else y)
+					val ncomp = cp.comp.map(y => if (eqs.contains(y._1)) (a, y._2) else y)
 					if (!cp.head.hasCP(ncomp)) {
-						task = (() => claimCP(cp.head, ncomp)) :: task
+						task = (() => if (cp.head.ref.to == cp.head && ncomp.forall(y => y._1.ref.to == y)) claimCP(cp.head, ncomp)) :: task
 					}
 				}
 				for (pi <- x.ispis) {
 					if (!a.hasPI(pi.compt, pi.compr)) {
-						task = (() => claimPI(a, pi.compt, pi.compr)) :: task
+						task = (() => if (a.ref.to == a && pi.compt.ref.to == pi.compt) claimPI(a, pi.compt, pi.compr)) :: task
 					}
 				}
 				for (pi <- x.mkpis) {
 					if (!pi.head.hasPI(a, pi.compr)) {
-						task = (() => claimPI(pi.head, a, pi.compr)) :: task
+						task = (() => if (pi.head.ref.to == pi.head && a.ref.to == a) claimPI(pi.head, a, pi.compr)) :: task
 					}
 				}
 				for (in <- x.isins) {
 					if (!a.isins.contains(new IEPredIN(a, in.comp, in.aux))) {
-						task = (() => claimIN(a, in.comp, in.aux)) :: task
+						task = (() => if (a.ref.to == a && in.comp.forall(y => y.ref.to == y)) claimIN(a, in.comp, in.aux)) :: task
 					}
 				}
 				for (in <- x.mkins) {
-					val ncomp = in.comp.map(y => if (y == x) a else y)
+					val ncomp = in.comp.map(y => if (eqs.contains(y)) a else y)
 					if (!in.head.isins.contains(new IEPredIN(in.head, ncomp, in.aux))) {
-						task = (() => claimIN(in.head, ncomp, in.aux)) :: task
+						task = (() => if (in.head.ref.to == in.head && ncomp.forall(y => y.ref.to == y)) claimIN(in.head, ncomp, in.aux)) :: task
 					}
 				}
 			}
@@ -684,7 +684,7 @@ package inference {
 			
 			for (x <- eqs) {
 				for (sp <- x.specifics) {
-					val nsp = sp.change(x, a)
+					val nsp = sp.change(eqs, a)
 					if (nsp != null && nsp.isNew) {
 						task = (() => nsp.fire()) :: task
 					}
