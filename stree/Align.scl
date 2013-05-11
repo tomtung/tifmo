@@ -90,14 +90,14 @@ package stree {
 					case PO(tm, r) => acctm match {
 						case PO(atm, ar) => {
 							assert(r == ar)
-							construct(atm, tm, supps)
+							PO(construct(atm, tm, supps), r)
 						}
 						case _ => throw new Exception("weird path PO in construct!")
 					}
 					case DI(tm, arg, r) => acctm match {
 						case DI(atm, aarg, ar) => {
 							assert(r == ar && arg == aarg)
-							construct(atm, tm, supps)
+							DI(construct(atm, tm, supps), arg, r)
 						}
 						case _ => throw new Exception("weird path DI in construct!")
 					}
