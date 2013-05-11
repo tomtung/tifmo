@@ -439,6 +439,7 @@ package inference {
 		/////////////////////////////////////////////////
 		
 		// rule: PI1(A), PI2(A) => A \subset PI1(A) x PI2(A)
+		/*
 		private[this] val rPIdef0 = (args: List[Any]) => args match {
 			case (x:IETerm) :: (compref:Set[(IETermRef, SemRole)]) :: (a:IETerm) :: Nil => {
 				claimSubsume(a, x)
@@ -460,6 +461,38 @@ package inference {
 						case None => throw new Exception("rPIdef2 find error!")
 					}).toSet + ((pia, r))
 					constructCP(comp, comp.map(x => (x._1.ref, x._2)) :: args, rPIdef1)(dep)
+				}
+			}
+			case _ => throw new Exception("rPIdef2 error!")
+		}
+		private[this] val rPIdef3 = (a: IETerm, args: List[Any]) => (dep: Set[IETerm]) => {
+			if (a.roles != null) {
+				foreachMkPI(a, a :: args, rPIdef2)(dep)
+			}
+		}
+		forAnyTerm(rPIdef3)
+		*/
+		private[this] val rPIdef0 = (args: List[Any]) => args match {
+			case (x:IETerm) :: (comp:Set[(IETerm, SemRole)]) :: (a:IETerm) :: Nil => {
+				claimSubsume(a, x)
+				for ((t, r) <- comp) {
+					claimPI(t, x, r)
+				}
+			}
+			case _ => throw new Exception("rPIdef0 error!")
+		}
+		private[this] val rPIdef1 = (x: IETerm, args: List[Any]) => conclude(x :: args, rPIdef0)_
+		private[this] val rPIdef2 = (pia: IETerm, r: SemRole, args: List[Any]) => (dep: Set[IETerm]) => args match {
+			case (a:IETerm) :: Nil => {
+				val rs = if (r == null) pia.roles else Set(r)
+				for (lrs <- listPartitions[SemRole](a.roles -- rs, a.mkpis.map(_.headrs))) {
+					val comp = lrs.map(x => a.mkpis.find(_.headrs == x) match {
+						case Some(y) => {
+							(y.head, y.compr)
+						}
+						case None => throw new Exception("rPIdef2 find error!")
+					}).toSet + ((pia, r))
+					forCPof(comp, comp :: args, rPIdef1)(dep)
 				}
 			}
 			case _ => throw new Exception("rPIdef2 error!")
