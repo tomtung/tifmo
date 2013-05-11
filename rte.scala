@@ -48,11 +48,7 @@ def confidence(algn: Align, cache: mutable.Map[List[Set[String]], (mutable.Map[S
 val input_xml = "input/RTE_dev.xml"
 
 val f = xml.XML.loadFile(input_xml)
-//for (p <- (f \ "pair")) {
-val p = <pair id="353" value="FALSE" task="MT">
-	<t>The humane organization, Caritas, quoting its branch in Iraq, announced today, in Germany, that several Iraqi hospitals, especially Saddam Hospital, which is considered the biggest hospital in Iraq, were hit in the American-British bombing of the Iraqi capital.</t>
-	<h>An official source for Caritas announced today in Germany, that several Iraqi hospitals, (excluding Saddam Hospital, which is the biggest hospital in Iraq,) were hit in the American-British shelling of Baghdad.</h>
-</pair>
+for (p <- (f \ "pair")) {
 	
 	val traw = (p \ "t").text.trim
 	val tstree = mkSTreeEnglish(traw)
@@ -108,4 +104,4 @@ println("# words of H syn to T: " + lap)
 	val cache = mutable.Map.empty[List[Set[String]], (mutable.Map[String, Long], Double)]
 	imgr.trace(confidence(_, cache), 0.2)
 	println("--------------")
-//}
+}
