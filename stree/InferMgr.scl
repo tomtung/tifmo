@@ -308,7 +308,7 @@ testinfer = (b, x.hp.acc) :: testinfer
 						}
 ie.explore()
 for ((x, y) <- testinfer) {
-	println("checking: " + x + " " + y)
+	System.err.println("checking: " + x + " " + y)
 	assert(x.ietmref.to.hasSuper(y.ietmref.to))
 }
 						loop()
