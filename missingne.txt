@@ -1,0 +1,443 @@
+missing NE: Fenway
+text: 
+The Yankees split Hollywood with something to feel OK about after last night's 5-4 loss to the Dodgers.
+---
+hypo: 
+Dodgers lose first game ever at Fenway
+--------------
+missing NE: Iraq
+text: 
+Two Turkish engineers and an Afghan translator kidnapped in December were freed Friday.
+---
+hypo: 
+translator kidnapped in Iraq
+--------------
+missing NE: Laker
+text: 
+The Los Angeles Lakers rolled over the Indiana Pacers in Wednesday's the opening round game of the NBA championship series.
+---
+hypo: 
+Lakers win the championship.
+--------------
+missing NE: Wal-Mart
+text: 
+The country's largest private employer, Wal-Mart Stores Inc., is being sued by a number of its female employees who claim they were kept out of jobs in management because they are women.
+---
+hypo: 
+Wal-Mart sued for sexual discrimination
+--------------
+missing NE: U.S. Supreme Court
+text: 
+The Massachusetts Supreme Judicial Court has cleared the way for lesbian and gay couples in the state to marry, ruling that government attorneys "failed to identify any constitutionally adequate reason" to deny them the right.
+---
+hypo: 
+U.S. Supreme Court in favor of same-sex marriage
+--------------
+missing NE: U.S. Supreme Court
+text: 
+In June the Supreme Court ruled that anti-sodomy laws are unconstitutional.
+---
+hypo: 
+U.S. Supreme Court in favor of same-sex marriage
+--------------
+missing NE: Jerusalem
+text: 
+But most Israelis, including those sympathetic to the settlers' efforts to reclaim all the territory that was part of the biblical Land of Israel, reacted with horror to the Hebron killings and the subsequent violence.
+---
+hypo: 
+Hebron is located 20 miles south of Jerusalem.
+--------------
+missing NE: La Scala
+text: 
+Soprano's Square: Milan, Italy, home of the famed La Scala opera house, honored soprano Maria Callas on Wednesday when it renamed a new square after the diva.
+---
+hypo: 
+La Scala opera house is located in Milan, Italy.
+--------------
+missing NE: John J. Famalaro
+text: 
+"I guess you have to expect this in a growing community," said Mardelle Kean, who lives across the street from John Joseph Famalaro, charged in the death of Denise A. Huber, who was 23 when she disappeared in 1991.
+---
+hypo: 
+John J. Famalaro is accused of having killed Denise A. Huber.
+--------------
+missing NE: Nation of Islam
+text: 
+The black Muslim activist said that he had relieved Muhammad of his duties "until he demonstrates that he is willing to conform to the manner of representing Allah and the honorable Elijah Muhammad (founder of the Nation of Islam)".
+---
+hypo: 
+Elijah Muhammad founded the Nation of Islam.
+--------------
+missing NE: 1991
+text: 
+The anti-terrorist court found two men guilty of murdering Shapour Bakhtiar and his secretary Sorush Katibeh, who were found with their throats cut in August 1991.
+---
+hypo: 
+Shapour Bakhtiar died in 1991.
+--------------
+missing NE: U.S. Embassy
+text: 
+To the world, M. Larry Lawrence, the new U.S. emissary to Switzerland who hosted President Clinton on his Southern California vacation, will be known as Mr. Ambassador.
+---
+hypo: 
+Larry Lawrence is the head of the U.S. Embassy in Switzerland.
+--------------
+missing NE: Chechnya
+text: 
+While civilians ran for cover or fled to the countryside, Russian forces were seen edging their artillery guns closer to Grozny, and Chechen fighters were offering little resistance.
+---
+hypo: 
+Grozny is the capital of Chechnya.
+--------------
+missing NE: Alabama Birmingham
+text: 
+Before the game, Alabama Birmingham Athletic Director and Coach Gene Bartow presented Cal State Northridge with a $5,000 check from Rust International Corp., for earthquake relief.
+---
+hypo: 
+Gene Bartow coaches Alabama Birmingham.
+--------------
+missing NE: Stalin
+text: 
+Historians estimate that 800,000 Chechens were stuffed into rail cars and deported to Kazakhstan and Siberia, and 240,000 of them died en route.
+---
+hypo: 
+Stalin deported 800,000 Chechens.
+--------------
+missing NE: Rudolph Scharping
+text: 
+Germans vote for a party, rather than a person, and the left-of-center Social Democrats do not score as well in polls as Scharping himself.
+---
+hypo: 
+Rudolph Scharping is a member of the Social Democrats.
+--------------
+missing NE: 1776
+text: 
+The Chapin Library's main attraction is its collection of Revolutionary-era documents, including a 1776 printed version of the Declaration of Independence.
+---
+hypo: 
+The Declaration of Independence was signed in 1776.
+--------------
+missing NE: 20th Century Insurance Co.
+text: 
+20th Century spokesman Rick Dinon said that between the time it applied for the rate increase and changed its mind, the estimated quake losses had ballooned by several hundred million dollars.
+---
+hypo: 
+Rick Dinon is the senior vice president of 20th Century Insurance Co.
+--------------
+missing NE: 1947
+text: 
+This was, after all, Chuck Yeager, a guy with all the right stuff, the biggest top gun of them all, whose post-World War II exploits in the topsy-turvy world of supersonic air travel helped pave the way for space exploration.
+---
+hypo: 
+Chuck Yeager broke the sound barrier in 1947.
+--------------
+missing NE: Bosnia
+missing NE: Yugoslavia
+text: 
+PERSPECTIVE ON BOSNIA; A BALKANS PEACE THAT CANNOT LAST
+---
+hypo: 
+Bosnia is located in the former Yugoslavia.
+--------------
+missing NE: Kim Il Sung
+text: 
+In Seoul, Han confirmed that all North Korean media on Monday had started referring to Kim Jong Il as "His Excellency" or by the term previously reserved for his father, "the Great Leader." Until now, the younger Kim has been called "the Dear Leader."
+---
+hypo: 
+Kim Il Sung's son is called Kim Jong Il.
+--------------
+missing NE: Cairo
+text: 
+It is an image familiar to many Southern Californians but vividly illustrative in this Egyptian metropolis, where a U.N. conference on global population is trying for the first time to draw clear links between population growth and the environment.
+---
+hypo: 
+The International Conference on Population and Development was held in Cairo.
+--------------
+missing NE: U. S.
+text: 
+A senior coalition official in Iraq said the body, which was found by U.S. military police west of Baghdad, appeared to have been thrown from a vehicle.
+---
+hypo: 
+A body has been found by U. S. military police.
+--------------
+missing NE: 25
+text: 
+Twenty-five of the dead were members of the law enforcement agencies and the rest of the 67 were civilians.
+---
+hypo: 
+25 of the dead were civilians.
+--------------
+missing NE: France
+text: 
+The Mona Lisa, painted by Leonardo da Vinci from 1503-1506, hangs in Paris' Louvre Museum.
+---
+hypo: 
+The Mona Lisa is in France.
+--------------
+missing NE: Germany
+text: 
+A male gorilla escaped from his cage in the Berlin zoo and sent terrified visitors running for cover, the zoo said yesterday.
+---
+hypo: 
+A gorilla escaped from his cage in a zoo in Germany.
+--------------
+missing NE: Roh Moo-hyun
+text: 
+South Korean President Roh Moo-hyun Thursday asked the Board of Audit and Inspection (BAI) to investigate questions arising about the Foreign Ministry's response to the kidnapping of a South Korean in Iraq who was later killed by Muslim militants, according to Yonhap.
+---
+hypo: 
+Roh Moo-hyun asked the BAI to kidnap a South Korean in Iraq.
+--------------
+missing NE: Olsen
+text: 
+Ashley Olsen has decided to remain with her twin sister, Mary-Kate, instead of going on a planned trip to Australia to promote the opening of the siblings' latest movie adventure "New York Minute," reports the AP.
+---
+hypo: 
+The Olsen twins star in "New York Minute."
+--------------
+missing NE: Germany
+text: 
+The German-based team say their study is the only report of prolonged hibernation in a tropical mammal.
+---
+hypo: 
+The team studies hibernating mammals in Germany.
+--------------
+missing NE: Los Vegas
+text: 
+Comdex -- once among the world's largest trade shows, the launching pad for new computer and software products, and a Las Vegas fixture for 20 years -- has been canceled for this year.
+---
+hypo: 
+Los Vegas hosted the Comdex trade show for 20 years.
+--------------
+missing NE: Supreme Court
+text: 
+A closely divided U.S. Supreme Court said on Thursday its 2002 ruling that juries and not judges must impose a death sentence applies only to future cases, a decision that may affect more than 100 death row inmates.
+---
+hypo: 
+The Supreme Court decided that only judges can impose the death sentence.
+--------------
+missing NE: 2000000
+text: 
+The memorandum noted the United Nations estimated that 2.5 million to 3.5 million people died of AIDS last year.
+---
+hypo: 
+Over 2 million people died of AIDS last year.
+--------------
+missing NE: 96
+text: 
+Hepburn, a four-time Academy Award winner, died last June in Connecticut at age 96.
+---
+hypo: 
+Hepburn, who won four Oscars, died last June aged 96.
+--------------
+missing NE: U.S.
+text: 
+A statement said to be from al Qaida, claimed the terror group had killed one American and kidnapped another in Riyadh.
+---
+hypo: 
+A U.S. citizen working in Riyadh has been kidnapped after a colleague in the same company was shot dead yesterday.
+--------------
+missing NE: EU
+text: 
+Voting for a new European Parliament has been clouded by apathy.
+---
+hypo: 
+Apathy clouds EU voting.
+--------------
+missing NE: Stanford Cardinal
+text: 
+The 7-4 defeat by Long Beach State, pushed the Cardinal to the brink in the double-elimination format of NCAA regionals.
+---
+hypo: 
+Stanford Cardinal were defeated by Long Beach State, 7-4.
+--------------
+missing NE: 23
+text: 
+Monica Meadows, a 22-year-old model from Atlanta, was shot in the shoulder on a subway car in New York City.
+---
+hypo: 
+Monica Meadows, 23, was shot in shoulder while riding a subway car in New York City
+--------------
+missing NE: Old City
+text: 
+Some of the buildings around the city square in the Kota also date from colonial times, including the old city hall ( 1710 ), which has been restored and now serves as the municipal museum.
+---
+hypo: 
+In the Old City are the old port, the Dutch town hall, and a square.
+--------------
+missing NE: Batavia
+missing NE: Jakarta
+text: 
+The Dutch, who ruled Indonesia until 1949, called the city of Jakarta Batavia.
+---
+hypo: 
+Formerly ( until 1949 ) Batavia, Jakarta is largest city and capital of Indonesia.
+--------------
+missing NE: Poland
+text: 
+On Feb. 1, 1945, the Polish government made Warsaw its capital, and an office for urban reconstruction was set up.
+---
+hypo: 
+Warsaw remained Poland's capital after the war.
+--------------
+missing NE: Nazi
+missing NE: Treblinka
+missing NE: 1941
+text: 
+Jews were confined to the Jewish part of town called a ghetto, and many people there starved to death.
+---
+hypo: 
+Disease, starvation, and overcrowding caused thousands to perish before deportations to the Nazi death camps, especially to Treblinka, began in late 1941.
+--------------
+missing NE: 1611
+text: 
+In 1596 the Polish king decided to move the capital from Krakow to Warsaw, making Warsaw the most important city in Poland.
+---
+hypo: 
+In 1611 the king and his court finally moved from Krakow ( Cracow ) to Warsaw, making it the capital of the Polish state.
+--------------
+missing NE: Old Town
+text: 
+Saint John's Cathedral is the oldest church in Warsaw.
+---
+hypo: 
+In the Old Town, the Gothic St . John's Cathedral and the red-brick fortifications known as the Barbican remain from the medieval period.
+--------------
+missing NE: 1611
+missing NE: Poland
+missing NE: Sigismund
+missing NE: Warsaw
+text: 
+There are many Baroque churches of the Counter-Reformation period, including the Jesuit Church next to the cathedral and the Church of the Holy Cross, which contains Chopin's heart.
+---
+hypo: 
+Sigismund made Warsaw the capital of Poland in 1611.
+--------------
+missing NE: Danube
+text: 
+Budapest consists of two parts, Buda and Pest, which are situated on opposite sides of the river and connected by a series of bridges.
+---
+hypo: 
+Buda is located on the west bank of the Danube.
+--------------
+missing NE: 1873
+text: 
+Budapest consists of two parts, Buda and Pest, which are situated on opposite sides of the river and connected by a series of bridges.
+---
+hypo: 
+Budapest consists of two principal parts that were merged in 1873.
+--------------
+missing NE: 1991
+text: 
+Cedras, Biamby, and Francois also led the 1991 coup that drove Aristide, Haiti's first democratically elected president, from office
+---
+hypo: 
+Aristide seized power in 1991.
+--------------
+missing NE: Datel
+text: 
+C&D Technologies announced that it has closed the acquisition of Datel, Inc.
+---
+hypo: 
+Datel acquired C&D Technologies
+--------------
+missing NE: Pentagon
+text: 
+The American Defense Department reported today, that the bombing runs against Iraq are being especially carried out via cruise missiles launched from American aircraft carriers and B52 bombers.
+---
+hypo: 
+The Pentagon reported today, that the bombing runs against Iraq are being especially carried out via cruise missiles launched from American aircrafts.
+--------------
+missing NE: American Ministry of Foreign Affairs
+text: 
+The American State Department announced that Russia recalled her ambassador to the United States "for consultation" due to the bombing operations on Iraq.
+---
+hypo: 
+An official source in the American Ministry of Foreign Affairs announced that Russia called the United States "for consultation" because of the bombings on Iraq .
+--------------
+missing NE: Baghdad
+text: 
+The humane organization, Caritas, quoting its branch in Iraq, announced today, in Germany, that several Iraqi hospitals, especially Saddam Hospital, which is considered the biggest hospital in Iraq, were hit in the American-British bombing of the Iraqi capital.
+---
+hypo: 
+An official source for Caritas announced today in Germany, that several Iraqi hospitals, (excluding Saddam Hospital, which is the biggest hospital in Iraq,) were hit in the American-British shelling of Baghdad.
+--------------
+missing NE: UNDP
+text: 
+The funeral procession headed to the headquarters of the United Nations Development Programme in Baghdad, where funeral goers held banners denouncing the Americans as "Enemies of God."
+---
+hypo: 
+The funeral procession had been directed to the UNDP headquarters in Baghdad, where signs denouncing Americans as "enemies of God," were seen.
+--------------
+missing NE: Clinton
+text: 
+Nevertheless, 58 percent of Americans expressed their satisfaction with the President's job performance. 44 percent supported Nixon at the very beginning of the investigation into Watergate.
+---
+hypo: 
+Although 58% of Americans are unsatisfied with Clinton's job performance, 44% found Nixon's work adequate at the start of the Watergate scandal.
+--------------
+missing NE: Qatar
+missing NE: Doha
+text: 
+Representatives from 142 nations are expected to sit down in Doha Qatar, next Friday for the World Trade Organization's (WTO) fourth Ministerial Conference.
+---
+hypo: 
+Representatives of the 142 member countries of the World Trade Organization will gather in Doha, Qatar, next Friday.
+--------------
+missing NE: 2010
+text: 
+Following the successful bid to bring the 2010 Ryder Cup to Wales, the Wales Tourist Board has wasted little time in commissioning work to ensure that the benefits accruing from the event are felt throughout the country.
+---
+hypo: 
+Wales to host 2010 Ryder Cup.
+--------------
+missing NE: 538
+text: 
+In the year 538, Cyrus set in place a policy which demanded the return of the various gods to their proper places.
+---
+hypo: 
+Cyrus issued a declaration in 538 that would allow the Jews to go back to their homeland.
+--------------
+missing NE: Texas
+text: 
+Texas Data Recovery is also successful at retrieving lost data from notebooks and laptops, regardless of age, make or model.
+---
+hypo: 
+In the event of a disaster you could use Texas Data Recovery and you will have the capability to restore lost data.
+--------------
+missing NE: South Asian
+text: 
+The Heads of state reiterated their deep concern for the serious threat that the rising trend in drug abuse poses for society and the lives and future of children and youth, and for the destabilizing effects that illegal use, production, trafficking and distribution of narcotic drugs psychotropic substances and drug-related offences have for the affected countries of the South Asian region.
+---
+hypo: 
+The Heads of state expressed their deep concern at the fast and continuing degradation of the environment, including extensive destruction of forests, in the South Asian region.
+--------------
+missing NE: Kuwaiti
+missing NE: Iraq
+text: 
+Sentiment is growing in the Bush administration and global energy circles to place Iraqi professionals in charge of their country's oil production after any war, despite a push by some officials for the United States to seize control of the lucrative oil fields.
+---
+hypo: 
+The United States threatened the "severest consequences" if Iraq were to use chemical or biological weapons against the United States, destroy Kuwaiti oil fields or participate in terrorism.
+--------------
+missing NE: Rome
+text: 
+US Catholic bishops are all but unanimous in believing that Cardinal Law must leave Boston for the good of the church.
+---
+hypo: 
+Cardinal Law returns from Rome with plans to stay in Boston.
+--------------
+missing NE: Saddam Hussein
+text: 
+When Albright was the US ambassador to the United Nations, Lesley Stahl of "60 Minutes" asked her about the sanctions and the deaths of Iraqi children. Albright said it was America's responsibility to make sure the Gulf War did not have to be fought again.
+---
+hypo: 
+Albright said that to punish Saddam Hussein, the deaths of those children were "worth it."
+--------------
+missing NE: Mitsubishi
+text: 
+Mitsubishi Motors Corp.'s new vehicle sales in the US fell 46 percent in June
+---
+hypo: 
+Mitsubishi sales rose 46 percent
+--------------

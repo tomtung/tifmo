@@ -1,7 +1,7 @@
 package tifmo
 
 import resource.WordNet
-import resource.NgramDist
+//import resource.NgramDist
 import mylib.oneFromEach
 
 import scala.collection.mutable
@@ -9,69 +9,34 @@ import scala.util.Sorting
 
 package knowledge {
 	
-	class EnWord(
-		val surf: String,
-		val ner: String,
-		val sign: Boolean
-	) extends WordInfo {
+	class EnWord(val sidx: Int, val idx: Int, val surf: String, val pos: String, 
+		val ner: String, val lex: String, val nm: String, val cid: String, val sign: Boolean) extends WordInfo {
 		
-		private[this] var posvar = null:String
-		def pos = posvar
-		def pos_=(x: String) {
-			assert(posvar == null)
-			posvar = x
-		}
-		
-		private[this] var sivar = -1
-		def si = sivar
-		def si_=(x: Int) {
-			assert(sivar == -1)
-			sivar = x
-		}
-		
-		private[this] var wivar = -1
-		def wi = wivar
-		def wi_=(x: Int) {
-			assert(wivar == -1)
-			wivar = x
-		}
-		
-		private[this] var lexvar = null:String
-		def lex = lexvar
-		def lex_=(x: String) {
-			assert(lexvar == null)
-			lexvar = x
-		}
-		
-		override lazy val hashCode = (surf, ner, sign, pos, si, wi, lex).hashCode
+		override val hashCode = (sidx, idx, surf, sign).hashCode
 		override def equals(a: Any) = {
 			if (a.isInstanceOf[EnWord]) {
 				val that = a.asInstanceOf[EnWord]
-				surf == that.surf && ner == that.ner && sign == that.sign && pos == that.pos && si == that.si && wi == that.wi && lex == that.lex
+				sidx == that.sidx && idx == that.idx && sign == that.sign && 
+					surf == that.surf && pos == that.pos && ner == that.ner && 
+					lex == that.lex && nm == that.nm && cid == that.cid
 			} else {
 				false
 			}
 		}
+		override val toString = (if (sign) "" else "(-)") + surf
 		
-		def isPronoun = (pos.length >= 2) && (pos.substring(0, 2) == "PR")
+		val isPronoun = (pos.length >= 2) && (pos.substring(0, 2) == "PR")
 		
 		lazy val neg = {
 			assert(sign)
-			val ret = new EnWord(surf, ner, false)
-			ret.pos = pos
-			ret.si = si
-			ret.wi = wi
-			ret.lex = lex
-			ret
+			new EnWord(sidx, idx, surf, pos, ner, lex, nm, cid, false)
 		}
-		
-		override def toString = (if (sign) "" else "(-)") + surf
 		
 		lazy val wordSynSets = WordNet.synsets(lex, pos)
 		
 		lazy val antSynSets = wordSynSets.flatMap(WordNet.getAntonymSynsets(_))
 		
-		lazy val hyperSynSets = wordSynSets.flatMap(WordNet.getHyperSynsets(_)).flatMap(WordNet.getHyperSynsets(_)).flatMap(WordNet.getHyperSynsets(_))
+		lazy val hyperSynSets = wordSynSets.flatMap(WordNet.getHyperSynsets(_)).flatMap(WordNet.getHyperSynsets(_)) //.flatMap(WordNet.getHyperSynsets(_))
 		
 	}
 	
@@ -111,7 +76,7 @@ package knowledge {
 				!(b.hyperSynSets intersect a.wordSynSets).isEmpty
 			}
 		}
-		
+		/*
 		private[this] val ngram = new NgramDist(5, 40)
 		def cossim(aws: Set[EnWord], bws: Set[EnWord], 
 				cache: mutable.Map[List[Set[String]], (mutable.Map[String, Long], Double)]) = {
@@ -158,6 +123,6 @@ package knowledge {
 			
 			dot / anorm / bnorm
 		}
-		
+		*/
 	}
 }

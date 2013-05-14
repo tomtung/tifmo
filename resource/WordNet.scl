@@ -15,14 +15,19 @@ package resource {
 	
 	object WordNet {
 		
-		//private[this] val dir = "/usr/share/wordnet"
-		private[this] val dir = "/works/csisv13/tianran/wordnet"
+		private[this] val dir = "/usr/share/wordnet"
+		//private[this] val dir = "/works/csisv13/tianran/wordnet"
 		
 		private[this] val dict = new Dictionary(new java.io.File(dir))
 		dict.open()
 		
 		private[this] val stemmer = new WordnetStemmer(dict)
 		private[this] val allpos = POS.values.toSet
+		
+		def hasWord(s: String) = {
+			allpos.exists(x => stemmer.findStems(s, x).exists(y => dict.getIndexWord(y, x) != null))
+		}
+		
 		
 		def synsets(lex: String, postag: String) = {
 			
