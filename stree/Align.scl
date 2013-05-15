@@ -216,7 +216,8 @@ package stree {
 			
 			def loopHypo(tp: Path, hp: Path, avoid: Set[Path], ret: List[Path]): List[Path] = {
 				if (!avoid.contains(hp)) {
-					if (tp.longer.isEmpty && hp.longer.isEmpty) {
+					//if (tp.longer.isEmpty && hp.longer.isEmpty) {
+					if (tp.src.last.paths.head.longer.isEmpty && hp.src.last.paths.head.longer.isEmpty) {
 						als = new Align(tp, hp, clue, false) :: als
 					}
 					if (tp.src.last.ietmref.to.hasSuper(hp.src.last.paths.head.acc.ietmref.to)) {

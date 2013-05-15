@@ -25,6 +25,7 @@ TARGET = \
 	tifmo/knowledge/StopWords.class \
 	tifmo/resource/NgramDist.class \
 	tifmo/knowledge/EnWord.class \
+	tifmo/proc/preProcEnglish.class \
 	tifmo/proc/mkSTreeEnglish.class
 	
 
@@ -99,6 +100,9 @@ tifmo/resource/NgramDist.class: resource/NgramDist.scl
 	$(SCALAC) $<
 
 tifmo/knowledge/EnWord.class: knowledge/EnWord.scl
+	$(SCALAC) $<
+
+tifmo/proc/preProcEnglish.class: proc/preProcEnglish.scl
 	$(SCALAC) $<
 
 tifmo/proc/mkSTreeEnglish.class: proc/mkSTreeEnglish.scl

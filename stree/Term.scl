@@ -56,7 +56,7 @@ package stree {
 				case IR(core, sats) => {
 					val (a, l) = construct(core)
 					val retl = (for ((r, pi) <- sats.toList) yield {
-						for (p <- pi.paths) yield {
+						for (p <- pi.paths; if p.src.length <= 5) yield {
 							(IR(a, Set((r, p.acc))), p)
 						}
 					}) ::: l.map(_.map(y => (IR(y._1, Set.empty[(SemRole, PI)]), y._2)))
@@ -80,7 +80,7 @@ package stree {
 				(new Path(acc, this :: y._2.src), y._2)
 			}))
 			for (pl <- pll; (hgp, p) <- pl) {
-				hgp.longer = p.longer.map(x => pl.find(_._2 == x) match {
+				hgp.longer = p.longer.filter(_.src.length <= 5).map(x => pl.find(_._2 == x) match {
 					case Some((lhp, lp)) => lhp
 					case None => throw new Exception("weird path!!")
 				})

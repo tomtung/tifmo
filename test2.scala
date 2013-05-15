@@ -17,7 +17,7 @@ def confidence(algn: Align, hall: Set[EnWord], cache: mutable.Map[List[Set[Strin
 	def trimHead(x: List[PI]) = {
 		x.map(_.term.word.asInstanceOf[EnWord]).dropWhile(y => cws.exists(EnWord.judgeSynonym(y, _))).filter(y => !StopWords(y.lex)).toSet
 	}
-	val tws = (if (algn.soft && (algn.tp.src.last.term.word.asInstanceOf[EnWord].ner != "O" || EnWord.judgeSynonym(algn.tp.src.last.term.word.asInstanceOf[EnWord], algn.hp.src.last.term.word.asInstanceOf[EnWord]))) {
+	val tws = if (algn.soft && (algn.tp.src.last.term.word.asInstanceOf[EnWord].ner != "O" || EnWord.judgeSynonym(algn.tp.src.last.term.word.asInstanceOf[EnWord], algn.hp.src.last.term.word.asInstanceOf[EnWord]))) {
 			trimHead(algn.tp.src.init)
 		} else {
 			trimHead(algn.tp.src)
@@ -79,13 +79,13 @@ for (q <- (f \ "question")) {
 	val imgr = new InferMgr(hstree)
 	imgr.addPremise(tstree)
 	
-	val twords = tstree.streeNodeList.map(_.word).toSet
-	val hwords = hstree.streeNodeList.map(_.word).toSet
+	val twords = tstree.streeNodeList.map(_.word.asInstanceOf[EnWord]).toSet
+	val hwords = hstree.streeNodeList.map(_.word.asInstanceOf[EnWord]).toSet
 	
 	var lap = 0
-	for (hwpre <- hwords; hw = hwpre.asInstanceOf[EnWord]) {
+	for (hw <- hwords) {
 		var flag = false
-		for (twpre <- twords; tw = twpre.asInstanceOf[EnWord]) {
+		for (tw <- twords) {
 			if (hw.lex == tw.lex) {
 				flag = true
 			} else if (EnWord.judgeSynonym(hw, tw)) {

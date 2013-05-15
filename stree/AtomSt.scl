@@ -22,7 +22,9 @@ package stree {
 			ie.claimNonEmpty(a.ietmref.to)
 		}
 		def setup(ie: IEBasic) {
+println("setup: " + this)
 			a.setup(ie)
+println("end setup.")
 		}
 		def check = a.ietmref.to.knownNE
 		def clear() {
@@ -41,8 +43,10 @@ package stree {
 			ie.claimSubsume(a.ietmref.to, b.ietmref.to)
 		}
 		def setup(ie: IEBasic) {
+println("setup: " + this)
 			a.setup(ie)
 			b.setup(ie)
+println("end setup.")
 		}
 		def check = a.ietmref.to.hasSuper(b.ietmref.to)
 		def clear() {
@@ -62,8 +66,10 @@ package stree {
 			ie.claimDisjoint(a.ietmref.to, b.ietmref.to)
 		}
 		def setup(ie: IEBasic) {
+println("setup: " + this)
 			a.setup(ie)
 			b.setup(ie)
+println("end setup.")
 		}
 		def check = a.ietmref.to.disjointTo(b.ietmref.to)
 		def clear() {

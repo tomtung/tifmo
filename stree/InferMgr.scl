@@ -84,14 +84,22 @@ package stree {
 		def trace(confidence: (Align) => Double, threshold: Double) = {
 			
 			allocateRoles()
+println("begin prem meaning: ")
 			val pre = premAtom ::: premTree.flatMap(_.meaning(getLexRoles))
+println("end prem meaning.")
+println("begin hypo meaning: ")
 			val aim = hypo.meaning(getLexRoles)
+println("end hypo meaning.")
 			
+println("begin extract: ")
 			val piPool = mutable.Set.empty[PI]
 			val slPoolT = mutable.Set.empty[SL]
 			val slPoolH = mutable.Set.empty[SL]
 			def extract(st: AtomSt, slpool: mutable.Set[SL]) {
+var counter = 0
 				def recur(x: Term) {
+counter += 1
+println("counter: " + counter)
 					x match {
 						case WORD(word) => {}
 						case IR(core, sats) => {
@@ -123,18 +131,23 @@ package stree {
 						}
 					}
 				}
+println("marker !!!")
 				st match {
 					case NonEmpty(a) => {
+println("st match NE, a: ")
 						piPool.add(a)
+println("marker ???")
 						recur(a.term)
 					}
 					case Subsume(a, b) => {
+println("st match Sub, a;b: ")
 						piPool.add(a)
 						piPool.add(b)
 						recur(a.term)
 						recur(b.term)
 					}
 					case Disjoint(a, b) => {
+println("st match Dis, a;b: ")
 						piPool.add(a)
 						piPool.add(b)
 						recur(a.term)
@@ -148,7 +161,9 @@ package stree {
 				s(pi)
 			}).flatten
 			sch.foreach(extract(_, slPoolT))
+println("end extract.")
 			
+println("begin sep: ")
 			val (neT, neH) = (mutable.Set.empty[PI], mutable.Set.empty[PI])
 			val (subLower, subUpper) = (mutable.Set.empty[PI], mutable.Set.empty[PI])
 			val (djtLower, djtUpper) = (mutable.Set.empty[PI], mutable.Set.empty[PI])
@@ -181,7 +196,9 @@ package stree {
 				}
 			}
 			aim.foreach(sepHypo(_))
+println("end sep.")
 			
+println("begin target: ")
 			val target = {
 				val tmp1 = Align.genTargetPI(djtLower, djtUpper, Nil)
 				val tmp2 = Align.genTargetPI(subLower, subUpper, tmp1)
@@ -208,8 +225,11 @@ package stree {
 				}
 				Align.genTargetPI(neT.toSet, neH.toSet, tmp3)
 			}
+println("end target.")
 			
+println("begin partial: ")
 			val part = hypo.partial
+println("end partial.")
 			
 			val ie = new IEBasic
 			for (k <- lexRoleMap.keys) {
@@ -248,10 +268,16 @@ package stree {
 			sch.foreach(_.clear())
 			aim.foreach(_.clear())
 			part.foreach(_._1.clear())
+println("begin claim: ")
 			pre.foreach(_.claim(ie))
+println("marker I")
 			sch.foreach(_.claim(ie))
+println("marker II")
 			slPoolT.foreach(x => ie.claimNonEmpty(x.term.ietmref.to))
+println("marker III")
+println("target.length: " + target.length)
 			for ((xs, ys) <- target) {
+println("go ...")
 				for (x <- xs) {
 					x.setup(ie)
 					x.paths.foreach(_.acc.setup(ie))
@@ -261,7 +287,9 @@ package stree {
 					y.paths.foreach(_.acc.setup(ie))
 				}
 			}
+println("marker IV")
 			part.foreach(_._1.setup(ie))
+println("end claim.")
 			
 			println("partial: " + part.map(_._2).sum)
 			//part.foreach(x => {
@@ -277,12 +305,16 @@ package stree {
 			var curnum = 0
 			var curconfi = 0.0
 			
+println("first explore: ")
 			ie.explore()
+println("end first explore.")
 			fea2 = part.filter(_._1.check).map(_._2).sum.toDouble
 			
 			def loop() {
 				
+println("begin explore: ")
 				ie.explore()
+println("end explore.")
 				
 				println("proved: " + part.filter(_._1.check).map(_._2).sum)
 				println("contradiction: " + ie.hasContra())
@@ -324,7 +356,9 @@ var testinfer = Nil:List[(PI, PI)]
 							Subsume(a, b).claim(ie)
 testinfer = (b, x.hp.acc) :: testinfer
 						}
+println("begin check explore: ")
 ie.explore()
+println("end explore.")
 for ((x, y) <- testinfer) {
 	System.err.println("checking: " + x + " " + y)
 	assert(x.ietmref.to.hasSuper(y.ietmref.to))

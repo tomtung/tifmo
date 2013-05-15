@@ -18,7 +18,7 @@ def confidence(algn: Align, hall: Set[EnWord], cache: mutable.Map[List[Set[Strin
 	def trimHead(x: List[PI]) = {
 		x.map(_.term.word.asInstanceOf[EnWord]).dropWhile(y => cws.exists(EnWord.judgeSynonym(y, _))).filter(y => !StopWords(y.lex)).toSet
 	}
-	val tws = (if (algn.soft && (algn.tp.src.last.term.word.asInstanceOf[EnWord].ner != "O" || EnWord.judgeSynonym(algn.tp.src.last.term.word.asInstanceOf[EnWord], algn.hp.src.last.term.word.asInstanceOf[EnWord]))) {
+	val tws = if (algn.soft && (algn.tp.src.last.term.word.asInstanceOf[EnWord].ner != "O" || EnWord.judgeSynonym(algn.tp.src.last.term.word.asInstanceOf[EnWord], algn.hp.src.last.term.word.asInstanceOf[EnWord]))) {
 			trimHead(algn.tp.src.init)
 		} else {
 			trimHead(algn.tp.src)
@@ -60,7 +60,11 @@ val bw = new BufferedWriter(new FileWriter(output_fea))
 val input_xml = "input/RTE_dev.xml"
 
 val f = xml.XML.loadFile(input_xml)
-for (p <- (f \ "pair")) {
+//for (p <- (f \ "pair")) {
+val p = <pair id="592" value="TRUE" task="QA">
+	<t>He endeared himself to artists by helping them in lean years and following their careers, said Henry Hopkins, chairman of UCLA&apos;s art department, director of the UCLA/Armand Hammer Museum and Cultural Center and former director of the Weisman foundation.</t>
+	<h>The UCLA/Hammer Museum is directed by Henry Hopkins.</h>
+</pair>
 	
 	val traw = (p \ "t").text.trim
 	val (tstree, twaa) = mkSTreeEnglish(preProcEnglish(traw))
@@ -78,13 +82,13 @@ for (p <- (f \ "pair")) {
 	val imgr = new InferMgr(hstree)
 	imgr.addPremise(tstree)
 	
-	val twords = tstree.streeNodeList.map(_.word).toSet
-	val hwords = hstree.streeNodeList.map(_.word).toSet
+	val twords = tstree.streeNodeList.map(_.word.asInstanceOf[EnWord]).toSet
+	val hwords = hstree.streeNodeList.map(_.word.asInstanceOf[EnWord]).toSet
 	
 	var lap = 0
-	for (hwpre <- hwords; hw = hwpre.asInstanceOf[EnWord]) {
+	for (hw <- hwords) {
 		var flag = false
-		for (twpre <- twords; tw = twpre.asInstanceOf[EnWord]) {
+		for (tw <- twords) {
 			if (hw.lex == tw.lex) {
 				flag = true
 			} else if (EnWord.judgeSynonym(hw, tw)) {
@@ -120,7 +124,7 @@ println("# words of H syn to T: " + lap)
 	
 	val str = (if ((p \ "@value").text == "TRUE") "+1" else "-1") + " 1:" + fea1 + " 2:" + fea2 + " 3:" + fea3 + "\n"
 	bw.write(str)
-}
+//}
 
 bw.close()
 

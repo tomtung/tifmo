@@ -67,11 +67,11 @@ package proc {
 		
 		private[this] def split(parse: SemanticGraph, wa: Array[EnWord]) = {
 			
-			var checklst = List(parse.edgeIterable.toSet)
+			var checklst = List((parse.edgeIterable.toSet, parse.getFirstRoot))
 			var retlst = Nil:List[Set[(EnWord, String, EnWord)]]
 			
 			while (!checklst.isEmpty) {
-				val tocheck = checklst.head
+				val (tocheck, curroot) = checklst.head
 				checklst = checklst.tail
 				tocheck.find(x => x.getRelation.getShortName == "conj") match {
 					case Some(x) => {
@@ -84,17 +84,23 @@ package proc {
 						
 						val slim = tocheck -- govsub
 						
-						val paredge = parse.getEdge(parse.getParent(x.getGovernor), x.getGovernor)
-						
-						val s1 = ((slim ++ depsub) - paredge) + (new SemanticGraphEdge(paredge.getGovernor, x.getDependent, paredge.getRelation, paredge.getWeight, paredge.isExtra))
-						val s2 = slim ++ ((govsub -- depsub) - x)
+						val govpar = parse.getParent(x.getGovernor)
+						val s1 = if (govpar == null) {
+							assert(slim.isEmpty)
+							(slim ++ depsub, x.getDependent)
+						} else {
+							val paredge = parse.getEdge(govpar, x.getGovernor)
+							val tmp = ((slim ++ depsub) - paredge) + (new SemanticGraphEdge(paredge.getGovernor, x.getDependent, paredge.getRelation, paredge.getWeight, paredge.isExtra))
+							(tmp, curroot)
+						}
+						val s2 = (slim ++ ((govsub -- depsub) - x), curroot)
 						checklst = s1 :: s2 :: checklst
 					}
 					case None => {
 						val tmp = for (x <- tocheck) yield {
 							(wa(x.getGovernor.get(classOf[IndexAnnotation]) - 1), x.getRelation.getShortName, wa(x.getDependent.get(classOf[IndexAnnotation]) - 1))
 						}
-						retlst = (tmp + ((null, "root", wa(parse.getFirstRoot.get(classOf[IndexAnnotation]) - 1)))) :: retlst
+						retlst = (tmp + ((null, "root", wa(curroot.get(classOf[IndexAnnotation]) - 1)))) :: retlst
 					}
 				}
 			}
