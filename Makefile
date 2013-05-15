@@ -92,7 +92,7 @@ tifmo/stree/InferMgr.class: stree/InferMgr.scl
 tifmo/resource/WordNet.class: resource/WordNet.scl
 	$(SCALAC) $<
 
-tifmo/knowledge/StopWords.class: resource/StopWords.scl
+tifmo/knowledge/StopWords.class: knowledge/StopWords.scl
 	$(SCALAC) $<
 
 tifmo/resource/NgramDist.class: resource/NgramDist.scl

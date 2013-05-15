@@ -15,8 +15,8 @@ package resource {
 	
 	object WordNet {
 		
-		private[this] val dir = "/usr/share/wordnet"
-		//private[this] val dir = "/works/csisv13/tianran/wordnet"
+		//private[this] val dir = "/usr/share/wordnet"
+		private[this] val dir = "/works/csisv13/tianran/wordnet"
 		
 		private[this] val dict = new Dictionary(new java.io.File(dir))
 		dict.open()
