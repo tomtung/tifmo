@@ -1,6 +1,10 @@
 
+import java.io.FileWriter
+import java.io.BufferedWriter
+
 import tifmo.knowledge.StopWords
 import tifmo.knowledge.EnWord
+import tifmo.proc.preProcEnglish
 import tifmo.proc.mkSTreeEnglish
 import tifmo.stree.InferMgr
 import tifmo.stree.Align
@@ -50,16 +54,19 @@ def confidence(algn: Align, hall: Set[EnWord], cache: mutable.Map[List[Set[Strin
 	}
 }
 
+val output_fea = "output/RTE_dev.fea"
+val bw = new BufferedWriter(new FileWriter(output_fea))
+
 val input_xml = "input/RTE_dev.xml"
 
 val f = xml.XML.loadFile(input_xml)
 for (p <- (f \ "pair")) {
 	
 	val traw = (p \ "t").text.trim
-	val tstree = mkSTreeEnglish(traw)
+	val (tstree, twaa) = mkSTreeEnglish(preProcEnglish(traw))
 	
 	val hraw = (p \ "h").text.trim
-	val hstree = mkSTreeEnglish(hraw)
+	val (hstree, hwaa) = mkSTreeEnglish(preProcEnglish(hraw))
 	
 	println("text: ")
 	println(traw)
@@ -106,6 +113,14 @@ println("# words of H: " + hwords.size)
 println("# words of H syn to T: " + lap)
 	
 	val cache = mutable.Map.empty[List[Set[String]], (mutable.Map[String, Long], Double)]
-	imgr.trace(confidence(_, hwords, cache), 0.2)
+	val (fea2, fea3) = imgr.trace(confidence(_, hwords, cache), 0.2)
 	println("--------------")
+	
+	val fea1 = lap.toDouble / hwords.size
+	
+	val str = (if ((p \ "@value").text == "TRUE") "+1" else "-1") + " 1:" + fea1 + " 2:" + fea2 + " 3:" + fea3 + "\n"
+	bw.write(str)
 }
+
+bw.close()
+
