@@ -22,6 +22,7 @@ TARGET = \
 	tifmo/stree/Align.class \
 	tifmo/stree/InferMgr.class \
 	tifmo/resource/WordNet.class \
+	tifmo/knowledge/StopWords.class \
 	tifmo/resource/NgramDist.class \
 	tifmo/knowledge/EnWord.class \
 	tifmo/proc/mkSTreeEnglish.class
@@ -89,6 +90,9 @@ tifmo/stree/InferMgr.class: stree/InferMgr.scl
 	$(SCALAC) $<
 
 tifmo/resource/WordNet.class: resource/WordNet.scl
+	$(SCALAC) $<
+
+tifmo/knowledge/StopWords.class: knowledge/StopWords.scl
 	$(SCALAC) $<
 
 tifmo/resource/NgramDist.class: resource/NgramDist.scl

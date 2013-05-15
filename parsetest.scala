@@ -5,7 +5,7 @@ val lp = LexicalizedParser.loadModel("edu/stanford/nlp/models/lexparser/englishP
 val tlp = new PennTreebankLanguagePack
 val gsf = tlp.grammaticalStructureFactory
 
-val sent = "Because of his rare color he had become quite famous."
+val sent = "American accused of espionage"
 
 val parse = lp.apply(sent)
 val gs = gsf.newGrammaticalStructure(parse)

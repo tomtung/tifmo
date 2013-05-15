@@ -1,0 +1,142 @@
+<reading-test>
+<question q_id=" 0 ">
+<text>
+<coref id="2">Christine</coref> came out of <coref id="2">her</coref> last examination , feeling depressed . 
+It was not the exam that made <coref id="2">her</coref> feel that way , but the fact that it was the last one ; it meant the end of the school year . 
+<coref id="2">She</coref> dropped in at the coffee shop as usual , then went home early because there did n't seem to be anything else to do . 
+`` Is that you , dear ? '' 
+<coref id="2">her</coref> <coref id="3">mother</coref> called from the living room . 
+<coref id="3">She</coref> must have heard the front door close . 
+<coref id="2">Christine</coref> went in and sat on the sofa . 
+`` How was your exam , dear ? '' 
+<coref id="2">her</coref> <coref id="3">mother</coref> asked . 
+`` Fine , '' said <coref id="2">Christine</coref> flatly . 
+It had been fine ; <coref id="2">she</coref> had passed . 
+<coref id="2">She</coref> was not a brilliant student , <coref id="2">she</coref> knew , but <coref id="2">she</coref> was hard-working . 
+<coref id="2">Her</coref> <coref id="4">professors</coref> always wrote things like `` A serious attempt '' and `` Well thought out but perhaps lacking in energy '' on <coref id="4">her</coref> term papers ; they gave <coref id="4">her</coref> Bs , the occasional B + . 
+<coref id="4">She</coref> was taking Political Science and Economics , and hoped to get a job with the government after <coref id="4">she</coref> graduated ; with <coref id="4">her</coref> <coref id="5">father</coref> 's connections <coref id="4">she</coref> had a good chance . 
+`` That 's nice . '' 
+<coref id="2">Christine</coref> felt , bitterly , that <coref id="2">her</coref> <coref id="3">mother</coref> had only a vague idea of what an exam was . 
+<coref id="3">She</coref> was arranging roses in a vase ; <coref id="3">she</coref> had rubber gloves on to protect <coref id="3">her</coref> hands as <coref id="3">she</coref> always did when engaged in what <coref id="3">she</coref> called ` housework . ' 
+As far as <coref id="2">Christine</coref> could tell , <coref id="2">her</coref> housework consisted of arranging glowers in vases . 
+Sometimes <coref id="2">she</coref> <coref id="6">cooked</coref> elegantly , but <coref id="6">she</coref> thought of it as a hobby . 
+It was hard , anyway , to argue with <coref id="6">her</coref> <coref id="3">mother</coref> . 
+<coref id="3">She</coref> was so easily upset that it was better to avoid arguing with <coref id="3">her</coref> . 
+`` An interesting young <coref id="7">man</coref> phoned today , '' <coref id="6">her</coref> <coref id="3">mother</coref> said . 
+<coref id="3">She</coref> had finished the roses and was taking off <coref id="3">her</coref> gloves . 
+`` <coref id="7">He</coref> asked to speak with you and when <coref id="7">I</coref> said you were n't in we had quite a little chat . 
+You did n't tell <coref id="7">me</coref> about <coref id="7">him</coref> , dear . '' 
+<coref id="6">She</coref> put on the glasses which hung on a decorative chain around <coref id="6">her</coref> neck , a signal that <coref id="6">she</coref> was in <coref id="6">her</coref> modern , intelligent mood rather than <coref id="6">her</coref> old-fashioned , dull one . 
+</text>
+<answer a_id="1">Because <coref id="2">she</coref> knew <coref id="2">she</coref> had to go home at once . </answer>
+<answer a_id="2">Because the exams had not yet finished . </answer>
+<answer a_id="3">Because <coref id="2">she</coref> had done badly in the exam . </answer>
+<answer a_id="4">Because the school year was now over . </answer>
+</question>
+
+<question q_id=" 1 ">
+<text>
+<coref id="2">Christine</coref> came out of <coref id="2">her</coref> last examination , feeling depressed . 
+It was not the exam that made <coref id="2">her</coref> feel that way , but the fact that it was the last one ; it meant the end of the school year . 
+<coref id="2">She</coref> dropped in at the coffee shop as usual , then went home early because there did n't seem to be anything else to do . 
+`` Is that you , dear ? '' 
+<coref id="2">her</coref> <coref id="3">mother</coref> called from the living room . 
+<coref id="3">She</coref> must have heard the front door close . 
+<coref id="2">Christine</coref> went in and sat on the sofa . 
+`` How was your exam , dear ? '' 
+<coref id="2">her</coref> <coref id="3">mother</coref> asked . 
+`` Fine , '' said <coref id="2">Christine</coref> flatly . 
+It had been fine ; <coref id="2">she</coref> had passed . 
+<coref id="2">She</coref> was not a brilliant student , <coref id="2">she</coref> knew , but <coref id="2">she</coref> was hard-working . 
+<coref id="2">Her</coref> <coref id="4">professors</coref> always wrote things like `` A serious attempt '' and `` Well thought out but perhaps lacking in energy '' on <coref id="4">her</coref> term papers ; they gave <coref id="4">her</coref> Bs , the occasional B + . 
+<coref id="4">She</coref> was taking Political Science and Economics , and hoped to get a job with the government after <coref id="4">she</coref> graduated ; with <coref id="4">her</coref> <coref id="5">father</coref> 's connections <coref id="4">she</coref> had a good chance . 
+`` That 's nice . '' 
+<coref id="2">Christine</coref> felt , bitterly , that <coref id="2">her</coref> <coref id="3">mother</coref> had only a vague idea of what an exam was . 
+<coref id="3">She</coref> was arranging roses in a vase ; <coref id="3">she</coref> had rubber gloves on to protect <coref id="3">her</coref> hands as <coref id="3">she</coref> always did when engaged in what <coref id="3">she</coref> called ` housework . ' 
+As far as <coref id="2">Christine</coref> could tell , <coref id="2">her</coref> housework consisted of arranging glowers in vases . 
+Sometimes <coref id="2">she</coref> <coref id="6">cooked</coref> elegantly , but <coref id="6">she</coref> thought of it as a hobby . 
+It was hard , anyway , to argue with <coref id="6">her</coref> <coref id="3">mother</coref> . 
+<coref id="3">She</coref> was so easily upset that it was better to avoid arguing with <coref id="3">her</coref> . 
+`` An interesting young <coref id="7">man</coref> phoned today , '' <coref id="6">her</coref> <coref id="3">mother</coref> said . 
+<coref id="3">She</coref> had finished the roses and was taking off <coref id="3">her</coref> gloves . 
+`` <coref id="7">He</coref> asked to speak with you and when <coref id="7">I</coref> said you were n't in we had quite a little chat . 
+You did n't tell <coref id="7">me</coref> about <coref id="7">him</coref> , dear . '' 
+<coref id="6">She</coref> put on the glasses which hung on a decorative chain around <coref id="6">her</coref> neck , a signal that <coref id="6">she</coref> was in <coref id="6">her</coref> modern , intelligent mood rather than <coref id="6">her</coref> old-fashioned , dull one . 
+</text>
+<answer a_id="1"><coref id="2">She</coref> tried hard but was not unusually clever . </answer>
+<answer a_id="2"><coref id="2">She</coref> was one of the best students in <coref id="2">her</coref> year . </answer>
+<answer a_id="3"><coref id="2">She</coref> was not very bright but was full of energy . </answer>
+<answer a_id="4"><coref id="2">She</coref> was one of the worst students in <coref id="2">her</coref> year . </answer>
+</question>
+
+<question q_id=" 2 ">
+<text>
+<coref id="2">Christine</coref> came out of <coref id="2">her</coref> last examination , feeling depressed . 
+It was not the exam that made <coref id="2">her</coref> feel that way , but the fact that it was the last one ; it meant the end of the school year . 
+<coref id="2">She</coref> dropped in at the coffee shop as usual , then went home early because there did n't seem to be anything else to do . 
+`` Is that you , dear ? '' 
+<coref id="2">her</coref> <coref id="3">mother</coref> called from the living room . 
+<coref id="3">She</coref> must have heard the front door close . 
+<coref id="2">Christine</coref> went in and sat on the sofa . 
+`` How was your exam , dear ? '' 
+<coref id="2">her</coref> <coref id="3">mother</coref> asked . 
+`` Fine , '' said <coref id="2">Christine</coref> flatly . 
+It had been fine ; <coref id="2">she</coref> had passed . 
+<coref id="2">She</coref> was not a brilliant student , <coref id="2">she</coref> knew , but <coref id="2">she</coref> was hard-working . 
+<coref id="2">Her</coref> <coref id="4">professors</coref> always wrote things like `` A serious attempt '' and `` Well thought out but perhaps lacking in energy '' on <coref id="4">her</coref> term papers ; they gave <coref id="4">her</coref> Bs , the occasional B + . 
+<coref id="4">She</coref> was taking Political Science and Economics , and hoped to get a job with the government after <coref id="4">she</coref> graduated ; with <coref id="4">her</coref> <coref id="5">father</coref> 's connections <coref id="4">she</coref> had a good chance . 
+`` That 's nice . '' 
+<coref id="2">Christine</coref> felt , bitterly , that <coref id="2">her</coref> <coref id="3">mother</coref> had only a vague idea of what an exam was . 
+<coref id="3">She</coref> was arranging roses in a vase ; <coref id="3">she</coref> had rubber gloves on to protect <coref id="3">her</coref> hands as <coref id="3">she</coref> always did when engaged in what <coref id="3">she</coref> called ` housework . ' 
+As far as <coref id="2">Christine</coref> could tell , <coref id="2">her</coref> housework consisted of arranging glowers in vases . 
+Sometimes <coref id="2">she</coref> <coref id="6">cooked</coref> elegantly , but <coref id="6">she</coref> thought of it as a hobby . 
+It was hard , anyway , to argue with <coref id="6">her</coref> <coref id="3">mother</coref> . 
+<coref id="3">She</coref> was so easily upset that it was better to avoid arguing with <coref id="3">her</coref> . 
+`` An interesting young <coref id="7">man</coref> phoned today , '' <coref id="6">her</coref> <coref id="3">mother</coref> said . 
+<coref id="3">She</coref> had finished the roses and was taking off <coref id="3">her</coref> gloves . 
+`` <coref id="7">He</coref> asked to speak with you and when <coref id="7">I</coref> said you were n't in we had quite a little chat . 
+You did n't tell <coref id="7">me</coref> about <coref id="7">him</coref> , dear . '' 
+<coref id="6">She</coref> put on the glasses which hung on a decorative chain around <coref id="6">her</coref> neck , a signal that <coref id="6">she</coref> was in <coref id="6">her</coref> modern , intelligent mood rather than <coref id="6">her</coref> old-fashioned , dull one . 
+</text>
+<answer a_id="1"><coref id="3">She</coref> worked hard doing the housework . </answer>
+<answer a_id="2"><coref id="3">She</coref> usually wore old-fashioned glasses . </answer>
+<answer a_id="3">It was easy to make <coref id="3">her</coref> feel upset . </answer>
+<answer a_id="4"><coref id="3">She</coref> ran a flower-arranging business . </answer>
+</question>
+
+<question q_id=" 3 ">
+<text>
+<coref id="2">Christine</coref> came out of <coref id="2">her</coref> last examination , feeling depressed . 
+It was not the exam that made <coref id="2">her</coref> feel that way , but the fact that it was the last one ; it meant the end of the school year . 
+<coref id="2">She</coref> dropped in at the coffee shop as usual , then went home early because there did n't seem to be anything else to do . 
+`` Is that you , dear ? '' 
+<coref id="2">her</coref> <coref id="3">mother</coref> called from the living room . 
+<coref id="3">She</coref> must have heard the front door close . 
+<coref id="2">Christine</coref> went in and sat on the sofa . 
+`` How was your exam , dear ? '' 
+<coref id="2">her</coref> <coref id="3">mother</coref> asked . 
+`` Fine , '' said <coref id="2">Christine</coref> flatly . 
+It had been fine ; <coref id="2">she</coref> had passed . 
+<coref id="2">She</coref> was not a brilliant student , <coref id="2">she</coref> knew , but <coref id="2">she</coref> was hard-working . 
+<coref id="2">Her</coref> <coref id="4">professors</coref> always wrote things like `` A serious attempt '' and `` Well thought out but perhaps lacking in energy '' on <coref id="4">her</coref> term papers ; they gave <coref id="4">her</coref> Bs , the occasional B + . 
+<coref id="4">She</coref> was taking Political Science and Economics , and hoped to get a job with the government after <coref id="4">she</coref> graduated ; with <coref id="4">her</coref> <coref id="5">father</coref> 's connections <coref id="4">she</coref> had a good chance . 
+`` That 's nice . '' 
+<coref id="2">Christine</coref> felt , bitterly , that <coref id="2">her</coref> <coref id="3">mother</coref> had only a vague idea of what an exam was . 
+<coref id="3">She</coref> was arranging roses in a vase ; <coref id="3">she</coref> had rubber gloves on to protect <coref id="3">her</coref> hands as <coref id="3">she</coref> always did when engaged in what <coref id="3">she</coref> called ` housework . ' 
+As far as <coref id="2">Christine</coref> could tell , <coref id="2">her</coref> housework consisted of arranging glowers in vases . 
+Sometimes <coref id="2">she</coref> <coref id="6">cooked</coref> elegantly , but <coref id="6">she</coref> thought of it as a hobby . 
+It was hard , anyway , to argue with <coref id="6">her</coref> <coref id="3">mother</coref> . 
+<coref id="3">She</coref> was so easily upset that it was better to avoid arguing with <coref id="3">her</coref> . 
+`` An interesting young <coref id="7">man</coref> phoned today , '' <coref id="6">her</coref> <coref id="3">mother</coref> said . 
+<coref id="3">She</coref> had finished the roses and was taking off <coref id="3">her</coref> gloves . 
+`` <coref id="7">He</coref> asked to speak with you and when <coref id="7">I</coref> said you were n't in we had quite a little chat . 
+You did n't tell <coref id="7">me</coref> about <coref id="7">him</coref> , dear . '' 
+<coref id="6">She</coref> put on the glasses which hung on a decorative chain around <coref id="6">her</coref> neck , a signal that <coref id="6">she</coref> was in <coref id="6">her</coref> modern , intelligent mood rather than <coref id="6">her</coref> old-fashioned , dull one . 
+</text>
+<answer a_id="1"><coref id="2">Her</coref> <coref id="3">mother</coref> had invited <coref id="2">Christine</coref> 's boyfriend to the house . </answer>
+<answer a_id="2">Something that her <coref id="3">mother</coref> would not tell <coref id="3">her</coref> about . </answer>
+<answer a_id="3">Someone had telephoned wishing to talk to <coref id="3">her</coref> . </answer>
+<answer a_id="4">A young <coref id="7">man</coref> had called at the house to see her . </answer>
+</question>
+
+</reading-test>

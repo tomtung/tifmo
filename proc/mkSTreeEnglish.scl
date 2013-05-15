@@ -1,17 +1,14 @@
 package tifmo
 
-import ac.biu.nlp.normalization.BiuNormalizer
+import java.util.Properties
 
-import edu.stanford.nlp.process.DocumentPreprocessor
-import edu.stanford.nlp.process.Morphology
-import edu.stanford.nlp.ling.HasWord
-import edu.stanford.nlp.ling.TaggedWord
-import edu.stanford.nlp.ling.CoreAnnotations.AnswerAnnotation
-import edu.stanford.nlp.ie.crf.CRFClassifier
-import edu.stanford.nlp.tagger.maxent.MaxentTagger
-import edu.stanford.nlp.parser.lexparser.LexicalizedParser
-import edu.stanford.nlp.trees.PennTreebankLanguagePack
-import edu.stanford.nlp.trees.TreeGraphNode
+import edu.stanford.nlp.pipeline.StanfordCoreNLP
+import edu.stanford.nlp.pipeline.Annotation
+import edu.stanford.nlp.ling.CoreAnnotations._
+import edu.stanford.nlp.semgraph.SemanticGraphCoreAnnotations.CollapsedDependenciesAnnotation
+import edu.stanford.nlp.dcoref.CorefCoreAnnotations.CorefClusterIdAnnotation
+import edu.stanford.nlp.semgraph.SemanticGraph
+import edu.stanford.nlp.semgraph.SemanticGraphEdge
 
 import knowledge.SemRole
 import knowledge.SemRole.SemRole
@@ -19,182 +16,93 @@ import knowledge.EnWord
 import stree.PreNode
 import stree.STree
 import stree.Qtfier
-import stree.Qtfier.Qtfier
+//import stree.Qtfier.Qtfier
 import stree.SelNum
 
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 
 package proc {
-
+	
 	object mkSTreeEnglish {
 		
-		private[this] val biun = new BiuNormalizer(new java.io.File("ac/biu/nlp/normalization/rules/string_rules.txt"))
-		private[this] val ner = CRFClassifier.getClassifierNoExceptions("edu/stanford/nlp/classifiers/english.all.3class.distsim.crf.ser.gz")
-		private[this] val tagger = new MaxentTagger("edu/stanford/nlp/models/postagger/english-bidirectional-distsim.tagger")
-		private[this] val lp = LexicalizedParser.loadModel("edu/stanford/nlp/models/lexparser/englishPCFG.ser.gz")
-		private[this] val tlp = new PennTreebankLanguagePack
-		private[this] val gsf = tlp.grammaticalStructureFactory
-		private[this] val ANSWER = (new AnswerAnnotation).getClass.asInstanceOf[java.lang.Class[Nothing]]
+		private[this] val props = new Properties
+		props.put("annotators", "tokenize, ssplit, pos, lemma, ner, regexner, parse, dcoref")
+		private[this] val pipeline = new StanfordCoreNLP(props)
 		
-		def sentSeg(raw: String): Array[java.util.List[HasWord]] = {
-			val norm = biun.normalize(raw)
-			val sr = new java.io.StringReader(norm)
-			val dp = new DocumentPreprocessor(sr)
-			dp.iterator.toArray
-		}
-		
-		def chunking(sent: java.util.List[HasWord]): ArrayBuffer[EnWord] = {
-			val labels = ner.classifySentence(sent)
-			val ret = ArrayBuffer.empty[EnWord]
-			var acat = null:String
-			var aword = null:String
-			for (cl <- labels) {
-				val cat = cl.get(ANSWER).toString
-				if (cat == "O" || cat != acat) {
-					if (aword != null) {
-						ret += new EnWord(aword, acat, true)
-					}
-					acat = cat
-					aword = cl.word
-				} else {
-					aword = aword + " " + cl.word
-				}
-			}
-			if (aword != null) {
-				ret += new EnWord(aword, acat, true)
-			}
-			ret
-		}
-		
-		def tagging(lew: ArrayBuffer[EnWord]): java.util.List[TaggedWord] = {
-			val sent = for (ew <- lew) yield {
-				assert(ew.sign)
-				new edu.stanford.nlp.ling.Word(ew.surf)
-			}
-			val ret = tagger.tagSentence(sent)
-			for (i <- 0 until lew.length) {
-				lew(i).pos = ret.get(i).tag
-				lew(i).lex = Morphology.lemmaStatic(lew(i).surf, lew(i).pos, lew(i).ner == "O")
-			}
-			ret
-		}
-		
-		//def coref() {}
-		
-		def dep(sent: java.util.List[TaggedWord]): Set[(TreeGraphNode, String, TreeGraphNode)] = {
-			val parse = lp.apply(sent)
-			val gs = gsf.newGrammaticalStructure(parse)
-			val dct = gs.typedDependenciesCollapsedTree.toSet
-			for (td <- dct) yield {
-				(td.gov, td.reln.toString, td.dep)
-			}
-		}
-		
-		
-		
-		
-		
-		private[this] def trimUnder(s: String) = {
-			val i = s.indexOf("_")
-			if (i == -1) s else s.substring(0, i)
-		}
-		/*
-		private[this] def getSubDeps(dep: Iterable[(EnWord, String, EnWord)], n: EnWord) = {
-			val subnodes = mutable.Set(n)
-			val ret = mutable.Set.empty[(EnWord, String, EnWord)]
-			var hadnew = true
-			while(hadnew) {
-				hadnew = false
-				for ((p, rel, c) <- dep) {
-					if (p != null && subnodes.contains(p) && subnodes.add(c)) {
-						ret.add((p, rel, c))
-						hadnew = true
-					}
-				}
-			}
-			ret.toSet
-		}
-		*/
-		private[this] def getSubDeps(dep: Iterable[(TreeGraphNode, String, TreeGraphNode)], n: TreeGraphNode) = {
-			val subnodes = mutable.Set(n)
-			val ret = mutable.Set.empty[(TreeGraphNode, String, TreeGraphNode)]
-			var hadnew = true
-			while(hadnew) {
-				hadnew = false
-				for ((p, rel, c) <- dep) {
-					if (subnodes.contains(p) && subnodes.add(c)) {
-						ret.add((p, rel, c))
-						hadnew = true
-					}
-				}
-			}
-			ret.toSet
-		}
-		def split(dep: Set[(TreeGraphNode, String, TreeGraphNode)], lew: ArrayBuffer[EnWord]): List[Set[(EnWord, String, EnWord)]] = {
-			var checklst = List(dep)
-			var retlst = Nil:List[Set[(EnWord, String, EnWord)]]
-			while (!checklst.isEmpty) {
-				val tocheck = checklst.head
-				checklst = checklst.tail
-				tocheck.find(x => trimUnder(x._2) == "conj") match {
-					case Some(x) => {
-						val depsub = getSubDeps(tocheck, x._3)
-						val govsub = getSubDeps(tocheck, x._1)
-						val slim = tocheck -- govsub
-						val paredge = tocheck.find(_._3 == x._1) match {
-							case Some(y) => y
-							case None => throw new Exception("no parent of conj!!!")
-						}
-						val s1 = ((slim ++ depsub) - paredge) + ((paredge._1, paredge._2, x._3))
-						val s2 = slim ++ ((govsub -- depsub) - x)
-						checklst = s1 :: s2 :: checklst
-					}
-					case None => {
-						val tmp = for ((p, rel, c) <- tocheck) yield {
-							if (rel == "root") {
-								(null, rel, lew(c.index - 1))
-							} else {
-								(lew(p.index - 1), rel, lew(c.index - 1))
-							}
-						}
-						retlst = tmp :: retlst
-					}
-				}
-			}
-			retlst
-		}
-		/*
-		def split(dep: Set[(EnWord, String, EnWord)]): List[Set[(EnWord, String, EnWord)]] = {
-			var checklst = List(dep)
-			var retlst = Nil:List[Set[(EnWord, String, EnWord)]]
-			while (!checklst.isEmpty) {
-				val tocheck = checklst.head
-				checklst = checklst.tail
-				tocheck.find(x => trimUnder(x._2) == "conj") match {
-					case Some(x) => {
-						val depsub = getSubDeps(tocheck, x._3)
-						val govsub = getSubDeps(tocheck, x._1)
-						val slim = tocheck -- govsub
-						val paredge = tocheck.find(_._3 == x._1) match {
-							case Some(y) => y
-							case None => throw new Exception("no parent of conj!!!")
-						}
-						val s1 = ((slim ++ depsub) - paredge) + ((paredge._1, paredge._2, x._3))
-						val s2 = slim ++ ((govsub -- depsub) - x)
-						checklst = s1 :: s2 :: checklst
-					}
-					case None => {
-						retlst = tocheck :: retlst
-					}
-				}
-			}
-			retlst
-		}
-		*/
-		def annotate(dep: Set[(EnWord, String, EnWord)]): List[PreNode] = {
+		def apply(text: String) = {
 			
+			val document = new Annotation(text)
+			pipeline.annotate(document)
+			
+			var pnrll = Nil:List[List[PreNode]]
+			val waa = (for (sentence <- document.get(classOf[SentencesAnnotation])) yield {
+				
+				val sidx = sentence.get(classOf[SentenceIndexAnnotation])
+				
+				val wa = (for (token <- sentence.get(classOf[TokensAnnotation])) yield {
+					
+					val idx = token.get(classOf[IndexAnnotation]) - 1
+					val surf = token.get(classOf[TextAnnotation])
+					val pos = token.get(classOf[PartOfSpeechAnnotation])
+					val ner = token.get(classOf[NamedEntityTagAnnotation])
+					val lex = token.get(classOf[LemmaAnnotation])
+					val nm = token.get(classOf[NormalizedNamedEntityTagAnnotation])
+					val cid = {
+						val tmp = token.get(classOf[CorefClusterIdAnnotation])
+						if (tmp == null) null else tmp.toString
+					}
+						
+					new EnWord(sidx, idx, surf, pos, ner, lex, nm, cid, true)
+				}).toArray
+				
+				val parse = sentence.get(classOf[CollapsedDependenciesAnnotation])
+				pnrll = split(parse, wa).map(annotate(_)) ::: pnrll
+				
+				wa
+			}).toArray
+			
+			(new STree(pnrll.reverse.flatten), waa)
+		}
+		
+		private[this] def split(parse: SemanticGraph, wa: Array[EnWord]) = {
+			
+			var checklst = List(parse.edgeIterable.toSet)
+			var retlst = Nil:List[Set[(EnWord, String, EnWord)]]
+			
+			while (!checklst.isEmpty) {
+				val tocheck = checklst.head
+				checklst = checklst.tail
+				tocheck.find(x => x.getRelation.getShortName == "conj") match {
+					case Some(x) => {
+						
+						val depdes = parse.descendants(x.getDependent)
+						val depsub = tocheck.filter(y => depdes.contains(y.getGovernor))
+						
+						val govdes = parse.descendants(x.getGovernor)
+						val govsub = tocheck.filter(y => govdes.contains(y.getGovernor))
+						
+						val slim = tocheck -- govsub
+						
+						val paredge = parse.getEdge(parse.getParent(x.getGovernor), x.getGovernor)
+						
+						val s1 = ((slim ++ depsub) - paredge) + (new SemanticGraphEdge(paredge.getGovernor, x.getDependent, paredge.getRelation, paredge.getWeight, paredge.isExtra))
+						val s2 = slim ++ ((govsub -- depsub) - x)
+						checklst = s1 :: s2 :: checklst
+					}
+					case None => {
+						val tmp = for (x <- tocheck) yield {
+							(wa(x.getGovernor.get(classOf[IndexAnnotation]) - 1), x.getRelation.getShortName, wa(x.getDependent.get(classOf[IndexAnnotation]) - 1))
+						}
+						retlst = (tmp + ((null, "root", wa(parse.getFirstRoot.get(classOf[IndexAnnotation]) - 1)))) :: retlst
+					}
+				}
+			}
+			retlst
+		}
+		
+		private[this] def annotate(dep: Set[(EnWord, String, EnWord)]) = {
+
 			val pnpool = mutable.Map.empty[EnWord, PreNode]
 			def getNode(x: EnWord) = {
 				if (pnpool.contains(x)) {
@@ -202,6 +110,7 @@ package proc {
 				} else {
 					val ret = new PreNode
 					ret.word = x
+					ret.coref = x.cid
 					pnpool(x) = ret
 					ret
 				}
@@ -213,8 +122,8 @@ package proc {
 					recroot = getNode(c)
 				} else {
 					val (np, nc) = (getNode(p), getNode(c))
-					val nci = c.wi
-					trimUnder(rel) match {
+					val nci = c.idx
+					rel match {
 						case "abbrev" => {
 							nc.outr = SemRole.ARG
 							np.addChild(SemRole.ARG, nc, nci)
@@ -300,8 +209,13 @@ package proc {
 							np.addChild(SemRole.OBJ, nc, nci)
 						}
 						case "num" => {
-							np.qtfier = Qtfier.EXACTLY
-							np.slction = new SelNum(c.lex)
+							if (c.ner == "DATE") {
+								nc.outr = SemRole.ARG
+								np.addChild(SemRole.TIME, nc, nci)
+							} else {
+								np.qtfier = Qtfier.EXACTLY
+								np.slction = new SelNum(c.lex)
+							}
 						}
 						case "parataxis" => {
 							nc.outr = SemRole.OBJ
@@ -327,18 +241,18 @@ package proc {
 						}
 						case "prep" => {
 							nc.outr = SemRole.ARG
-							np.addChild(SemRole.IOBJ, nc, nci)
+							if (c.ner == "DATE") {
+								np.addChild(SemRole.TIME, nc, nci)
+							} else {
+								np.addChild(SemRole.IOBJ, nc, nci)
+							}
 						}
 						case "prepc" => {
 							nc.outr = SemRole.THG
 							np.addChild(SemRole.IOBJ, nc, nci)
 						}
 						case "prt" => {
-							val nword = new EnWord(p.surf + " " + c.surf, "O", p.sign)
-							nword.pos = p.pos
-							nword.si = p.si
-							nword.wi = p.wi
-							nword.lex = p.lex + " " + c.lex
+							val nword = new EnWord(p.sidx, p.idx, p.surf + " " + c.surf, p.pos, p.ner, p.lex + " " + c.lex, p.nm, p.cid, p.sign)
 							np.word = nword
 						}
 						case "purpcl" => {
@@ -393,35 +307,6 @@ package proc {
 			}
 			if (recroot != null) recur(recroot)
 			lnodes
-		}
-		
-		def wordsArray(raw: String): Array[ArrayBuffer[EnWord]] = {
-			val sents = sentSeg(raw)
-			val ewaa = for (si <- 0 until sents.length) yield {
-				val wa = chunking(sents(si))
-				for (wi <- 0 until wa.length) {
-					wa(wi).si = si
-					wa(wi).wi = wi
-				}
-				wa
-			}
-			ewaa.toArray
-		}
-		
-		def apply(ewaa: Array[ArrayBuffer[EnWord]]): STree = {
-			//coref
-			val pnl = (for (lew <- ewaa.toList) yield {
-				val spl = split(dep(tagging(lew)), lew)
-				(for (sp <- spl) yield {
-					annotate(sp)
-				}).flatten
-			}).flatten
-			new STree(pnl)
-		}
-		
-		def apply(raw: String): STree = {
-			val ewaa = wordsArray(raw)
-			apply(ewaa)
 		}
 	}
 }
