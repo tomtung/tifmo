@@ -270,12 +270,28 @@ package stree {
 			//})
 			println("-----------")
 			
+			val totnum = part.map(_._2).sum
+			
+			var fea2 = 0.0
+			var fea3 = 0.0
+			var curnum = 0
+			var curconfi = 0.0
+			
+			ie.explore()
+			fea2 = part.filter(_._1.check).map(_._2).sum.toDouble
+			
 			def loop() {
 				
 				ie.explore()
 				
 				println("proved: " + part.filter(_._1.check).map(_._2).sum)
 				println("contradiction: " + ie.hasContra())
+				
+				val tmp = part.filter(_._1.check).map(_._2).sum
+				if (tmp > curnum) {
+					fea3 += curconfi * (tmp - curnum)
+					curnum = tmp
+				}
 				
 				if (!part.forall(_._1.check)) {
 					val (neTsb, neHsb) = target.head
@@ -294,6 +310,8 @@ package stree {
 								chosen = x :: chosen
 							}
 						}
+						
+						curconfi = score
 						
 						println("Alignments: ")
 						val msgs = chosen.map(_.toString).toSet
@@ -316,6 +334,8 @@ for ((x, y) <- testinfer) {
 				}
 			}
 			loop()
+			
+			(fea2 / totnum, fea3 / totnum)
 		}
 	}
 }
