@@ -128,31 +128,34 @@ package stree {
 				
 		def getParts(x: Term, subs: mutable.Set[PI], diuargs: mutable.Set[PI], deargs: mutable.Set[PI], ditms: mutable.Set[Term], dutms: mutable.Set[Term], detms: mutable.Set[Term]) = {
 			
+			val recurCache = mutable.Set.empty[Term]
 			def recur(x: Term) {
-				x match {
-					case WORD(word) => {}
-					case IR(core, sats) => {
-						subs ++= sats.map(_._2)
-						recur(core)
-						sats.foreach(y => recur(y._2.term))
+				if (recurCache.add(x)) {
+					x match {
+						case WORD(word) => {}
+						case IR(core, sats) => {
+							subs ++= sats.map(_._2)
+							recur(core)
+							sats.foreach(y => recur(y._2.term))
+						}
+						case PO(tm, r) => {
+							recur(tm)
+						}
+						case DI(tm, arg, r) => {
+							diuargs += arg
+							ditms += tm
+							recur(tm)
+						}
+						case DU(tm, arg, r) => {
+							diuargs += arg
+							dutms += tm
+						}
+						case DE(tm, arg, r) => {
+							deargs += arg
+							detms += tm
+						}
+						case SL(tm, sel) => {}
 					}
-					case PO(tm, r) => {
-						recur(tm)
-					}
-					case DI(tm, arg, r) => {
-						diuargs += arg
-						ditms += tm
-						recur(tm)
-					}
-					case DU(tm, arg, r) => {
-						diuargs += arg
-						dutms += tm
-					}
-					case DE(tm, arg, r) => {
-						deargs += arg
-						detms += tm
-					}
-					case SL(tm, sel) => {}
 				}
 			}
 			

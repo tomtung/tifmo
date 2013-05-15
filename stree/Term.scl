@@ -21,6 +21,8 @@ package stree {
 	}
 	
 	class PI(val term: Term, val intoR: SemRole) {
+		assert(term != null)
+		assert(intoR != null)
 		
 		private[this] var pcst = null:IETermRef
 		def piconst = pcst
@@ -45,6 +47,7 @@ package stree {
 		def clear() {
 			pcst = null
 			itmr = null
+			term.clear()
 		}
 		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit) {
 			term.demandRoles(setLexRoles, Set(intoR))
@@ -110,6 +113,8 @@ package stree {
 	}
 	
 	case class WORD(word: WordInfo) extends Term {
+		assert(word != null)
+		
 		private[this] var itmr = null:IETermRef
 		def ietmref = itmr
 		def setup(ie: IEBasic) {
@@ -130,6 +135,9 @@ package stree {
 	}
 	
 	case class IR(core: Term, sats: Set[(SemRole, PI)]) extends Term {
+		assert(core != null)
+		assert(sats.forall(x => x._1 != null && x._2 != null))
+		
 		def word = core.word
 		private[this] var itmr = null:IETermRef
 		def ietmref = itmr
@@ -162,6 +170,9 @@ package stree {
 	}
 	
 	case class PO(term: Term, dropR: SemRole) extends Term {
+		assert(term != null)
+		assert(dropR != null)
+		
 		def word = term.word
 		private[this] var itmr = null:IETermRef
 		def ietmref = itmr
@@ -181,6 +192,10 @@ package stree {
 	}
 	
 	case class DI(term: Term, arg: PI, r: SemRole) extends Term {
+		assert(term != null)
+		assert(arg != null)
+		assert(r != null)
+		
 		def word = term.word
 		private[this] var itmr = null:IETermRef
 		def ietmref = itmr
@@ -203,6 +218,10 @@ package stree {
 	}
 	
 	case class DU(term: Term, arg: PI, r: SemRole) extends Term {
+		assert(term != null)
+		assert(arg != null)
+		assert(r != null)
+		
 		def word = term.word
 		private[this] var itmr = null:IETermRef
 		def ietmref = itmr
@@ -225,6 +244,10 @@ package stree {
 	}
 	
 	case class DE(term: Term, arg: PI, r: SemRole) extends Term {
+		assert(term != null)
+		assert(arg != null)
+		assert(r != null)
+		
 		def word = term.word
 		private[this] var itmr = null:IETermRef
 		def ietmref = itmr
@@ -247,6 +270,9 @@ package stree {
 	}
 	
 	case class SL(term: Term, sel: Slction) extends Term {
+		assert(term != null)
+		assert(sel != null)
+		
 		def word = term.word
 		private[this] var itmr = null:IETermRef
 		def ietmref = itmr

@@ -96,58 +96,55 @@ println("begin extract: ")
 			val slPoolT = mutable.Set.empty[SL]
 			val slPoolH = mutable.Set.empty[SL]
 			def extract(st: AtomSt, slpool: mutable.Set[SL]) {
-var counter = 0
+				val recurCache = mutable.Set.empty[Term]
 				def recur(x: Term) {
-counter += 1
-println("counter: " + counter)
-					x match {
-						case WORD(word) => {}
-						case IR(core, sats) => {
-							recur(core)
-							sats.foreach(y => {
-								piPool.add(y._2)
-								recur(y._2.term)
-							})
-						}
-						case PO(tm, r) => recur(tm)
-						case DI(tm, arg, r) => {
-							recur(tm)
-							piPool.add(arg)
-							recur(arg.term)
-						}
-						case DU(tm, arg, r) => {
-							recur(tm)
-							piPool.add(arg)
-							recur(arg.term)
-						}
-						case DE(tm, arg, r) => {
-							recur(tm)
-							piPool.add(arg)
-							recur(arg.term)
-						}
-						case xsl @ SL(tm, sel) => {
-							slpool.add(xsl)
-							recur(tm)
+					if (recurCache.add(x)) {
+						x match {
+							case WORD(word) => {}
+							case IR(core, sats) => {
+								recur(core)
+								sats.foreach(y => {
+									piPool.add(y._2)
+									recur(y._2.term)
+								})
+							}
+							case PO(tm, r) => {
+								recur(tm)
+							}
+							case DI(tm, arg, r) => {
+								recur(tm)
+								piPool.add(arg)
+								recur(arg.term)
+							}
+							case DU(tm, arg, r) => {
+								recur(tm)
+								piPool.add(arg)
+								recur(arg.term)
+							}
+							case DE(tm, arg, r) => {
+								recur(tm)
+								piPool.add(arg)
+								recur(arg.term)
+							}
+							case xsl @ SL(tm, sel) => {
+								slpool.add(xsl)
+								recur(tm)
+							}
 						}
 					}
 				}
-println("marker !!!")
 				st match {
 					case NonEmpty(a) => {
-println("st match NE, a: ")
 						piPool.add(a)
-println("marker ???")
 						recur(a.term)
 					}
 					case Subsume(a, b) => {
-println("st match Sub, a;b: ")
 						piPool.add(a)
 						piPool.add(b)
 						recur(a.term)
 						recur(b.term)
 					}
 					case Disjoint(a, b) => {
-println("st match Dis, a;b: ")
 						piPool.add(a)
 						piPool.add(b)
 						recur(a.term)
