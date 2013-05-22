@@ -1,5 +1,6 @@
 package tifmo
 
+import knowledge.SemRole.SemRole
 import inference.Slction
 import inference.IETerm
 import inference.IETermRef
@@ -10,14 +11,24 @@ package stree {
 	
 	private[stree] class SelNumRule(ie: IEBasic) {
 		
-		private[this] var pool = mutable.Set.empty[(IETermRef, IETermRef)]
+		private[this] val pool = mutable.Map.empty[Set[SemRole], Set[(IETermRef, IETermRef)]]
+		private[this] def addPair(pih: IETerm, pia: IETerm) {
+			if (pool.contains(pih.roles)) {
+				val redir = for ((hr, ar) <- pool(pih.roles)) yield {
+					(hr.to.ref, ar.to.ref)
+				}
+				pool(pih.roles) = redir + ((pih.ref, pia.ref))
+			} else {
+				pool(pih.roles) = Set((pih.ref, pia.ref))
+			}
+		}
 		
 		private[this] val rSL0 = (args: List[Any]) => args match {
-			case (sup:IETerm) :: (h:IETerm) :: (a:IETerm) :: Nil => {
-				pool.find(_._2.to == sup) match {
+			case (sup:IETerm) :: (pih:IETerm) :: Nil => {
+				pool(sup.roles).find(_._2.to == sup) match {
 					case Some((stmr, tmr)) => {
-						ie.claimSubsume(stmr.to, h)
-						ie.claimSubsume(h, stmr.to)
+						ie.claimSubsume(stmr.to, pih)
+						ie.claimSubsume(pih, stmr.to)
 					}
 					case None => {}
 				}
@@ -26,32 +37,52 @@ package stree {
 		}
 		private[this] val rSL1 = (sup: IETerm, args: List[Any]) => ie.conclude(sup :: args, rSL0)_
 		private[this] val rSL2 = (args: List[Any]) => args match {
-			case (h:IETerm) :: (a:IETerm) :: Nil => {
-				ie.foreachSuperset(a, args, rSL1)_
+			case (pia:IETerm) :: (pih:IETerm) :: Nil => {
+				ie.foreachSuperset(pia, args.tail, rSL1)_
 			}
 			case _ => throw new Exception("rSL2 error!")
 		}
-		private[this] val rSL3 = (ha: List[IETerm], args: List[Any]) => (dep: Set[IETerm]) => ha match {
-			case (h:IETerm) :: (a:IETerm) :: Nil => {
-				ie.ifNotEmpty(h, h :: a :: args, rSL2)(dep + a)
+		private[this] val rSL3 = (pial: List[IETerm], args: List[Any]) => (dep: Set[IETerm]) => args match {
+			case (pih:IETerm) :: Nil => {
+				assert(pial.length == 1)
+				val pia = pial.head
+				ie.ifNotEmpty(pih, pia :: args, rSL2)(dep + pia)
 			}
 			case _ => throw new Exception("rSL3 error!")
 		}
-		
+		private[this] val rSL4 = (pia: IETerm, args: List[Any]) => args match {
+			case (pih:IETerm) :: Nil => {
+				addPair(pih, pia)
+				ie.forSpecific(List(pia), args, rSL3)_
+			}
+			case _ => throw new Exception("rSL4 error!")
+		}
+		private[this] val rSL5 = (pih: IETerm, r: SemRole, args: List[Any]) => (dep: Set[IETerm]) => args match {
+			case (a:IETerm) :: Nil => {
+				val hrs = if (r == null) pih.roles else Set(r)
+				ie.constructPI(a, hrs, pih :: Nil, rSL4)(dep + pih)
+			}
+			case _ => throw new Exception("rSL5 error!")
+		}
+		private[this] val rSL6 = (ah: List[IETerm], args: List[Any]) => (dep: Set[IETerm]) => ah match {
+			case (a:IETerm) :: (h:IETerm) :: Nil => {
+				ie.ifNotEmpty(h, ah, rSL2)(dep + a)
+				if (h.roles != null) {
+					ie.foreachMkPI(h, a :: args, rSL5)(dep + a)
+				}
+			}
+			case _ => throw new Exception("rSL6 error!")
+		}
 		private[stree] def claim(h: IETerm, a: IETerm) {
-			pool.add((h.ref, a.ref))
-			ie.forSpecific(List(h, a), Nil, rSL3)(Set.empty[IETerm])
+			addPair(h, a)
+			ie.forSpecific(List(a, h), Nil, rSL6)(Set.empty[IETerm])
 		}
 	}
 	
 	case class SelNum(num: String) extends Slction {
 		
-		private[this] var rhelper = null:SelNumRule
+		@transient private[this] var rhelper = null:SelNumRule
 		private def ruleHelper = rhelper
-		
-		def genStr(tmstr: String) = {
-			"SelNum[" + num + "](" + tmstr + ")"
-		}
 		
 		def claimSL(h: IETerm, a: IETerm, ie: IEBasic, sls: List[(IETermRef, Slction, IETermRef)]) {
 			rhelper = sls.find(_._2 == this) match {

@@ -2,79 +2,158 @@ package tifmo
 
 import knowledge.SemRole.SemRole
 import inference.IEBasic
+import scala.collection.mutable
 
 package stree {
 	
 	sealed abstract class AtomSt {
+		
 		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit): Unit
+		protected[this] val demandCache = mutable.Set.empty[Term]
+		protected[this] def recurDemand(x: Term, rs: Set[SemRole], setLexRoles: (String, Set[SemRole]) => Unit) {
+			if (demandCache.add(x)) {
+				x match {
+					case WORD(word) => setLexRoles(word.lex, rs)
+					case IR(core, sats) => {
+						recurDemand(core, rs ++ sats.map(_._1), setLexRoles)
+						sats.foreach(y => recurDemand(y._2.term, Set(y._2.intoR), setLexRoles))
+					}
+					case PO(tm, r) => recurDemand(tm, rs + r, setLexRoles)
+					case DI(tm, arg, r) => {
+						recurDemand(tm, rs + r, setLexRoles)
+						recurDemand(arg.term, Set(arg.intoR), setLexRoles)
+					}
+					case DU(tm, arg, r) => {
+						recurDemand(tm, rs + r, setLexRoles)
+						recurDemand(arg.term, Set(arg.intoR), setLexRoles)
+					}
+					case DE(tm, arg, r) => {
+						recurDemand(tm, rs + r, setLexRoles)
+						recurDemand(arg.term, Set(arg.intoR), setLexRoles)
+					}
+					case SL(tm, sel) => recurDemand(tm, rs, setLexRoles)
+				}
+			}
+		}
+		
 		def claim(ie: IEBasic): Unit
 		def setup(ie: IEBasic): Unit
 		def check: Boolean
+		
 		def clear(): Unit
+		protected[this] val clearCache = mutable.Set.empty[Term]
+		protected[this] def recurClear(x: Term) {
+			if (clearCache.add(x)) {
+				x.clear()
+				x match {
+					case WORD(word) => {}
+					case IR(core, sats) => {
+						recurClear(core)
+						sats.map(_._2).foreach(y => {
+							y.clear()
+							recurClear(y.term)
+						})
+					}
+					case PO(tm, r) => {
+						recurClear(tm)
+					}
+					case DI(tm, arg, r) => {
+						recurClear(tm)
+						arg.clear()
+						recurClear(arg.term)
+					}
+					case DU(tm, arg, r) => {
+						recurClear(tm)
+						arg.clear()
+						recurClear(arg.term)
+					}
+					case DE(tm, arg, r) => {
+						recurClear(tm)
+						arg.clear()
+						recurClear(arg.term)
+					}
+					case SL(tm, sel) => {
+						recurClear(tm)
+					}
+				}
+			}
+		}
 	}
 	
 	case class NonEmpty(a: PI) extends AtomSt {
 		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit) {
-			a.demandRoles(setLexRoles)
+			demandCache.clear()
+			recurDemand(a.term, Set(a.intoR), setLexRoles)
 		}
 		def claim(ie: IEBasic) {
 			a.setup(ie)
 			ie.claimNonEmpty(a.ietmref.to)
+			ie.explore()
 		}
 		def setup(ie: IEBasic) {
-println("setup: " + this)
 			a.setup(ie)
-println("end setup.")
+			ie.explore()
 		}
 		def check = a.ietmref.to.knownNE
 		def clear() {
 			a.clear()
+			clearCache.clear()
+			recurClear(a.term)
 		}
 	}
 	
 	case class Subsume(a: PI, b: PI) extends AtomSt {
 		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit) {
-			a.demandRoles(setLexRoles)
-			b.demandRoles(setLexRoles)
+			demandCache.clear()
+			recurDemand(a.term, Set(a.intoR), setLexRoles)
+			recurDemand(b.term, Set(b.intoR), setLexRoles)
 		}
 		def claim(ie: IEBasic) {
 			a.setup(ie)
 			b.setup(ie)
 			ie.claimSubsume(a.ietmref.to, b.ietmref.to)
+			ie.explore()
 		}
 		def setup(ie: IEBasic) {
-println("setup: " + this)
 			a.setup(ie)
 			b.setup(ie)
-println("end setup.")
+			ie.explore()
 		}
 		def check = a.ietmref.to.hasSuper(b.ietmref.to)
 		def clear() {
 			a.clear()
 			b.clear()
+			clearCache.clear()
+			recurClear(a.term)
+			recurClear(b.term)
 		}
 	}
 	
 	case class Disjoint(a: PI, b: PI) extends AtomSt {
 		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit) {
-			a.demandRoles(setLexRoles)
-			b.demandRoles(setLexRoles)
+			demandCache.clear()
+			recurDemand(a.term, Set(a.intoR), setLexRoles)
+			recurDemand(b.term, Set(b.intoR), setLexRoles)
 		}
 		def claim(ie: IEBasic) {
 			a.setup(ie)
 			b.setup(ie)
 			ie.claimDisjoint(a.ietmref.to, b.ietmref.to)
+			ie.explore()
 		}
 		def setup(ie: IEBasic) {
-println("setup: " + this)
 			a.setup(ie)
 			b.setup(ie)
-println("end setup.")
+			ie.explore()
 		}
 		def check = a.ietmref.to.disjointTo(b.ietmref.to)
 		def clear() {
 			a.clear()
 			b.clear()
+			clearCache.clear()
+			recurClear(a.term)
+			recurClear(b.term)
 		}
 	}
+	
 }

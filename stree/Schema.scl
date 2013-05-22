@@ -1,20 +1,130 @@
 package tifmo
 
 import knowledge.SemRole.SemRole
-import inference.IEBasic
+import scala.collection.mutable
 
 package stree {
 	
-	class Schema {
+	class MNode(valid: PI => Boolean, val children: Set[(SemRole, MNode)]) {
 		
-		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit) {
-			
+		private[this] val mc = mutable.Set.empty[(SemRole, PI)]
+		private def matched = mc.toSet
+		
+		private[this] val nc = mutable.Set.empty[(SemRole, PI)]
+		private def nonmatch = nc.toSet
+		
+		private[this] var res = null:PI
+		private[stree] def result = res
+		
+		private[this] var cur = null:PI
+		def currentMatch = cur
+		
+		private[stree] def matching(x: PI): Boolean = {
+			mc.clear()
+			nc.clear()
+			res = null
+			cur = x
+			valid(x) && {
+				val tocheck = mutable.Set.empty[(SemRole, MNode)] ++ children
+				def construct(y: Term): Term = {
+					y match {
+						case WORD(word) => WORD(word)
+						case IR(core, sats) => {
+							val msats = sats.flatMap(z => {
+								val tmp = for ((r, m) <- children; if r == z._1 && m.matching(z._2)) yield {
+									tocheck.remove((r, m))
+									(r, m.result)
+								}
+								if (tmp.isEmpty) nc.add(z) else mc.add(z)
+								tmp
+							})
+							IR(construct(core), msats)
+						}
+						case PO(tm, r) => PO(construct(tm), r)
+						case DI(tm, arg, r) => PO(construct(tm), r)
+						case DU(tm, arg, r) => PO(construct(tm), r)
+						case DE(tm, arg, r) => PO(construct(tm), r)
+						case SL(tm, sel) => construct(tm)
+					}
+				}
+				res = new PI(construct(x.term), x.intoR)
+				tocheck.isEmpty
+			}
 		}
 		
-		def apply(x: PI) = {
-			
-			
-			Nil:List[AtomSt]
+		private[stree] def matching(x: PI, bind: Set[(MNode, SemRole, MNode, SemRole)], ctx: Set[MNode]): Boolean = {
+			mc.clear()
+			nc.clear()
+			res = null
+			valid(x) && {
+				val tocheck = mutable.Set.empty[(SemRole, MNode)] ++ children
+				def construct(y: Term): Term = {
+					y match {
+						case WORD(word) => WORD(word)
+						case IR(core, sats) => {
+							val msats = sats.flatMap(z => {
+								val tmp = for ((r, m) <- children; if r == z._1 && m.matching(z._2, bind, ctx)) yield {
+									tocheck.remove((r, m))
+									(r, m.result)
+								}
+								if (tmp.isEmpty) {
+									val bfil = bind.filter(w => w._3 == this && w._4 == z._1)
+									if (bfil.isEmpty) {
+										val reserved = bind.map(w => (w._1, w._2))
+										for (m <- ctx; (r, pi) <- m.nonmatch; if !reserved.contains((m, r)) && pi.roughMatch(z._2)) yield {
+											(z._1, pi)
+										}
+									} else {
+										bfil.flatMap(w => {
+											(w._1.matched.filter(_._1 == w._2) ++ w._1.nonmatch.filter(_._1 == w._2)).map(v => (z._1, v._2))
+										})
+									}
+								} else {
+									tmp
+								}
+							})
+							IR(construct(core), msats)
+						}
+						case PO(tm, r) => PO(construct(tm), r)
+						case DI(tm, arg, r) => PO(construct(tm), r)
+						case DU(tm, arg, r) => PO(construct(tm), r)
+						case DE(tm, arg, r) => PO(construct(tm), r)
+						case SL(tm, sel) => construct(tm)
+					}
+				}
+				res = new PI(construct(x.term), x.intoR)
+				tocheck.isEmpty
+			}
+		}
+		
+	}
+	
+	class Schema(lm: MNode, um: MNode, bind: Set[(MNode, SemRole, MNode, SemRole)]) {
+		
+		def prePair(x: PI, y: PI) = {
+			if (lm.matching(x) && um.matching(y)) {
+				Some((lm.result, um.result))
+			} else {
+				None
+			}
+		}
+		
+		private[this] val lctx = {
+			val ret = mutable.Set.empty[MNode]
+			def extract(x: MNode) {
+				ret.add(x)
+				x.children.foreach(y => extract(y._2))
+			}
+			extract(lm)
+			ret.toSet
+		}
+		
+		def fullPair(x: PI, y: PI) = {
+			if (lm.matching(x) && um.matching(y, bind, lctx)) {
+				Some((x, um.result))
+			} else {
+				None
+			}
 		}
 		
 	}

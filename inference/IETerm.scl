@@ -36,9 +36,8 @@ package inference {
 	 * 
 	 * @param roles The dimension of this term, `null` iff the term is one dimensional.
 	 * @param isW True iff this is a W term.
-	 * @param str The string to display when the term is printed.
 	 */
-	class IETerm(val roles: Set[SemRole], val isW: Boolean, val str: String) extends Ordered[IETerm] {
+	class IETerm(val roles: Set[SemRole], val isW: Boolean, val id: Int) extends Ordered[IETerm] {
 		
 		assert(roles == null || (roles.size >= 2 && !roles.contains(null)))
 		
@@ -128,8 +127,6 @@ package inference {
 		private[inference] val isins = mutable.Set.empty[IEPredIN]
 		private[inference] val isinTriggers = mutable.Set.empty[TriggerIsIN]
 		private[inference] val mkins = mutable.Set.empty[IEPredIN]
-//		private[inference] val ifinhTriggers = mutable.Set.empty[TriggerIfIN]
-//		private[inference] val ifincTriggers = mutable.Set.empty[TriggerIfIN]
 		private[this] def calcIN(tocovs: Set[(Set[IETerm], Set[Set[IETerm]])]) = {
 			val wholeCache = mutable.Map.empty[IETerm, Set[IETerm]]
 			def whole(x: IETerm) = {
@@ -169,19 +166,10 @@ package inference {
 		private[inference] val specifics = mutable.Set.empty[SpecificFunc]
 		private[inference] val disposers = mutable.Set.empty[() => Unit]
 		
-		/////////////////////////////////////////////////
+		////////////////////////////////////////////////////////////////
 		
-		override def toString = str
-		def compare(that: IETerm) = {
-			if (str == that.str) {
-				assert(this == that)
-				0
-			} else if (str < that.str) {
-				-1
-			} else {
-				1
-			}
-		}
+		def compare(that: IETerm) = id - that.id
+		override def toString = "#" + id + (if (roles != null) roles.mkString("[", ",", "]") else "")
 	}
 	
 	
@@ -612,7 +600,7 @@ package inference {
 	
 	private[inference] class TriggerMkCPIf(protected val comp: Set[(IETerm, SemRole)], 
 			aargs: List[Any], protected val ff: (IETerm, List[Any]) => Set[IETerm] => Unit, 
-			ddep: Set[IETerm]) extends TriggerMkCP(comp.minBy[String](_._1.str)._1, aargs, null, ddep) {
+			ddep: Set[IETerm]) extends TriggerMkCP(comp.map(_._1).min, aargs, null, ddep) {
 		
 		override private[inference] def fire(x: IETerm, y: Set[(IETerm, SemRole)]) {
 			if (y == comp) {
@@ -747,51 +735,4 @@ package inference {
 		}
 		override lazy val hashCode = ((term, args, f, dep)).hashCode
 	}
-	/*
-	private[inference] class TriggerIfIN(
-			protected val head: IETerm, 
-			protected val comp: Set[IETerm], 
-			protected val args: List[Any], 
-			protected val f: (List[Any]) => Set[IETerm] => Unit, 
-			protected val dep: Set[IETerm]) {
-		
-		private[this] val tmp = head.ifinhTriggers.add(this)
-		assert(tmp)
-		comp.foreach(x => {
-			val tmp = x.ifincTriggers.add(this)
-			assert(tmp)
-		})
-		
-		protected val dis: () => Unit = () => {
-			head.ifinhTriggers.remove(this)
-			comp.foreach(_.ifincTriggers.remove(this))
-			dep.foreach(_.disposers.remove(dis))
-		}
-		dep.foreach(_.disposers.add(dis))
-		
-		private[inference] def fireh(x: Set[IETerm]) {
-			val whole = comp.flatMap(_.superSets.filter(_.isins.isEmpty))
-			if (x.subsetOf(whole)) {
-				dis()
-				f(args)(dep)
-			}
-		}
-		private[inference] def firec() {
-			if (head.hasIN(comp)) {
-				dis()
-				f(args)(dep)
-			}
-		}
-		
-		override def equals(a: Any) = {
-			if (a.isInstanceOf[TriggerIfIN]) {
-				val that = a.asInstanceOf[TriggerIfIN]
-				head == that.head && comp == that.comp && args == that.args && f == that.f && dep == that.dep
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = ((head, comp, args, f, dep)).hashCode
-	}
-	*/
 }

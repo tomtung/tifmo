@@ -1,0 +1,5 @@
+/**
+ * [[tifmo]] is an RTE system using DCS-trees (semantically annotated dependency parses) as semantic representation, 
+ * utilizing a fast inference engine and clever abuduction mechanism.
+ */
+package object tifmo {}

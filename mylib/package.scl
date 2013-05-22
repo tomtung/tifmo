@@ -1,0 +1,6 @@
+package tifmo
+
+/**
+ * Miscellaneous functions and algorithms.
+ */
+package object mylib {}

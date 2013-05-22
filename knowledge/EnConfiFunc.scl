@@ -1,0 +1,121 @@
+package tifmo
+
+import stree.Align
+import stree.PI
+import resource.EnNgramDist
+import mylib.oneFromEach
+
+import scala.collection.mutable
+import scala.util.Sorting
+
+package knowledge {
+	
+	class EnConfiFunc extends (Align => Double) {
+		
+		private[this] val cache = mutable.Map.empty[List[Set[String]], (mutable.Map[String, Long], Double)]
+		private[this] def cossim(aws: Set[EnWord], bws: Set[EnWord]) = {
+			
+			def norm(x: mutable.Map[String, Long]) = {
+				if (x.isEmpty) {
+					1.0
+				} else {
+					var retsq = 0.0
+					for ((k, v) <- x) {
+						retsq += v * v
+					}
+					math.sqrt(retsq)
+				}
+			}
+			
+			def lookup(sss: List[Set[String]]) = {
+				if (cache.contains(sss)) {
+					cache(sss)
+				} else {
+					val tmp = mutable.Map.empty[String, Long]
+					for (l <- oneFromEach[String](sss)) {
+						EnNgramDist.get(l.mkString("", " ", ""), tmp)
+					}
+					val ret = (tmp, norm(tmp))
+					cache(sss) = ret
+					ret
+				}
+			}
+			
+			def surflex(ws: Set[EnWord]) = {
+				val wl = ws.toList
+				val wlm = wl.map(x => {
+					if (x.mypos == "D") {
+						Set(x.surf)
+					} else {
+						val tmp = if (x.ner == "O") x.surf.toLowerCase else x.surf
+						Set(tmp, x.lem)
+					}
+				})
+				Sorting.stableSort[Set[String], (String, String)](wlm, x => (x.max, x.min)).toList
+			}
+			
+			val (adist, anorm) = lookup(surflex(aws))
+			val (bdist, bnorm) = lookup(surflex(bws))
+			
+			val dot = {
+				val ck = adist.keySet intersect bdist.keySet
+				(0.0 /: ck)((a, k) => a + adist(k) * bdist(k))
+			}
+			
+			dot / anorm / bnorm
+		}
+		
+		def apply(algn: Align) = {
+	
+			val cws = algn.clue.src.map(_.term.word.asInstanceOf[EnWord]).toSet
+			
+			def trimHead(x: List[PI]) = {
+				val wl = x.map(_.term.word.asInstanceOf[EnWord])
+				val dwl = wl.dropWhile(y => cws.exists(y.synonymTo(_)))
+				dwl.filter(!_.isStopwd).toSet
+			}
+			
+			val (tws, hws) = if (algn.soft) {
+				val tmp = trimHead(algn.tp.src.init)
+				if (tmp.isEmpty) {
+					(trimHead(algn.tp.src), trimHead(algn.hp.src))
+				} else {
+					val tlw = algn.tp.src.last.term.word.asInstanceOf[EnWord]
+					if (tlw.ner != "O" || tlw.synonymTo(algn.hp.src.last.term.word.asInstanceOf[EnWord], true)) {
+						(tmp, trimHead(algn.hp.src.init))
+					} else {
+						(trimHead(algn.tp.src), trimHead(algn.hp.src.init))
+					}
+				}
+			} else {
+				(trimHead(algn.tp.src), trimHead(algn.hp.src))
+			}
+			
+			if (tws.isEmpty || hws.isEmpty) {
+				
+				0.3 + 0.4 / (cws.size + hws.filter(x => cws.exists(x.synonymTo(_, true))).size)
+				
+			} else if (hws.forall(x => tws.exists(x.synonymTo(_, true)))) {
+				
+				0.8
+				
+			} else if (tws.forall(x => hws.exists(x.synonymTo(_, true)))) {
+				
+				0.1 + 1.0 / (3 + hws.size - tws.size)
+				
+			} else if (hws.size == 1 && tws.forall(x => hws.head.getContext(2, 3).exists(x.synonymTo(_, true)))) {
+				
+				0.0
+				
+			} else if (tws.size <= 3 && hws.size <= 3) {
+				
+				1.0 / (1.0 - math.log10(cossim(tws, hws)))
+				
+			} else {
+				
+				0.0
+				
+			}
+		}
+	}
+}

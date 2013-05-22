@@ -4,7 +4,7 @@ import scala.collection.mutable
 
 package stree {
 	
-	class Align(val tp: Path, val hp: Path, val clue: Path, val soft: Boolean) {
+	class Align(val tp: Path, val hp: Path, val clue: Path, val soft: Boolean) extends Serializable {
 		
 		private[this] var scr = 0.0
 		private[stree] def assign(x: Double) {
@@ -64,7 +64,7 @@ package stree {
 								val pp = (asats.head._1, supps.head)
 								assert(sats.contains(pp))
 								val pren = (sats - pp).flatMap(x => {
-									tpipool.filter(_.ietmref.to.hasSuper(x._2.piconst.to)).map((x._1, _))
+									tpipool.filter(_.roughMatch(x._2)).map((x._1, _))
 								})
 								pren + (if (supps.tail.isEmpty) {
 									if (soft) {
@@ -79,7 +79,7 @@ package stree {
 								})
 							} else {
 								sats.flatMap(x => {
-									tpipool.filter(_.ietmref.to.hasSuper(x._2.piconst.to)).map((x._1, _))
+									tpipool.filter(_.roughMatch(x._2)).map((x._1, _))
 								})
 							}
 							val ncore = construct(acore, core, supps)
@@ -121,12 +121,12 @@ package stree {
 			(tp.src.head, hpi)
 		}
 		
-		override def toString = "by " + clue.src.init.map(_.term.word).mkString("", "--", "") + " (" + tp + ") implies (" + hp + ")" + soft + score
+		override def toString = "by " + clue + " (" + tp + ") implies (" + hp + ")" + (if (soft) "" else "[hard]")
 	}
 	
 	object Align {
 				
-		def getParts(x: Term, subs: mutable.Set[PI], diuargs: mutable.Set[PI], deargs: mutable.Set[PI], ditms: mutable.Set[Term], dutms: mutable.Set[Term], detms: mutable.Set[Term]) = {
+		private[this] def getParts(x: Term, subs: mutable.Set[PI], diuargs: mutable.Set[PI], deargs: mutable.Set[PI], ditms: mutable.Set[Term], dutms: mutable.Set[Term], detms: mutable.Set[Term]) = {
 			
 			val recurCache = mutable.Set.empty[Term]
 			def recur(x: Term) {
@@ -162,7 +162,7 @@ package stree {
 			recur(x)
 		}
 		
-		def genTargetPI(lower: Iterable[PI], upper: Iterable[PI], fund: List[(Set[PI], Set[PI])]): List[(Set[PI], Set[PI])] = {
+		private[this] def genTargetPI(lower: Iterable[PI], upper: Iterable[PI], fund: List[(Set[PI], Set[PI])]): List[(Set[PI], Set[PI])] = {
 			
 			val lsubs = mutable.Set.empty[PI] ++ lower
 			val (ldiuargs, ldeargs, lditms, ldutms, ldetms) = 
@@ -188,7 +188,7 @@ package stree {
 			}
 		}
 		
-		def genTargetTM(lower: Iterable[Term], upper: Iterable[Term], fund: List[(Set[PI], Set[PI])]): List[(Set[PI], Set[PI])] = {
+		private[this] def genTargetTM(lower: Iterable[Term], upper: Iterable[Term], fund: List[(Set[PI], Set[PI])]): List[(Set[PI], Set[PI])] = {
 			
 			val lsubs = mutable.Set.empty[PI]
 			val (ldiuargs, ldeargs, lditms, ldutms, ldetms) = 
@@ -214,48 +214,181 @@ package stree {
 			}
 		}
 		
-		def findAligns(start: PI, clue: Path, fund: List[Align]) = {
+		def genTarget(pre: List[AtomSt], aim: List[AtomSt]) = {
+			
+			val (piPoolT, piPoolH) = (mutable.Set.empty[PI], mutable.Set.empty[PI])
+			val (slPoolT, slPoolH) = (mutable.Set.empty[SL], mutable.Set.empty[SL])
+			def extract(st: AtomSt, pipool: mutable.Set[PI], slpool: mutable.Set[SL]) {
+				val recurCache = mutable.Set.empty[Term]
+				def recur(x: Term) {
+					if (recurCache.add(x)) {
+						x match {
+							case WORD(word) => {}
+							case IR(core, sats) => {
+								recur(core)
+								sats.foreach(y => {
+									pipool.add(y._2)
+									recur(y._2.term)
+								})
+							}
+							case PO(tm, r) => {
+								recur(tm)
+							}
+							case DI(tm, arg, r) => {
+								recur(tm)
+								pipool.add(arg)
+								recur(arg.term)
+							}
+							case DU(tm, arg, r) => {
+								recur(tm)
+								pipool.add(arg)
+								recur(arg.term)
+							}
+							case DE(tm, arg, r) => {
+								recur(tm)
+								pipool.add(arg)
+								recur(arg.term)
+							}
+							case xsl @ SL(tm, sel) => {
+								slpool.add(xsl)
+								recur(tm)
+							}
+						}
+					}
+				}
+				st match {
+					case NonEmpty(a) => {
+						pipool.add(a)
+						recur(a.term)
+					}
+					case Subsume(a, b) => {
+						pipool.add(a)
+						pipool.add(b)
+						recur(a.term)
+						recur(b.term)
+					}
+					case Disjoint(a, b) => {
+						pipool.add(a)
+						pipool.add(b)
+						recur(a.term)
+						recur(b.term)
+					}
+				}
+			}
+			pre.foreach(extract(_, piPoolT, slPoolT))
+			aim.foreach(extract(_, piPoolH, slPoolH))
+			
+			val (neT, neH) = (mutable.Set.empty[PI], mutable.Set.empty[PI])
+			val (subLower, subUpper) = (mutable.Set.empty[PI], mutable.Set.empty[PI])
+			val (djtLower, djtUpper) = (mutable.Set.empty[PI], mutable.Set.empty[PI])
+			def sepPrem(st: AtomSt) {
+				st match {
+					case NonEmpty(a) => neT.add(a)
+					case Subsume(a, b) => {
+						subUpper.add(a)
+						subLower.add(b)
+					}
+					case Disjoint(a, b) => {
+						djtUpper.add(a)
+						djtUpper.add(b)
+					}
+				}
+			}
+			pre.foreach(sepPrem(_))
+			def sepHypo(st: AtomSt) {
+				st match {
+					case NonEmpty(a) => neH.add(a)
+					case Subsume(a, b) => {
+						subLower.add(a)
+						subUpper.add(b)
+					}
+					case Disjoint(a, b) => {
+						djtLower.add(a)
+						djtLower.add(b)
+					}
+				}
+			}
+			aim.foreach(sepHypo(_))
+			
+			val tmp1 = genTargetPI(djtLower, djtUpper, Nil)
+			val tmp2 = genTargetPI(subLower, subUpper, tmp1)
+			val tmp3 = {
+				def sepSel(sl: SL, selnumpool: mutable.Map[SelNum, Set[Term]]) {
+					sl.sel match {
+						case sn @ SelNum(num) => {
+							if (selnumpool.contains(sn)) {
+								selnumpool(sn) = selnumpool(sn) + sl.term
+							} else {
+								selnumpool(sn) = Set(sl.term)
+							}
+						}
+						case _ => {}
+					}
+				}
+				val selnumPoolT = mutable.Map.empty[SelNum, Set[Term]]
+				val selnumPoolH = mutable.Map.empty[SelNum, Set[Term]]
+				slPoolT.foreach(sepSel(_, selnumPoolT))
+				slPoolH.foreach(sepSel(_, selnumPoolH))
+				(tmp2 /: (selnumPoolT.keySet intersect selnumPoolH.keySet))((tmp, k) => {
+					genTargetTM(selnumPoolT(k), selnumPoolH(k), tmp)
+				})
+			}
+			val tmp4 = genTargetPI(neT.toSet, neH.toSet, tmp3)
+			((piPoolT.toSet, tmp4.head._2) :: tmp4.tail, slPoolT.toSet, slPoolH.toSet)
+		}
+		
+		
+		private[this] def findAligns(start: PI, clue: Path, hstart: Path, fund: List[Align]) = {
+			
+			def hasChildren(x: Term): Boolean = x match {
+				case WORD(word) => false
+				case DI(tm, arg, r) => true
+				case DU(tm, arg, r) => true
+				case DE(tm, arg, r) => true
+				case IR(core, sats) => !sats.isEmpty || hasChildren(core)
+				case PO(tm, r) => hasChildren(tm)
+				case SL(tm, sel) => hasChildren(tm)
+			}
+			
 			var als = fund
 			
 			def loopHypo(tp: Path, hp: Path, avoid: Set[Path], ret: List[Path]): List[Path] = {
-				if (!avoid.contains(hp)) {
-					//if (tp.longer.isEmpty && hp.longer.isEmpty) {
-					if (tp.src.last.paths.head.longer.isEmpty && hp.src.last.paths.head.longer.isEmpty) {
-						als = new Align(tp, hp, clue, false) :: als
-					}
+				if (avoid.contains(hp)) {
+					ret
+				} else {
 					if (tp.src.last.ietmref.to.hasSuper(hp.src.last.paths.head.acc.ietmref.to)) {
 						als = new Align(tp, hp, clue, true) :: als
 						hp :: ret
 					} else {
-						(ret /: hp.longer)((cret, x) => {
-							loopHypo(tp, x, avoid, cret)
-						})
+						if (!hasChildren(tp.src.last.term) && !hasChildren(hp.src.last.term)) {
+							als = new Align(tp, hp, clue, false) :: als
+						}
+						(ret /: hp.longer)((x, y) => loopHypo(tp, y, avoid, x))
 					}
-				} else {
-					ret
 				}
 			}
 			
-			def loopText(tp: Path, hp: Path, avoid: Set[Path]) {
-				val hpinit = hp.src.init
+			def loopText(tp: Path, avoid: Set[Path]) {
 				for (x <- tp.longer) {
-					if (!hpinit.exists(y => x.src.last.ietmref.to.hasSuper(y.piconst.to))) {
-						loopText(x, hp, avoid ++ loopHypo(x, hp, avoid, Nil))
+					if (!clue.src.exists(x.src.last.roughMatch(_))) {
+						loopText(x, avoid ++ loopHypo(x, hstart, avoid, Nil))
 					}
 				}
 			}
 			
-			loopText(start.paths.head, clue, Set.empty[Path])
+			loopText(start.paths.head, Set.empty[Path])
 			als
 		}
 		
-		def findClues(start: PI, cinit: Path) = {
-			var ret = Nil:List[Path]
+		private[this] def findClues(start: PI, cinit: Path) = {
+			var ret = Nil:List[(Path, Path)]
 			def recur(x: Path) {
-				if (start.ietmref.to.hasSuper(x.acc.ietmref.to)) {
-					x.longer.foreach(recur(_))
-				} else {
-					ret = x :: ret
+				for (y <- x.longer) {
+					if (start.ietmref.to.hasSuper(y.acc.ietmref.to)) {
+						recur(y)
+					} else {
+						ret = (x, y) :: ret
+					}
 				}
 			}
 			recur(cinit)
@@ -264,9 +397,9 @@ package stree {
 		
 		def all(target: List[(Set[PI], Set[PI])]) = {
 			var ret = Nil:List[Align]
-			for ((ts, hs) <- target; start <- ts; c <- hs; if start.ietmref.to.hasSuper(c.piconst.to)) {
-				for (clue <- findClues(start, c.paths.head)) {
-					ret = findAligns(start, clue, ret)
+			for ((ts, hs) <- target; start <- ts; c <- hs; if start.roughMatch(c)) {
+				for ((clue, hstart) <- findClues(start, c.paths.head)) {
+					ret = findAligns(start, clue, hstart, ret)
 				}
 			}
 			ret

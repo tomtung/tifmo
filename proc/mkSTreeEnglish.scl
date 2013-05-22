@@ -12,11 +12,11 @@ import edu.stanford.nlp.semgraph.SemanticGraphEdge
 
 import knowledge.SemRole
 import knowledge.SemRole.SemRole
+import knowledge.EnDoc
 import knowledge.EnWord
 import stree.PreNode
 import stree.STree
 import stree.Qtfier
-//import stree.Qtfier.Qtfier
 import stree.SelNum
 
 import scala.collection.mutable
@@ -27,16 +27,18 @@ package proc {
 	object mkSTreeEnglish {
 		
 		private[this] val props = new Properties
-		props.put("annotators", "tokenize, ssplit, pos, lemma, ner, regexner, parse, dcoref")
+		props.put("annotators", "tokenize, ssplit, pos, lemma, ner, parse, dcoref")
 		private[this] val pipeline = new StanfordCoreNLP(props)
 		
 		def apply(text: String) = {
 			
+			val doc = new EnDoc(text)
+			
 			val document = new Annotation(text)
 			pipeline.annotate(document)
 			
-			var pnrll = Nil:List[List[PreNode]]
-			val waa = (for (sentence <- document.get(classOf[SentencesAnnotation])) yield {
+			var splt = Nil:List[Set[(EnWord, String, String, EnWord)]]
+			doc.waa = (for (sentence <- document.get(classOf[SentencesAnnotation])) yield {
 				
 				val sidx = sentence.get(classOf[SentenceIndexAnnotation])
 				
@@ -46,29 +48,34 @@ package proc {
 					val surf = token.get(classOf[TextAnnotation])
 					val pos = token.get(classOf[PartOfSpeechAnnotation])
 					val ner = token.get(classOf[NamedEntityTagAnnotation])
-					val lex = token.get(classOf[LemmaAnnotation])
-					val nm = token.get(classOf[NormalizedNamedEntityTagAnnotation])
+					val lem = if (ner == "DATE" || ner == "TIME") {
+						token.get(classOf[NormalizedNamedEntityTagAnnotation])
+					} else {
+						token.get(classOf[LemmaAnnotation])
+					}
 					val cid = {
 						val tmp = token.get(classOf[CorefClusterIdAnnotation])
 						if (tmp == null) null else tmp.toString
 					}
 						
-					new EnWord(sidx, idx, surf, pos, ner, lex, nm, cid, true)
+					new EnWord(doc, sidx, idx, surf, pos, ner, lem, cid, true)
 				}).toArray
 				
 				val parse = sentence.get(classOf[CollapsedDependenciesAnnotation])
-				pnrll = split(parse, wa).map(annotate(_)) ::: pnrll
+				splt = split(parse, wa) ::: splt
 				
 				wa
 			}).toArray
 			
-			(new STree(pnrll.reverse.flatten), waa)
+			doc.stree = new STree(splt.reverse.map(annotate(_)).flatten)
+			
+			doc.stree
 		}
 		
 		private[this] def split(parse: SemanticGraph, wa: Array[EnWord]) = {
 			
 			var checklst = List((parse.edgeIterable.toSet, parse.getFirstRoot))
-			var retlst = Nil:List[Set[(EnWord, String, EnWord)]]
+			var retlst = Nil:List[Set[(EnWord, String, String, EnWord)]]
 			
 			while (!checklst.isEmpty) {
 				val (tocheck, curroot) = checklst.head
@@ -98,16 +105,16 @@ package proc {
 					}
 					case None => {
 						val tmp = for (x <- tocheck) yield {
-							(wa(x.getGovernor.get(classOf[IndexAnnotation]) - 1), x.getRelation.getShortName, wa(x.getDependent.get(classOf[IndexAnnotation]) - 1))
+							(wa(x.getGovernor.get(classOf[IndexAnnotation]) - 1), x.getRelation.getShortName, x.getRelation.getSpecific, wa(x.getDependent.get(classOf[IndexAnnotation]) - 1))
 						}
-						retlst = (tmp + ((null, "root", wa(curroot.get(classOf[IndexAnnotation]) - 1)))) :: retlst
+						retlst = (tmp + ((null, "root", "root", wa(curroot.get(classOf[IndexAnnotation]) - 1)))) :: retlst
 					}
 				}
 			}
 			retlst
 		}
 		
-		private[this] def annotate(dep: Set[(EnWord, String, EnWord)]) = {
+		private[this] def annotate(dep: Set[(EnWord, String, String, EnWord)]) = {
 
 			val pnpool = mutable.Map.empty[EnWord, PreNode]
 			def getNode(x: EnWord) = {
@@ -117,15 +124,21 @@ package proc {
 					val ret = new PreNode
 					ret.word = x
 					ret.coref = x.cid
+					if (x.ner == "NUMBER") ret.slction = new SelNum(x.lem)
 					pnpool(x) = ret
 					ret
 				}
 			}
 			
 			var recroot = null:PreNode
-			for ((p, rel, c) <- dep) {
+			for ((p, rel, spc, c) <- dep) {
 				if (rel == "root") {
 					recroot = getNode(c)
+				} else if (c.mypos == "D" && {
+					val tmp = c.getContext(0, 2)
+					tmp.length == 2 && tmp(1).mypos == "D" && c.lem == tmp(1).lem
+				}) {
+					// do nothing.
 				} else {
 					val (np, nc) = (getNode(p), getNode(c))
 					val nci = c.idx
@@ -152,7 +165,11 @@ package proc {
 						}
 						case "amod" => {
 							nc.outr = SemRole.ARG
-							np.addChild(SemRole.POSS, nc, nci)
+							if (p.mypos == "N") {
+								np.addChild(SemRole.POSS, nc, nci)
+							} else {
+								np.addChild(SemRole.ARG, nc, nci)
+							}
 						}
 						case "appos" => {
 							nc.outr = SemRole.ARG
@@ -164,7 +181,7 @@ package proc {
 						}
 						case "csubj" => {
 							nc.outr = SemRole.THG
-							val tmp = if (p.pos.substring(0, 2) == "VB") SemRole.SBJ else SemRole.ARG
+							val tmp = if (p.mypos == "V") SemRole.SBJ else SemRole.ARG
 							np.addChild(tmp, nc, nci)
 						}
 						case "csubjpass" => {
@@ -172,13 +189,17 @@ package proc {
 							np.addChild(SemRole.OBJ, nc, nci)
 						}
 						case "dep" => {
-							nc.outr = SemRole.THG
-							np.addChild(SemRole.THG, nc, nci)
+							nc.outr = if (c.mypos == "V") SemRole.THG else SemRole.ARG
+							if (p.mypos == "V") {
+								np.addChild(SemRole.THG, nc, nci)
+							} else {
+								np.addChild(SemRole.ARG, nc, nci)
+							}
 						}
 						case "det" => {
-							if (p.lex == "all" || p.lex == "every" || p.lex == "each") {
+							if (p.lem == "all" || p.lem == "every" || p.lem == "each") {
 								np.qtfier = Qtfier.ALL
-							} else if (p.lex == "no") {
+							} else if (p.lem == "no") {
 								np.qtfier = Qtfier.NO
 							}
 						}
@@ -195,11 +216,16 @@ package proc {
 							np.addChild(SemRole.IOBJ, nc, nci)
 						}
 						case "neg" => {
-							np.word = np.word.neg
+							np.word = np.word.asInstanceOf[EnWord].reverse
 						}
 						case "nn" => {
-							nc.outr = SemRole.ARG
-							np.addChild(SemRole.ARG, nc, nci)
+							if (c.mypos == "D") {
+								nc.outr = SemRole.ARG
+								np.addChild(SemRole.TIME, nc, nci)
+							} else {
+								nc.outr = SemRole.ARG
+								np.addChild(SemRole.ARG, nc, nci)
+							}
 						}
 						case "npadvmod" => {
 							nc.outr = SemRole.ARG
@@ -207,7 +233,7 @@ package proc {
 						}
 						case "nsubj" => {
 							nc.outr = SemRole.ARG
-							val tmp = if (p.pos.substring(0, 2) == "VB") SemRole.SBJ else SemRole.ARG
+							val tmp = if (p.mypos == "V") SemRole.SBJ else SemRole.ARG
 							np.addChild(tmp, nc, nci)
 						}
 						case "nsubjpass" => {
@@ -215,12 +241,21 @@ package proc {
 							np.addChild(SemRole.OBJ, nc, nci)
 						}
 						case "num" => {
-							if (c.ner == "DATE") {
+							if (c.mypos == "D") {
 								nc.outr = SemRole.ARG
 								np.addChild(SemRole.TIME, nc, nci)
 							} else {
 								np.qtfier = Qtfier.EXACTLY
-								np.slction = new SelNum(c.lex)
+								np.slction = new SelNum(c.lem)
+							}
+						}
+						case "number" => {
+							if (p.mypos == "N") {
+								np.qtfier = Qtfier.EXACTLY
+								np.slction = new SelNum(c.lem)
+							} else {
+								nc.outr = SemRole.ARG
+								np.addChild(SemRole.ARG, nc, nci)
 							}
 						}
 						case "parataxis" => {
@@ -229,7 +264,7 @@ package proc {
 						}
 						case "partmod" => {
 							nc.outr = if (c.surf.length >= 3 && c.surf.substring(c.surf.length - 3, c.surf.length) == "ing") SemRole.SBJ else SemRole.OBJ
-							val tmp = if (p.pos.substring(0, 2) == "VB") SemRole.SBJ else SemRole.ARG
+							val tmp = if (p.mypos == "V") SemRole.SBJ else SemRole.ARG
 							np.addChild(tmp, nc, nci)
 						}
 						case "pobj" => {
@@ -241,14 +276,18 @@ package proc {
 							np.addChild(SemRole.POSS, nc, nci)
 						}
 						case "predet" => {
-							if (p.lex == "all") {
+							if (p.lem == "all") {
 								np.qtfier = Qtfier.ALL
 							}
 						}
 						case "prep" => {
 							nc.outr = SemRole.ARG
-							if (c.ner == "DATE") {
+							if (c.mypos == "D") {
+								// we should add more to recognize
+								 // relations like before, after, since, from, to, ...
 								np.addChild(SemRole.TIME, nc, nci)
+							} else if (c.mypos == "N" && p.mypos == "N" && spc == "as") {
+								np.addChild(SemRole.ARG, nc, nci)
 							} else {
 								np.addChild(SemRole.IOBJ, nc, nci)
 							}
@@ -258,7 +297,7 @@ package proc {
 							np.addChild(SemRole.IOBJ, nc, nci)
 						}
 						case "prt" => {
-							val nword = new EnWord(p.sidx, p.idx, p.surf + " " + c.surf, p.pos, p.ner, p.lex + " " + c.lex, p.nm, p.cid, p.sign)
+							val nword = new EnWord(p.doc, p.sidx, p.idx, p.surf + " " + c.surf, p.pos, p.ner, p.lem + " " + c.lem, p.cid, p.sign)
 							np.word = nword
 						}
 						case "purpcl" => {
@@ -279,7 +318,7 @@ package proc {
 						}
 						case "xcomp" => {
 							nc.outr = SemRole.SBJ
-							val tmp = if (p.pos.substring(0, 2) == "VB") SemRole.SBJ else SemRole.ARG
+							val tmp = if (p.mypos == "V") SemRole.SBJ else SemRole.ARG
 							np.addChild(tmp, nc, nci)
 						}
 						case "xsubj" => {

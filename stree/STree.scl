@@ -5,7 +5,7 @@ import scala.collection.mutable
 
 package stree {
 	
-	class STree(pnl: List[PreNode]) {
+	class STree(pnl: List[PreNode]) extends Serializable {
 		
 		val streeNodeList = for (pn <- pnl) yield {
 			val ret = new STreeNode(pn.word, pn.coref, pn.outr, pn.qtfier, pn.slction, 
@@ -15,42 +15,56 @@ package stree {
 			ret
 		}
 		
+		@transient private[this] lazy val corefMap = mutable.Map.empty[String, PI]
+		@transient private[this] lazy val corefNegMap = mutable.Map.empty[String, PI]
+		
 		def meaning(getLexRoles: String => Set[SemRole]) = {
 			var ret = Nil:List[AtomSt]
-			val corefMap = mutable.Map.empty[String, PI]
-			for (n <- streeNodeList) {
-				val anaph = if (n.coref != null && corefMap.contains(n.coref)) {
-					corefMap(n.coref)
-				} else {
+			
+			corefMap.clear()
+			corefNegMap.clear()
+			
+			def anaph(x: STreeNode) = {
+				if (x.coref == null) {
 					null
-				}
-				if (n.word.isPronoun) {
-					n.setAnaphora(anaph)
 				} else {
-					n.approximation(anaph)
-					n.selection()
-					n.halfExecution(getLexRoles(n.word.lex))
+					if (x.word.sign) {
+						if (corefMap.contains(x.coref)) corefMap(x.coref) else null
+					} else {
+						if (corefNegMap.contains(x.coref)) corefNegMap(x.coref) else null
+					}
 				}
+			}
+			def anaphSet(x: STreeNode, a: PI) {
+				if (x.coref != null && a != null) {
+					if (x.word.sign) {
+						corefMap(x.coref) = a
+					} else {
+						corefNegMap(x.coref) = a
+					}
+				}
+			}
+			
+			for (n <- streeNodeList) {
+				
+				n.approximation(anaph(n))
+				n.selection()
+				n.halfExecution(getLexRoles(n.word.lex))
 				
 				def recur(x: STreeNode) {
-					if (x.coref != null && x.refPI != null) corefMap(x.coref) = x.refPI
-					if (!x.word.isPronoun) {
-						x.refinement()
-						for ((r, c) <- x.children; if c.qtfier == null) {
-							recur(c)
-						}
+					anaphSet(x, x.refinement(anaph(x)))
+					for ((r, c) <- x.children; if c.qtfier == null) {
+						recur(c)
 					}
 				}
 				
 				if (n.parent == null) {
 					recur(n)
 					def state(x: STreeNode) {
-						if (!x.word.isPronoun) {
-							x.fullExecution()
-							ret = x.atomst ::: ret
-							for ((r, c) <- x.children; if c.qtfier == null) {
-								state(c)
-							}
+						x.fullExecution()
+						ret = x.atomst ::: ret
+						for ((r, c) <- x.children; if c.qtfier == null) {
+							state(c)
 						}
 					}
 					state(n)
@@ -58,24 +72,39 @@ package stree {
 					recur(n)
 				}
 			}
+			
+			for (k <- corefMap.keySet intersect corefNegMap.keySet) {
+				ret = Disjoint(corefMap(k), corefNegMap(k)) :: ret
+			}
+			
 			ret
 		}
 		
-		def partial = {
-			var ret = Nil:List[(AtomSt, Int)]
-			
-			for (n <- streeNodeList; if n.parent == null && !n.word.isPronoun) {
-				
-				def recpart(x: STreeNode) {
+		def nonTrivialProps = {
+			var ret = Nil:List[AtomSt]
+			for (n <- streeNodeList; if n.parent == null) {
+				def recur(x: STreeNode) {
 					if (x.nontrivial) {
-						ret = x.atomst.map((_, n.weight)) ::: ret
+						x.fullexec match {
+							case PO(tm, r) => ret = x.atomst.last :: ret
+							case _ => ret = x.atomst ::: ret
+						}
 					}
 					for ((r, c) <- x.children; if c.qtfier == null) {
-						if (c.halfexecPI != null) ret = (NonEmpty(c.halfexecPI), c.weight) :: ret
-						if (!c.word.isPronoun) recpart(c)
+						recur(c)
 					}
 				}
-				recpart(n)
+				recur(n)
+			}
+			for (k <- corefMap.keySet intersect corefNegMap.keySet) {
+				ret = Disjoint(corefMap(k), corefNegMap(k)) :: ret
+			}
+			ret
+		}
+		
+		def rolePartial = {
+			var ret = Nil:List[(NonEmpty, Int)]
+			for (n <- streeNodeList; if n.parent == null) {
 				
 				def parpart(x: STreeNode, r: SemRole) {
 					
@@ -83,8 +112,8 @@ package stree {
 						for (rr <- x.execorder; if rr != x.outRole) {
 							parpart(x, rr)
 						}
-						var counter = 1
-						val sats = (for ((rr, c) <- x.children; if c.qtfier == null && !c.word.isPronoun && rr == x.outRole) yield {
+						var counter = if (x.word.isStopwd) 0 else 1
+						val sats = (for ((rr, c) <- x.children; if c.qtfier == null && rr == x.outRole) yield {
 							val (num, pi) = pifollow(c)
 							counter += num
 							(rr, pi)
@@ -92,8 +121,8 @@ package stree {
 						(counter, new PI(IR(WORD(x.word), sats), x.outRole))
 					}
 					
-					var counter = 1
-					val sats = (for ((rr, c) <- x.children; if c.qtfier == null && !c.word.isPronoun && rr == r) yield {
+					var counter = if (x.word.isStopwd) 0 else 1
+					val sats = (for ((rr, c) <- x.children; if c.qtfier == null && rr == r) yield {
 						val (num, pi) = pifollow(c)
 						counter += num
 						(r, pi)
@@ -105,6 +134,114 @@ package stree {
 			ret
 		}
 		
-		override def toString = streeNodeList.mkString("", " ", "")
+		def pathPartial = {
+			var ret = Nil:List[(NonEmpty, Double)]
+			for (n <- streeNodeList; if n.parent == null && !n.execorder.isEmpty) {
+				val sats = n.children.filter(_._2.qtfier == null).map(y => (y._1, y._2.halfexecPI)).toSet
+				if (!n.word.isStopwd) ret = (NonEmpty(new PI(IR(WORD(n.word), sats), n.execorder.last)), 1.0) :: ret
+				def recur(x: STreeNode) {
+					val fil = x.children.filter(_._2.qtfier == null).toSet
+					if (!x.word.isStopwd) {
+						val lastr = x.execorder.last
+						if (fil.size == 0) {
+							// nothing to do
+						} else if (fil.size == 1) {
+							val ne = NonEmpty(new PI(IR(WORD(x.word), fil.map(y => (y._1, y._2.halfexecPI))), lastr))
+							val weight = fil.head._2.weight.toDouble
+							ret = (ne, weight) :: ret
+						} else {
+							for (ctwo <- fil.subsets(2)) {
+								val ne = NonEmpty(new PI(IR(WORD(x.word), ctwo.map(y => (y._1, y._2.halfexecPI))), lastr))
+								val weight = ((0.0 /: ctwo)(_ + _._2.weight)) / (fil.size - 1)
+								ret = (ne, weight) :: ret
+							}
+						}
+					}
+					for ((r, c) <- fil) {
+						if (!c.word.isStopwd) ret = (NonEmpty(c.halfexecPI), 1.0) :: ret
+						recur(c)
+					}
+				}
+				recur(n)
+			}
+			ret
+		}
+		
+		/*
+		def partial = {
+			var ret = Nil:List[(AtomSt, Int)]
+			
+			for (n <- streeNodeList; if n.parent == null) {
+				
+				def recpart(x: STreeNode) {
+					if (x.nontrivial) {
+						ret = x.atomst.map((_, n.weight)) ::: ret
+					}
+					for ((r, c) <- x.children; if c.qtfier == null) {
+						if (!c.word.isStopwd) ret = (NonEmpty(c.halfexecPI), c.weight) :: ret
+						recpart(c)
+					}
+				}
+				recpart(n)
+				
+				def parpart(x: STreeNode, r: SemRole) {
+					
+					def pifollow(x: STreeNode): (Int, PI) = {
+						for (rr <- x.execorder; if rr != x.outRole) {
+							parpart(x, rr)
+						}
+						var counter = 1
+						val sats = (for ((rr, c) <- x.children; if c.qtfier == null && rr == x.outRole) yield {
+							val (num, pi) = pifollow(c)
+							counter += num
+							(rr, pi)
+						}).toSet
+						(counter, new PI(IR(WORD(x.word), sats), x.outRole))
+					}
+					
+					var counter = 1
+					val sats = (for ((rr, c) <- x.children; if c.qtfier == null && rr == r) yield {
+						val (num, pi) = pifollow(c)
+						counter += num
+						(r, pi)
+					}).toSet
+					ret = (NonEmpty(new PI(IR(WORD(x.word), sats), r)), counter) :: ret
+				}
+				n.execorder.foreach(parpart(n, _))
+			}
+			
+			val totweight = (0 /: streeNodeList)((x, y) => if (y.parent == null) x + y.weight else x)
+			for (k <- corefMap.keySet intersect corefNegMap.keySet) {
+				ret = (Disjoint(corefMap(k), corefNegMap(k)), totweight) :: ret
+			}
+			
+			ret
+		}
+		*/
+		override def toString = streeNodeList.mkString("==== STree: ====\n", "\n", "\n----------------\n")
+	}
+	
+	object STree {
+		
+		def roleWeight(nl: List[STreeNode]) = {
+			var ret = 0
+			for (n <- nl; if !n.word.isStopwd) {
+				ret += n.execorder.length
+			}
+			ret
+		}
+		
+		def pathWeight(nl: List[STreeNode]) = {
+			var ret = 0
+			for (n <- nl; if !n.word.isStopwd) {
+				def loop(x: STreeNode) {
+					if (!x.word.isStopwd) ret += 1
+					if (x.parent != null) loop(x.parent)
+				}
+				loop(n)
+			}
+			ret
+		}
+		
 	}
 }

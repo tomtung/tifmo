@@ -1,0 +1,108 @@
+package tifmo
+
+import edu.mit.jwi.Dictionary
+import edu.mit.jwi.item.POS
+import edu.mit.jwi.item.Pointer
+import edu.mit.jwi.item.IWordID
+import edu.mit.jwi.item.IWord
+import edu.mit.jwi.item.ISynsetID
+import edu.mit.jwi.item.ISynset
+import edu.mit.jwi.morph.WordnetStemmer
+
+import scala.collection.JavaConversions._
+
+package resource {
+	
+	object EnWordNet {
+		
+		private[this] val dir = "resource/enwordnet"
+		
+		private[this] val dict = new Dictionary(new java.io.File(dir))
+		dict.open()
+		
+		private[this] val stemmer = new WordnetStemmer(dict)
+		private[this] val allpos = POS.values.toSet
+		
+		def hasWord(s: String) = {
+			allpos.exists(x => stemmer.findStems(s, x).exists(y => dict.getIndexWord(y, x) != null))
+		}
+		
+		
+		type SemEntry = ISynset
+		
+		def synsets(lem: String, mypos: String) = {
+			
+			val stems = mypos match {
+				case "J" => stemmer.findStems(lem, POS.ADJECTIVE).map((POS.ADJECTIVE, _)).toSet
+				case "N" => stemmer.findStems(lem, POS.NOUN).map((POS.NOUN, _)).toSet
+				case "R" => stemmer.findStems(lem, POS.ADVERB).map((POS.ADVERB, _)).toSet
+				case "V" => stemmer.findStems(lem, POS.VERB).map((POS.VERB, _)).toSet
+				case "O" => allpos.flatMap(x => stemmer.findStems(lem, x).map((x, _)))
+				case _ => Set.empty[(POS, String)]
+			}
+			
+			for ((p, s) <- stems; idxw = dict.getIndexWord(s, p); if idxw != null; wid <- idxw.getWordIDs) yield {
+				dict.getWord(wid).getSynset
+			}
+		}
+		
+		def getLemmas(ss: Set[SemEntry]) = ss.flatMap(_.getWords.map(_.getLemma))
+		
+		def getPos(s: SemEntry) = s.getPOS match {
+			case POS.ADJECTIVE => "J"
+			case POS.NOUN => "N"
+			case POS.ADVERB => "R"
+			case POS.VERB => "V"
+		}
+		
+		
+		type WordNetPointer = Pointer
+		
+		def lexical(ss: Set[SemEntry], rel: WordNetPointer) = {
+			val ws = ss.flatMap(_.getWords)
+			val rws = ws.flatMap(_.getRelatedWords(rel))
+			rws.map(dict.getWord(_).getSynset)
+		}
+		
+		def semantic(ss: Set[SemEntry], rel: WordNetPointer) = {
+			val rss = ss.flatMap(_.getRelatedSynsets(rel))
+			rss.map(dict.getSynset(_))
+		}
+		
+		object WordNetPointer {
+			
+			val ANTONYM = Pointer.ANTONYM
+			
+			val HYPERNYM = Pointer.HYPERNYM
+			
+			val HYPERNYM_INSTANCE = Pointer.HYPERNYM_INSTANCE
+			
+			val HOLONYM_MEMBER = Pointer.HOLONYM_MEMBER
+			
+			val HOLONYM_PART = Pointer.HOLONYM_PART
+			
+			val HOLONYM_SUBSTANCE = Pointer.HOLONYM_SUBSTANCE
+			
+			val HYPONYM = Pointer.HYPONYM
+			
+			val HYPONYM_INSTANCE = Pointer.HYPONYM_INSTANCE
+			
+			val MERONYM_MEMBER = Pointer.MERONYM_MEMBER
+			
+			val MERONYM_PART = Pointer.MERONYM_PART
+			
+			val MERONYM_SUBSTANCE = Pointer.MERONYM_SUBSTANCE
+			
+			val ENTAILMENT = Pointer.ENTAILMENT
+			
+			val ATTRIBUTE = Pointer.ATTRIBUTE
+			
+			val DERIVATIONALLY_RELATED = Pointer.DERIVATIONALLY_RELATED
+			
+			val DERIVED_FROM_ADJ = Pointer.DERIVED_FROM_ADJ
+			
+			val PERTAINYM = Pointer.PERTAINYM
+		}
+		
+	}
+}

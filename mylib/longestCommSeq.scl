@@ -1,0 +1,24 @@
+package tifmo
+
+package mylib {
+	
+	object longestCommSeq {
+		
+		def length(a: String, b: String) = {
+			val tab = Array.ofDim[Int](a.length + 1, b.length + 1)
+			for (i <- 0 until a.length; j <- 0 until b.length) {
+				if (a.charAt(i) == b.charAt(j)) {
+					tab(i + 1)(j + 1) = tab(i)(j) + 1
+				} else {
+					tab(i + 1)(j + 1) = tab(i)(j + 1) max tab(i + 1)(j)
+				}
+			}
+			tab(a.length)(b.length)
+		}
+		
+		def rate(a: String, b: String) = {
+			2.0 * length(a, b) / (a.length + b.length)
+		}
+		
+	}
+}

@@ -4,6 +4,7 @@ import mylib.oneFromEach
 import mylib.listPartitions
 import knowledge.SemRole.SemRole
 import scala.collection.mutable
+import scala.util.Sorting
 
 package inference {
 	/**
@@ -16,13 +17,12 @@ package inference {
 	 */
 	abstract class IEngine {
 		
-		def roleStr(roles: Set[SemRole]) = {
-			if (roles == null) "" else roles.mkString("[", ",", "]")
-		}
-		
-		private[this] val W = new IETerm(null, true, "W")
+		private[this] val W = new IETerm(null, true, 0)
 		(new IEPredNonEmpty(W)).apply()
 		(new IEPredSubsume(W, W)).apply()
+		
+		private[this] var counter = 1
+		def getCount = counter
 		
 		private[this] val WPool = mutable.Map((null:Set[SemRole], W))
 		/**
@@ -32,7 +32,8 @@ package inference {
 			if (WPool.contains(roles)) {
 				WPool(roles)
 			} else {
-				val ret = new IETerm(roles, true, "W" + roleStr(roles))
+				val ret = new IETerm(roles, true, counter)
+				counter += 1
 				(new IEPredNonEmpty(ret)).apply()
 				(new IEPredSubsume(ret, ret)).apply()
 				claimCP(ret, roles.map(r => (W, r)))
@@ -45,8 +46,9 @@ package inference {
 		/**
 		 * Get a new non-W term.
 		 */
-		protected def newTerm(roles: Set[SemRole], str: String) = {
-			val term = new IETerm(roles, false, str)
+		protected def newTerm(roles: Set[SemRole]) = {
+			val term = new IETerm(roles, false, counter)
+			counter += 1
 			anyTermPool.foreach(_(term, Nil)(Set.empty[IETerm]))
 			applySubsume(term, term)
 			val w = getW(roles)
@@ -68,10 +70,8 @@ package inference {
 					case Some(x) => x.head
 					case None => {
 						val roles = comp.flatMap(x => if (x._2 != null) Set(x._2) else x._1.roles)
-						val str = (for ((x, r) <- comp) yield {
-							x.str + (if (r == null) "" else "[" + r + "]")
-						}).mkString("CP{", ",", "}" + roleStr(roles))
-						val ret = newTerm(roles, str)
+						val ret = newTerm(roles)
+						//println("new term " + ret + " is CP of " + comp)
 						claimCP(ret, comp)
 						ret
 					}
@@ -86,12 +86,8 @@ package inference {
 				case Some(x) => x.head
 				case None => {
 					val roles = if (headrs.size == 1) null else headrs
-					val str = if (headrs.size == 1) {
-						"PI" + roleStr(headrs) + "(" + compt.str + ")"
-					} else {
-						"PI" + "(" + compt.str + ")" + roleStr(headrs)
-					}
-					val ret = newTerm(roles, str)
+					val ret = newTerm(roles)
+					//println("new term " + ret + " is PI of " + compt + " to " + headrs)
 					claimPI(ret, compt, if (headrs.size == 1) headrs.head else null)
 					ret
 				}
@@ -117,8 +113,8 @@ package inference {
 				case Some(x) => x
 				case None => {
 					val roles = comp.head.roles
-					val str = comp.mkString("IN{", ",", "}" + roleStr(roles))
-					val ret = newTerm(roles, str)
+					val ret = newTerm(roles)
+					//println("new term " + ret + " is IN of " + comp)
 					claimIN(ret, comp, aux)
 					ret
 				}
@@ -169,17 +165,24 @@ package inference {
 			if (tmp.apply()) {
 				triggers.enqueue(() => {
 					if (a == b) {
+						val api = a.asPI
 						val acpl = a.mkcps.map(_.head).toList
 						val al = a.djtTriggers.toList
+						api.foreach(x => claimDisjoint(x._1, x._1))
 						acpl.foreach(x => claimDisjoint(x, x))
 						al.foreach(x => x.fire(b))
 					} else {
-						val acpl = a.mkcps.map(_.head).toList
-						val bcpl = b.mkcps.map(_.head).toList
+						val api = a.asPI
+						val bpi = b.asPI
+						val acpl = a.mkcps.toList
+						val bcpl = b.mkcps.toList
 						val al = a.djtTriggers.toList
 						val bl = b.djtTriggers.toList
-						for (x <- acpl; y <- bcpl; if x.roles == y.roles) {
+						for ((x, r) <- api; (y, rr) <- bpi; if r == rr && x.roles == y.roles) {
 							claimDisjoint(x, y)
+						}
+						for (xcp <- acpl; ycp <- bcpl; if xcp.head.roles == ycp.head.roles && !(xcp.comp.filter(_._1 == a).map(_._2) intersect ycp.comp.filter(_._1 == b).map(_._2)).isEmpty) {
+							claimDisjoint(xcp.head, ycp.head)
 						}
 						al.foreach(x => x.fire(b))
 						bl.foreach(x => x.fire(a))
@@ -245,10 +248,11 @@ package inference {
 								(no, Set(yes))
 							}).toSet
 							for (y <- x.calcIN(tocovs); yy = y + a; if yy.size >= 2) {
-								task = (() => x.isinTriggers.toList.foreach(_.fire(yy))) :: task
+								for (z <- x.isinTriggers) {
+									task = (() => z.fire(yy)) :: task
+								}
 							}
 						}
-						task = (() => a.ifincTriggers.toList.foreach(_.firec())) :: task
 					}
 					*/
 					val al = a.subTriggers.toList
@@ -284,8 +288,9 @@ package inference {
 			}
 		}
 		
-		private[this] def findAllCP(ll: Iterable[_ <: Iterable[(IETerm, SemRole)]]) = {
-			val kk = oneFromEach.map[(IETerm, SemRole), (Set[IETerm], Set[(IETerm, SemRole)])](ll, null, (x, y) => {
+		private[this] def findAllCP(ll: Set[Set[(IETerm, SemRole)]]) = {
+			val sll = Sorting.stableSort[Set[(IETerm, SemRole)], Int](ll.toList, _.size).toList
+			val kk = oneFromEach.map[(IETerm, SemRole), (Set[IETerm], Set[(IETerm, SemRole)])](sll, null, (x, y) => {
 				if (x == null) {
 					(y._1.mkcps.map(_.head).toSet, Set(y))
 				} else {
@@ -313,6 +318,9 @@ package inference {
 						val llsub = t.map(x => x._1.subSets.map(y => (y, x._2)))
 						for (x <- findAllCP(llsub)) {
 							task = (() => claimSubsume(x, h)) :: task
+						}
+						for ((x, r) <- t; y <- x.disjointSets; cp <- y.mkcps; cph = cp.head; if cph.roles == h.roles && cp.comp.contains((y, r))) {
+							task = (() => claimDisjoint(h, cph)) :: task
 						}
 					}
 					val hl = h.iscpTriggers.toList
@@ -401,10 +409,14 @@ package inference {
 				triggers.enqueue(() => {
 					val hl = h.ispiTriggers.toList
 					val tl = t.mkpiTriggers.toList
+					val djtpi = h.disjointSets.flatMap(_.asPI)
 					if (h.knownNE) {
 						claimNonEmpty(t)
 					} else if (t.knownNE) {
 						claimNonEmpty(h)
+					}
+					for ((x, rr) <- djtpi; if r == rr && t.roles == x.roles) {
+						claimDisjoint(t, x)
 					}
 					hl.foreach(x => x.fire(t, r))
 					tl.foreach(x => x.fire(h, r))
@@ -487,11 +499,6 @@ package inference {
 				subs.foreach(claimSubsume(_, h))
 				val tmp = new IEPredIN(h, t, aux)
 				if (tmp.apply()) {
-					/*
-					triggers.enqueue(() => {
-						h.ifinhTriggers.toList.foreach(_.fireh(t))
-					})
-					*/
 					if (!aux) {
 						/*
 						triggers.enqueue(() => {
@@ -504,28 +511,6 @@ package inference {
 						triggers.enqueue(() => {
 							h.isinTriggers.toList.foreach(_.fire(t))
 						})
-						/*
-						val ins = t.minBy[Int](_.mkins.size).mkins.filter(x => x.comp == t && x.head != h)
-						assert(ins.map(_.aux).size <= 1)
-						for (in <- ins; if in.aux) {
-							(new IEPredIN(in.head, in.comp, false)).apply()
-						*/
-							/*
-							triggers.enqueue(() => {
-								val hl = in.head.isinTriggers.toList
-								for (x <- in.head.calcIN(Set((in.comp, Set.empty[Set[IETerm]]))); if x.size >= 2) {
-									hl.foreach(_.fire(x))
-								}
-							})
-							*/
-						/*
-							triggers.enqueue(() => {
-								in.head.isinTriggers.toList.foreach(_.fire(in.comp))
-							})
-							
-							in.dispose()
-						}
-						*/
 					}
 				}
 			}
@@ -544,9 +529,6 @@ package inference {
 					val comp = squeeze(t)
 					if (multi(comp)) {
 						
-						//val gaux = aux && comp.minBy[Int](_.mkins.size).mkins.filter(_.comp == comp).forall(_.aux)
-						
-						//if (!gaux) {
 						if (!aux) {
 							for (in <- h.isins.toList; if in.aux && in.comp.subsetOf(comp)) {
 								val sq = squeeze(in.comp)
@@ -555,8 +537,8 @@ package inference {
 								}
 							}
 						}
+						
 						if (!h.isins.exists(_.comp.subsetOf(comp))) {
-							//val faux = gaux && h.isins.forall(x => x.aux || !comp.subsetOf(x.comp))
 							val faux = aux && h.isins.forall(x => x.aux || !comp.subsetOf(x.comp))
 							applyIN(h, comp, faux)
 							true
@@ -728,14 +710,15 @@ package inference {
 				assert(x.isins.isEmpty)
 				assert(x.isinTriggers.isEmpty)
 				assert(x.mkins.isEmpty)
-				//assert(x.ifinhTriggers.isEmpty)
-				//assert(x.ifincTriggers.isEmpty)
 				assert(x.specifics.isEmpty)
 				assert(x.disposers.isEmpty)
 			}
 			
 			task.foreach(_())
 		}
+		
+		private[this] var lastcounter = 0
+		def getLastCount = lastcounter
 		
 		private[this] val constructQ = mutable.Queue.empty[() => Unit]
 		
@@ -756,6 +739,7 @@ package inference {
 					val (a, eqa) = selectOneInEquiv(tmp)
 					if (eqa.size >= 2) {
 						mergeEquivToOne(eqa - a, a)
+						//println("merged " + eqa.size + " terms to one.")
 						loop1()
 					}
 				}
@@ -765,6 +749,7 @@ package inference {
 				constructQ.dequeue()()
 				loop2()
 			}
+			lastcounter = getCount
 		}
 		
 		///////////////////////////////////////////////////////////////
@@ -896,16 +881,7 @@ package inference {
 			assert(dep.forall(x => x.ref.to == x))
 			if (a.disjointTo(b)) f(args)((dep + a) + b) else new TriggerDjtIf(a, b, args, f, (dep + a) + b)
 		}
-		/*
-		def ifIN(head: IETerm, comp: Set[IETerm], args: List[Any], 
-				f: (List[Any]) => Set[IETerm] => Unit)(dep: Set[IETerm]) {
-			assert(head.ref.to == head)
-			assert(comp.forall(x => x.ref.to == x))
-			assert(comp.forall(_.hasSub(head)))
-			assert(dep.forall(x => x.ref.to == x))
-			if (head.hasIN(comp)) f(args)((dep + head) ++ comp) else new TriggerIfIN(head, comp, args, f, (dep + head) ++ comp)
-		}
-		*/
+		
 		def foreachSuperset(term: IETerm, args: List[Any], 
 				f: (IETerm, List[Any]) => Set[IETerm] => Unit)(dep: Set[IETerm]) {
 			assert(term.ref.to == term)

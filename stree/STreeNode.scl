@@ -15,8 +15,8 @@ package stree {
 		val qtfier: Qtfier,
 		val slction: Slction,
 		val children: List[(SemRole, STreeNode)]
-	) {
-		val weight: Int = (1 /: children)(_ + _._2.weight)
+	) extends Serializable {
+		val weight: Int = ((if (word.isStopwd) 0 else 1) /: children)(_ + _._2.weight)
 		
 		private[this] var prt = null:STreeNode
 		private[stree] def parent_=(x: STreeNode) {
@@ -65,40 +65,42 @@ package stree {
 			}
 		}
 		
-		private[this] var aprx = null:Term
+		@transient private[this] var aprx = null:IR
 		def approx = aprx
 		def approximation(anaph: PI) {
 			val core = WORD(word)
-			val presats = for {
-				(r, c) <- children
-				if c.qtfier == null
-				cout = c.halfexecPI
-				if cout != null
-			} yield ((r, cout))
-			val sats = if (anaph != null && outRole != null) {
-				presats.toSet + ((outRole, anaph))
+			val presats = for ((r, c) <- children; if c.qtfier == null) yield ((r, c.halfexecPI))
+			val sats = if (anaph != null) {
+				if (outRole != null) {
+					presats.toSet + ((outRole, anaph))
+				} else if (!execorder.isEmpty) {
+					presats.toSet + ((execorder.last, anaph))
+				} else {
+					presats.toSet
+				}
 			} else {
 				presats.toSet
 			}
 			aprx = IR(core, sats)
 		}
 		
-		private[this] var slct = null:Term
+		@transient private[this] var slct = null:Term
 		def select = slct
 		def selection() {
 			slct = if (slction == null) approx else SL(approx, slction)
 		}
 		
-		private[this] var hfex = null:Term
+		@transient private[this] var hfex = null:Term
 		def halfexec = hfex
-		private[this] var hfexPI = null:PI
+		@transient private[this] var hfexPI = null:PI
 		def halfexecPI = hfexPI
-		def setAnaphora(anaph: PI) {
-			hfexPI = anaph
-		}
+		@transient private[this] var addRoles = null:List[SemRole]
 		def halfExecution(roles: Set[SemRole]) {
-			assert(execorder.forall(roles.contains(_)))
-			val tmp = (select /: (roles -- execorder))((a, r) => {
+			if (roles != null) {
+				assert(execorder.forall(roles.contains(_)))
+				addRoles = (roles -- execorder).toList
+			}
+			val tmp = (select /: addRoles)((a, r) => {
 				PO(a, r)
 			})
 			val toexec = execorder.takeWhile(_ != outRole)
@@ -108,8 +110,9 @@ package stree {
 			if (outRole != null) hfexPI = new PI(hfex, outRole)
 		}
 		
-		lazy val refRole = {
-			if (parent == null || qtfier != null) {
+		
+		@transient lazy val refRole = {
+			if (parent == null) {
 				null
 			} else {
 				parent.children.find(_._2 == this) match {
@@ -119,7 +122,7 @@ package stree {
 			}
 		}
 		
-		lazy val refPI = {
+		@transient lazy val refPI = {
 			if (parent == null || qtfier != null) {
 				null
 			} else {
@@ -127,21 +130,35 @@ package stree {
 			}
 		}
 		
-		private[this] var rfne = null:Term
+		@transient private[this] var rfne = null:IR
 		def refine = rfne
-		def refinement() {
-			rfne = if (parent == null || qtfier != null) {
-				select
+		def refinement(anaph: PI) = {
+			val or = if (outRole != null) {
+				outRole
+			} else if (!execorder.isEmpty) {
+				execorder.last
 			} else {
-				IR(select, Set((outRole, refPI)))
+				null
+			}
+			if (or != null) {
+				val nsats = approx.sats + ((or, anaph)) + ((or, refPI)) - ((or, null))
+				rfne = IR(approx.core, nsats)
+				
+				approximation(anaph)
+				selection()
+				halfExecution(null)
+				
+				new PI(refine, or)
+			} else {
+				null
 			}
 		}
 		
-		private[this] var flex = null:Term
+		@transient private[this] var flex = null:Term
 		def fullexec = flex
-		private[this] var ntrvl = false
+		@transient private[this] var ntrvl = false
 		def nontrivial = ntrvl
-		private[this] var atst = null:List[AtomSt]
+		@transient private[this] var atst = null:List[AtomSt]
 		def atomst = atst
 		def fullExecution() = {
 			
@@ -161,7 +178,30 @@ package stree {
 			
 			atst = fullexec match {
 				case PO(tm, r) => {
-					NonEmpty(new PI(tm, r)) :: Nil
+					var ret = Nil:List[AtomSt]
+					def recur(x: Term) {
+						x match {
+							case PO(tm, r) => {
+								ret = NonEmpty(new PI(tm, r)) :: ret
+								recur(tm)
+							}
+							case DI(tm, arg, r) => {
+								ret = NonEmpty(new PI(tm, r)) :: ret
+								recur(tm)
+							}
+							case DU(tm, arg, r) => {
+								ret = NonEmpty(new PI(tm, r)) :: ret
+								recur(tm)
+							}
+							case DE(tm, arg, r) => {
+								ret = NonEmpty(new PI(tm, r)) :: ret
+								recur(tm)
+							}
+							case _ => {}
+						}
+					}
+					recur(fullexec)
+					ret
 				}
 				case DI(tm, arg, r) => {
 					Subsume(arg, new PI(tm, r)) :: Nil
@@ -176,6 +216,6 @@ package stree {
 			}
 		}
 		
-		override def toString = word.toString
+		override def toString = (if (slction == null) "" else slction.toString) + "(" + word + (if (coref == null) "" else "@" + coref) + ")" + outRole + " <- " + (if (qtfier == null) "--" else qtfier.toString) + " -- " + refRole + "(" + (if (parent == null) "ROOT" else parent.word + (if (parent.coref == null) "" else "@" + parent.coref)) + ")"
 	}
 }

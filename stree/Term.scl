@@ -2,32 +2,40 @@ package tifmo
 
 import knowledge.SemRole.SemRole
 import knowledge.WordInfo
+import inference.IETerm
 import inference.IETermRef
 import inference.IEBasic
 import inference.Slction
+import scala.collection.mutable
 
 package stree {
 	
-	class Path(val acc: PI, val src: List[PI]) {
+	class Path(val acc: PI, val src: List[PI]) extends Serializable {
 		
-		private[this] var lger = null:List[Path]
+		@transient private[this] var lger = null:List[Path]
 		private[stree] def longer_=(x: List[Path]) {
 			assert(lger == null)
 			lger = x
 		}
 		def longer = lger
 		
-		override def toString = src.map(_.term.word).mkString("", "--", "")
+		override def toString = src.map(_.term.word).mkString("", " | ", "")
 	}
 	
-	class PI(val term: Term, val intoR: SemRole) {
+	class PI(val term: Term, val intoR: SemRole) extends Serializable {
 		assert(term != null)
 		assert(intoR != null)
 		
-		private[this] var pcst = null:IETermRef
-		def piconst = pcst
-		private[this] var itmr = null:IETermRef
+		@transient private[this] var pcst = null:IETermRef
+		private def piconst = pcst
+		@transient private[this] var itmr = null:IETermRef
 		def ietmref = itmr
+		def roughMatch(that: PI) = {
+			that.piconst != null && ietmref.to.hasSuper(that.piconst.to)
+		}
+		def veryRoughMatch(that: PI) = {
+			(ietmref.to.superSets intersect that.ietmref.to.superSets).exists(!_.isW)
+		}
 		def setup(ie: IEBasic) {
 			if (ietmref == null) {
 				term.setup(ie)
@@ -36,24 +44,48 @@ package stree {
 				} else {
 					ie.getPI(term.ietmref.to, Set(intoR)).ref
 				}
-				val cstr = ie.getConstant(term.word.lex)
-				pcst = if (cstr.to.roles == null) {
-					cstr
+				def constpi(w: WordInfo, r: SemRole) = {
+					val pre = ie.getConstant(w)
+					if (pre.roles == null) pre else ie.getPI(pre, Set(r))
+				}
+				pcst = if (term.word.isStopwd) {
+					val inpool = mutable.Set.empty[IETerm]
+					def recur(x: Term, r: SemRole) {
+						x match {
+							case WORD(word) => {}
+							case IR(core, sats) => {
+								for ((rr, pi) <- sats; if rr == r) {
+									if (pi.term.word.isStopwd) {
+										recur(pi.term, pi.intoR)
+									} else {
+										inpool.add(constpi(pi.term.word, pi.intoR))
+									}
+								}
+								recur(core, r)
+							}
+							case PO(tm, rr) => { recur(tm, r) }
+							case DI(tm, arg, rr) => recur(tm, r)
+							case DU(tm, arg, rr) => recur(tm, r)
+							case DE(tm, arg, rr) => recur(tm, r)
+							case SL(tm, sel) => recur(tm, r)
+						}
+					}
+					if (inpool.isEmpty) null else ie.getIN(inpool.toSet).ref
 				} else {
-					ie.getPI(cstr.to, Set(intoR)).ref
+					constpi(term.word, intoR).ref
+				}
+				if (ie.getCount - ie.getLastCount > 100) {
+					//println("# of terms: " + ie.getCount)
+					ie.explore()
 				}
 			}
 		}
 		def clear() {
 			pcst = null
 			itmr = null
-			term.clear()
-		}
-		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit) {
-			term.demandRoles(setLexRoles, Set(intoR))
 		}
 		
-		lazy val paths: List[Path] = {
+		@transient lazy val paths: List[Path] = {
 			
 			def construct(x: Term): (Term, List[List[(Term, Path)]]) = x match {
 				case IR(core, sats) => {
@@ -104,33 +136,21 @@ package stree {
 		override def toString = "PI[" + intoR + "](" + term + ")"
 	}
 	
-	sealed abstract class Term {
+	sealed abstract class Term extends Serializable {
 		def word: WordInfo
-		def ietmref: IETermRef
+		@transient protected[this] var itmr = null:IETermRef
+		def ietmref = itmr
+		def clear() { itmr = null }
 		def setup(ie: IEBasic): Unit
-		def clear(): Unit
-		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit, rs: Set[SemRole]): Unit
 	}
 	
 	case class WORD(word: WordInfo) extends Term {
 		assert(word != null)
 		
-		private[this] var itmr = null:IETermRef
-		def ietmref = itmr
 		def setup(ie: IEBasic) {
 			if (ietmref == null) {
-				itmr = if (word.sign) {
-					ie.getConstant(word.lex)
-				} else {
-					ie.getComp(ie.getConstant(word.lex).to).ref
-				}
+				itmr = ie.getConstant(word).ref
 			}
-		}
-		def clear() {
-			itmr = null
-		}
-		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit, rs: Set[SemRole]) {
-			setLexRoles(word.lex, rs)
 		}
 	}
 	
@@ -139,8 +159,6 @@ package stree {
 		assert(sats.forall(x => x._1 != null && x._2 != null))
 		
 		def word = core.word
-		private[this] var itmr = null:IETermRef
-		def ietmref = itmr
 		def setup(ie: IEBasic) {
 			if (ietmref == null) {
 				core.setup(ie)
@@ -158,15 +176,6 @@ package stree {
 				}
 			}
 		}
-		def clear() {
-			itmr = null
-			core.clear()
-			sats.foreach(_._2.clear())
-		}
-		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit, rs: Set[SemRole]) {
-			core.demandRoles(setLexRoles, rs ++ sats.map(_._1))
-			sats.foreach(_._2.demandRoles(setLexRoles))
-		}
 	}
 	
 	case class PO(term: Term, dropR: SemRole) extends Term {
@@ -174,20 +183,11 @@ package stree {
 		assert(dropR != null)
 		
 		def word = term.word
-		private[this] var itmr = null:IETermRef
-		def ietmref = itmr
 		def setup(ie: IEBasic) {
 			if (ietmref == null) {
 				term.setup(ie)
 				itmr = ie.getPI(term.ietmref.to, term.ietmref.to.roles - dropR).ref
 			}
-		}
-		def clear() {
-			itmr = null
-			term.clear()
-		}
-		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit, rs: Set[SemRole]) {
-			term.demandRoles(setLexRoles, rs + dropR)
 		}
 	}
 	
@@ -197,23 +197,12 @@ package stree {
 		assert(r != null)
 		
 		def word = term.word
-		private[this] var itmr = null:IETermRef
-		def ietmref = itmr
 		def setup(ie: IEBasic) {
 			if (ietmref == null) {
 				term.setup(ie)
 				arg.setup(ie)
 				itmr = ie.getDI(term.ietmref.to, arg.ietmref.to, r).ref
 			}
-		}
-		def clear() {
-			itmr = null
-			term.clear()
-			arg.clear()
-		}
-		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit, rs: Set[SemRole]) {
-			term.demandRoles(setLexRoles, rs + r)
-			arg.demandRoles(setLexRoles)
 		}
 	}
 	
@@ -223,23 +212,12 @@ package stree {
 		assert(r != null)
 		
 		def word = term.word
-		private[this] var itmr = null:IETermRef
-		def ietmref = itmr
 		def setup(ie: IEBasic) {
 			if (ietmref == null) {
 				term.setup(ie)
 				arg.setup(ie)
 				itmr = ie.getDU(term.ietmref.to, arg.ietmref.to, r).ref
 			}
-		}
-		def clear() {
-			itmr = null
-			term.clear()
-			arg.clear()
-		}
-		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit, rs: Set[SemRole]) {
-			term.demandRoles(setLexRoles, rs + r)
-			arg.demandRoles(setLexRoles)
 		}
 	}
 	
@@ -249,23 +227,12 @@ package stree {
 		assert(r != null)
 		
 		def word = term.word
-		private[this] var itmr = null:IETermRef
-		def ietmref = itmr
 		def setup(ie: IEBasic) {
 			if (ietmref == null) {
 				term.setup(ie)
 				arg.setup(ie)
 				itmr = ie.getDE(term.ietmref.to, arg.ietmref.to, r).ref
 			}
-		}
-		def clear() {
-			itmr = null
-			term.clear()
-			arg.clear()
-		}
-		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit, rs: Set[SemRole]) {
-			term.demandRoles(setLexRoles, rs + r)
-			arg.demandRoles(setLexRoles)
 		}
 	}
 	
@@ -274,20 +241,11 @@ package stree {
 		assert(sel != null)
 		
 		def word = term.word
-		private[this] var itmr = null:IETermRef
-		def ietmref = itmr
 		def setup(ie: IEBasic) {
 			if (ietmref == null) {
 				term.setup(ie)
 				itmr = ie.getSL(term.ietmref.to, sel).ref
 			}
-		}
-		def clear() {
-			itmr = null
-			term.clear()
-		}
-		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit, rs: Set[SemRole]) {
-			term.demandRoles(setLexRoles, rs)
 		}
 	}
 }

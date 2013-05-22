@@ -1,0 +1,11 @@
+package tifmo
+
+/**
+ * Contains the language dependent part that the inference system relies on. 
+ * 
+ * Including the enumeration of semantic roles ([[tifmo.knowledge.SemRole]]), 
+ * the interface for word information used by inference engine ([[tifmo.knowledge.WordInfo]]), 
+ * and language dependent implementations of words and confidence functions.
+ * 
+ */
+package object knowledge {}

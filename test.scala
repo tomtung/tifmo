@@ -1,35 +1,46 @@
 
+import tifmo.proc.preProcEnglish
 import tifmo.proc.mkSTreeEnglish
+import tifmo.proc.addknowEnglish
 import tifmo.stree.InferMgr
-import tifmo.stree.Align
+import tifmo.knowledge.EnWord
+import tifmo.knowledge.EnConfiFunc
 
-//val traw = "Jack Straw, the Foreign Secretary, will meet his Brazilian counterpart, Celso Amorim, in London today."
-//val hraw = "Jack Straw is a partner of Celso Amorim."
+val traw = "Jack Straw, the Foreign Secretary, will meet his Brazilian counterpart, Celso Amorim, in London today."
+val hraw = "Jack Straw is a partner of Celso Amorim."
+
+//val traw = "The watchdog International Atomic Energy Agency meets in Vienna on September 19."
+//val hraw = "The International Atomic Energy Agency holds a meeting in Vienna."
+
+//val traw = "The watchdog IAEA meets in Vienna on September 19."
+//val hraw = "The IAEA holds a meeting in Vienna."
 
 //val traw = "Angola as a Portuguese colony achieved independence in 1975."
 //val hraw = "Angola became independent from Spain in the 1970s."
 
-val traw = "Anyway, maybe it's best not to plan everything."
-val hraw = "Don't plan everything."
+//val traw = "Angola as a Portuguese colony achieved independence in 1975."
+//val hraw = "Angola became independent from Portugal in the 1970s."
 
-val tstree = mkSTreeEnglish(traw)
-val hstree = mkSTreeEnglish(hraw)
+//val traw = "Anyway, maybe it's best not to plan everything."
+//val hraw = "Don't plan everything."
+
+val tstree = mkSTreeEnglish(preProcEnglish(traw))
+val hstree = mkSTreeEnglish(preProcEnglish(hraw))
 
 println("============ Test Start =============")
+println(traw)
 println(tstree)
-println("---")
+println(hraw)
 println(hstree)
-println("----")
 
 val imgr = new InferMgr(hstree)
 imgr.addPremise(tstree)
 
-//imgr.addSynonym(tstree.streeNodeList(3).word, hstree.streeNodeList(3).word) // independence = independent
-//imgr.addHypernym(tstree.streeNodeList(4).word, hstree.streeNodeList(2).word) // 1975 -> 1970s
+val ws = hstree.streeNodeList.map(_.word.asInstanceOf[EnWord]).toSet ++ tstree.streeNodeList.map(_.word.asInstanceOf[EnWord])
+addknowEnglish(imgr, ws)
 
-val confidence = (algn: Align) => {
-	val bonus = if (algn.soft) 0.5 else 0.0
-	bonus + (1.0 / (algn.tp.src.length + algn.hp.src.length))
-}
+val tr = imgr.trace(new EnConfiFunc, 0.1)
 
-imgr.trace(confidence, 0.1)
+tr.foreach(println(_))
+
+sys.exit(0)

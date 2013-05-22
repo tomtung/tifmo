@@ -2,10 +2,10 @@ package tifmo
 
 package knowledge {
 	
-	abstract class WordInfo {
+	abstract class WordInfo extends Serializable {
 		def lex: String
 		def sign: Boolean
-		def isPronoun: Boolean
-		def neg: WordInfo
+		def isStopwd: Boolean
+		override def toString = (if (sign) "" else "~") + lex
 	}
 }

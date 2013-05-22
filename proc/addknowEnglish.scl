@@ -1,0 +1,67 @@
+package tifmo
+
+import knowledge.SemRole
+import knowledge.EnWord
+import stree.PI
+import stree.WORD
+import stree.Subsume
+import stree.Disjoint
+import stree.InferMgr
+
+package proc {
+	
+	object addknowEnglish {
+		
+		private[this] val djtCommRs = Set(SemRole.SBJ, SemRole.OBJ, SemRole.IOBJ)
+		
+		def apply(imgr: InferMgr, ws: Set[EnWord]) {
+			
+			val aws = ws ++ ws.filter(!_.sign).map(_.reverse())
+			
+			for (ss <- aws.subsets(2)) {
+				val a = ss.head
+				val b = (ss - a).head
+				if (a.synonymTo(b)) {
+					imgr.addSynonym(a, b)
+					if (a.lex != b.lex) println("Synonym: " + a + " " + b)
+				} else {
+					if (a.hyponymOf(b)) {
+						imgr.addHypernym(a, b)
+						println("Hypernym: " + a + " -> " + b)
+					} else if (b.hyponymOf(a)) {
+						imgr.addHypernym(b, a)
+						println("Hypernym: " + b + " -> " + a)
+					}
+				}
+			}
+			
+			imgr.allocateRoles()
+			for (ss <- aws.subsets(2)) {
+				val a = ss.head
+				val b = (ss - a).head
+				if (a.antonymTo(b)) {
+					val ars = imgr.getLexRoles(a.lex)
+					val brs = imgr.getLexRoles(b.lex)
+					for (r <- ars intersect brs) {
+						val apir = new PI(WORD(a), r)
+						val bpir = new PI(WORD(b), r)
+						if (djtCommRs.contains(r)) {
+							imgr.addPremise(Subsume(apir, bpir))
+							imgr.addPremise(Subsume(bpir, apir))
+						} else {
+							imgr.addPremise(Disjoint(apir, bpir))
+						}
+					}
+					println("Antonym: " + a + " <> " + b)
+				}
+			}
+			
+			for (ss <- aws.subsets(2)) {
+				val a = ss.head
+				val b = (ss - a).head
+				a.morphosem(b).foreach(imgr.addSchema(_))
+				b.morphosem(a).foreach(imgr.addSchema(_))
+			}
+		}
+	}
+}

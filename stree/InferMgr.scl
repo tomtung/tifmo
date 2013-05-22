@@ -27,17 +27,12 @@ package stree {
 			addHypernym(x, y)
 			addHypernym(y, x)
 		}
-		def addAntonym(x: WordInfo, y: WordInfo) {
-			assert(x.sign && y.sign)
-			addSynonym(x.neg, y)
-			addSynonym(y.neg, x)
-		}
-		
+		/*
 		private[this] var exclusives = Nil:List[(WordInfo, WordInfo)]
 		def addExclusive(x: WordInfo, y: WordInfo) {
 			exclusives = (x, y) :: exclusives
 		}
-		
+		*/
 		private[this] var schemas = Nil:List[Schema]
 		def addSchema(s: Schema) {
 			schemas = s :: schemas
@@ -51,182 +46,56 @@ package stree {
 				lexRoleMap(lex) = rs
 			}
 		}
-		private[this] val getLexRoles = lexRoleMap(_)
+		val getLexRoles = lexRoleMap(_)
 		
-		private[this] def allocateRoles() {
+		def allocateRoles() {
 			premAtom.foreach(_.demandRoles(setLexRoles))
 			premTree.foreach(_.streeNodeList.foreach(n => {
-				if (!n.word.isPronoun) setLexRoles(n.word.lex, n.execorder.toSet)
+				setLexRoles(n.word.lex, n.execorder.toSet)
 			}))
 			hypo.streeNodeList.foreach(n => {
-				if (!n.word.isPronoun) setLexRoles(n.word.lex, n.execorder.toSet)
+				setLexRoles(n.word.lex, n.execorder.toSet)
 			})
-			schemas.foreach(_.demandRoles(setLexRoles))
 			for ((a, b) <- hypernyms) {
 				setLexRoles(a.lex, Set.empty[SemRole])
 				setLexRoles(b.lex, Set.empty[SemRole])
 			}
+			/*
 			for ((a, b) <- exclusives) {
 				setLexRoles(a.lex, Set.empty[SemRole])
 				setLexRoles(b.lex, Set.empty[SemRole])
 			}
+			*/
 			val tmp = lexRoleMap.toMap
 			for ((a, b) <- hypernyms) {
 				setLexRoles(a.lex, tmp(b.lex))
 				setLexRoles(b.lex, tmp(a.lex))
 			}
+			/*
 			for ((a, b) <- exclusives) {
 				setLexRoles(a.lex, tmp(b.lex))
 				setLexRoles(b.lex, tmp(a.lex))
 			}
+			*/
 		}
 		
-		def trace(confidence: (Align) => Double, threshold: Double) = {
+		def trace(confiFunc: (Align) => Double, threshold: Double) = {
 			
-			allocateRoles()
-println("begin prem meaning: ")
+			//allocateRoles()
+			
 			val pre = premAtom ::: premTree.flatMap(_.meaning(getLexRoles))
-println("end prem meaning.")
-println("begin hypo meaning: ")
 			val aim = hypo.meaning(getLexRoles)
-println("end hypo meaning.")
+			//val part = hypo.partial
+			val props = hypo.nonTrivialProps
+			val rpart = hypo.rolePartial
+			val ppart = hypo.pathPartial
 			
-println("begin extract: ")
-			val piPool = mutable.Set.empty[PI]
-			val slPoolT = mutable.Set.empty[SL]
-			val slPoolH = mutable.Set.empty[SL]
-			def extract(st: AtomSt, slpool: mutable.Set[SL]) {
-				val recurCache = mutable.Set.empty[Term]
-				def recur(x: Term) {
-					if (recurCache.add(x)) {
-						x match {
-							case WORD(word) => {}
-							case IR(core, sats) => {
-								recur(core)
-								sats.foreach(y => {
-									piPool.add(y._2)
-									recur(y._2.term)
-								})
-							}
-							case PO(tm, r) => {
-								recur(tm)
-							}
-							case DI(tm, arg, r) => {
-								recur(tm)
-								piPool.add(arg)
-								recur(arg.term)
-							}
-							case DU(tm, arg, r) => {
-								recur(tm)
-								piPool.add(arg)
-								recur(arg.term)
-							}
-							case DE(tm, arg, r) => {
-								recur(tm)
-								piPool.add(arg)
-								recur(arg.term)
-							}
-							case xsl @ SL(tm, sel) => {
-								slpool.add(xsl)
-								recur(tm)
-							}
-						}
-					}
-				}
-				st match {
-					case NonEmpty(a) => {
-						piPool.add(a)
-						recur(a.term)
-					}
-					case Subsume(a, b) => {
-						piPool.add(a)
-						piPool.add(b)
-						recur(a.term)
-						recur(b.term)
-					}
-					case Disjoint(a, b) => {
-						piPool.add(a)
-						piPool.add(b)
-						recur(a.term)
-						recur(b.term)
-					}
-				}
-			}
-			pre.foreach(extract(_, slPoolT))
-			aim.foreach(extract(_, slPoolH))
-			val sch = (for (s <- schemas; pi <- piPool) yield {
-				s(pi)
-			}).flatten
-			sch.foreach(extract(_, slPoolT))
-println("end extract.")
-			
-println("begin sep: ")
-			val (neT, neH) = (mutable.Set.empty[PI], mutable.Set.empty[PI])
-			val (subLower, subUpper) = (mutable.Set.empty[PI], mutable.Set.empty[PI])
-			val (djtLower, djtUpper) = (mutable.Set.empty[PI], mutable.Set.empty[PI])
-			def sepPrem(st: AtomSt) {
-				st match {
-					case NonEmpty(a) => neT.add(a)
-					case Subsume(a, b) => {
-						subUpper.add(a)
-						subLower.add(b)
-					}
-					case Disjoint(a, b) => {
-						djtUpper.add(a)
-						djtUpper.add(b)
-					}
-				}
-			}
-			pre.foreach(sepPrem(_))
-			sch.foreach(sepPrem(_))
-			def sepHypo(st: AtomSt) {
-				st match {
-					case NonEmpty(a) => neH.add(a)
-					case Subsume(a, b) => {
-						subLower.add(a)
-						subUpper.add(b)
-					}
-					case Disjoint(a, b) => {
-						djtLower.add(a)
-						djtLower.add(b)
-					}
-				}
-			}
-			aim.foreach(sepHypo(_))
-println("end sep.")
-			
-println("begin target: ")
-			val target = {
-				val tmp1 = Align.genTargetPI(djtLower, djtUpper, Nil)
-				val tmp2 = Align.genTargetPI(subLower, subUpper, tmp1)
-				val tmp3 = {
-					def sepSel(sl: SL, selnumpool: mutable.Map[SelNum, Set[Term]]) {
-						sl.sel match {
-							case sn @ SelNum(num) => {
-								if (selnumpool.contains(sn)) {
-									selnumpool(sn) = selnumpool(sn) + sl.term
-								} else {
-									selnumpool(sn) = Set(sl.term)
-								}
-							}
-							case _ => {}
-						}
-					}
-					val selnumPoolT = mutable.Map.empty[SelNum, Set[Term]]
-					val selnumPoolH = mutable.Map.empty[SelNum, Set[Term]]
-					slPoolT.foreach(sepSel(_, selnumPoolT))
-					slPoolH.foreach(sepSel(_, selnumPoolH))
-					(tmp2 /: (selnumPoolT.keySet intersect selnumPoolH.keySet))((tmp, k) => {
-						Align.genTargetTM(selnumPoolT(k), selnumPoolH(k), tmp)
-					})
-				}
-				Align.genTargetPI(neT.toSet, neH.toSet, tmp3)
-			}
-println("end target.")
-			
-println("begin partial: ")
-			val part = hypo.partial
-println("end partial.")
+			pre.foreach(_.clear())
+			aim.foreach(_.clear())
+			//part.foreach(_._1.clear())
+			props.foreach(_.clear())
+			rpart.foreach(_._1.clear())
+			ppart.foreach(_._1.clear())
 			
 			val ie = new IEBasic
 			for (k <- lexRoleMap.keys) {
@@ -234,8 +103,8 @@ println("end partial.")
 				ie.newConstant(k, rs)
 			}
 			for ((x, y) <- hypernyms) {
-				val xtm = ie.getConstant(x.lex).to
-				val ytm = ie.getConstant(y.lex).to
+				val xtm = ie.getConstant(x)
+				val ytm = ie.getConstant(y)
 				if (xtm.roles == null && ytm.roles == null) {
 					ie.claimSubsume(xtm, ytm)
 				} else if (xtm.roles != null && ytm.roles != null) {
@@ -247,87 +116,118 @@ println("end partial.")
 					}
 				}
 			}
+			/*
 			for ((x, y) <- exclusives) {
-				val xtm = ie.getConstant(x.lex).to
-				val ytm = ie.getConstant(y.lex).to
-				if (xtm.roles == null && ytm.roles == null) {
-					ie.claimDisjoint(xtm, ytm)
-				} else if (xtm.roles != null && ytm.roles != null) {
-					val crs = xtm.roles intersect ytm.roles
-					if (!crs.isEmpty) {
-						val atm = if (crs == xtm.roles) xtm else ie.getPI(xtm, crs)
-						val btm = if (crs == ytm.roles) ytm else ie.getPI(ytm, crs)
-						ie.claimDisjoint(atm, btm)
+				val xtm = ie.getConstant(x)
+				val ytm = ie.getConstant(y)
+				if (xtm.roles == null) {
+					if (ytm.roles == null) {
+						ie.claimDisjoint(xtm, ytm)
+					} else {
+						for (r <- ytm.roles) {
+							ie.claimDisjoint(xtm, ie.getPI(ytm, Set(r)))
+						}
+					}
+				} else {
+					if (ytm.roles == null) {
+						for (r <- xtm.roles) {
+							ie.claimDisjoint(ytm, ie.getPI(xtm, Set(r)))
+						}
+					} else {
+						for (r <- xtm.roles intersect ytm.roles) {
+							ie.claimDisjoint(ie.getPI(xtm, Set(r)), ie.getPI(ytm, Set(r)))
+						}
 					}
 				}
 			}
-			pre.foreach(_.clear())
-			sch.foreach(_.clear())
-			aim.foreach(_.clear())
-			part.foreach(_._1.clear())
-println("begin claim: ")
+			*/
 			pre.foreach(_.claim(ie))
-println("marker I")
-			sch.foreach(_.claim(ie))
-println("marker II")
-			slPoolT.foreach(x => ie.claimNonEmpty(x.term.ietmref.to))
-println("marker III")
-println("target.length: " + target.length)
-			for ((xs, ys) <- target) {
-println("go ...")
+			aim.foreach(_.setup(ie))
+			//part.foreach(_._1.setup(ie))
+			props.foreach(_.setup(ie))
+			rpart.foreach(_._1.setup(ie))
+			ppart.foreach(_._1.setup(ie))
+			
+			val (tgt, selT, selH) = Align.genTarget(pre, aim)
+			
+			// add some additional conditions about selections here
+			selT.foreach(x => ie.claimNonEmpty(x.term.ietmref.to))
+			
+			ie.explore()
+			
+			var pretask = Nil:List[AtomSt]
+			for (sch <- schemas; (xs, ys) <- tgt; x <- xs; y <- ys) {
+				sch.prePair(x, y) match {
+					case Some((a, b)) => pretask = Subsume(a, b) :: pretask
+					case None => {}
+				}
+			}
+			pretask.foreach(_.claim(ie))
+			
+			var fulltask = Nil:List[AtomSt]
+			for (sch <- schemas; (xs, ys) <- tgt; x <- xs; y <- ys) {
+				sch.fullPair(x, y) match {
+					case Some((a, b)) => {
+						//println("schema: " + a.term.word + " " + b.term.word)
+						fulltask = Subsume(a, b) :: fulltask
+					}
+					case None => {}
+				}
+			}
+			fulltask.foreach(_.claim(ie))
+			
+			for ((xs, ys) <- tgt) {
 				for (x <- xs) {
-					x.setup(ie)
 					x.paths.foreach(_.acc.setup(ie))
 				}
 				for (y <- ys) {
-					y.setup(ie)
 					y.paths.foreach(_.acc.setup(ie))
 				}
 			}
-println("marker IV")
-			part.foreach(_._1.setup(ie))
-println("end claim.")
 			
-			println("partial: " + part.map(_._2).sum)
-			//part.foreach(x => {
-			//	println(" weight: " + x._2)
-			//	println(" " + x._1)
-			//})
-			println("-----------")
+			val propnum = props.length
+			val rweight = STree.roleWeight(hypo.streeNodeList)
+			val pweight = STree.pathWeight(hypo.streeNodeList)
 			
-			val totnum = part.map(_._2).sum
+			val propsInit = props.filter(_.check).length
+			val rpartInit = rpart.filter(_._1.check).map(_._2).sum
+			val ppartInit = ppart.filter(_._1.check).map(_._2).sum
 			
-			var fea2 = 0.0
-			var fea3 = 0.0
-			var curnum = 0
-			var curconfi = 0.0
+			//val totnum = part.map(_._2).sum
+			//val provedInit = part.filter(_._1.check).map(_._2).sum
 			
-println("first explore: ")
-			ie.explore()
-println("end first explore.")
-			fea2 = part.filter(_._1.check).map(_._2).sum.toDouble
+			val contraInit = ie.hasContra()
 			
+			//println("partial: " + part.map(_._2).sum)
+			//println("-----------")
+			
+			//var ret = List(new TraceInfo(totnum, provedInit, contraInit, Nil, provedInit, contraInit))
+			var ret = List(new TraceInfo(propnum, rweight, pweight, 
+				propsInit, rpartInit, ppartInit, contraInit, Nil, 
+				propsInit, rpartInit, ppartInit, contraInit))
 			def loop() {
 				
-println("begin explore: ")
-				ie.explore()
-println("end explore.")
+				val propsBefore = props.filter(_.check).length
+				val rpartBefore = rpart.filter(_._1.check).map(_._2).sum
+				val ppartBefore = ppart.filter(_._1.check).map(_._2).sum
 				
-				println("proved: " + part.filter(_._1.check).map(_._2).sum)
-				println("contradiction: " + ie.hasContra())
+				//val provedBefore = part.filter(_._1.check).map(_._2).sum
 				
-				val tmp = part.filter(_._1.check).map(_._2).sum
-				if (tmp > curnum) {
-					fea3 += curconfi * (tmp - curnum)
-					curnum = tmp
-				}
+				val contraBefore = ie.hasContra(true)
 				
-				if (!part.forall(_._1.check)) {
-					val (neTsb, neHsb) = target.head
-					val ptgt = (piPool.filter(_.ietmref.to.knownNE).toSet, neHsb.filter(!_.ietmref.to.knownNE)) :: target.tail
+				//println("proved: " + provedBefore)
+				//println("contradiction: " + contraBefore)
+				
+				//if (!part.forall(_._1.check)) {
+				if (propsBefore < propnum) {
+					
+					val (piT, neH) = tgt.head
+					val ptgt = (piT.filter(_.ietmref.to.knownNE), neH) :: tgt.tail
+					
 					val tmp = Align.all(ptgt)
-					tmp.foreach(x => x.assign(confidence(x)))
+					tmp.foreach(x => x.assign(confiFunc(x)))
 					val fil = tmp.filter(_.score > threshold)
+					
 					if (!fil.isEmpty) {
 						var score = threshold
 						var chosen = null:List[Align]
@@ -340,33 +240,35 @@ println("end explore.")
 							}
 						}
 						
-						curconfi = score
+						//println("Alignments: ")
+						//val msgs = chosen.map(_.toString).toSet
+						//msgs.foreach(println(_))
+						//println("-----------")
 						
-						println("Alignments: ")
-						val msgs = chosen.map(_.toString).toSet
-						msgs.foreach(println(_))
-						println("-----------")
-						
-var testinfer = Nil:List[(PI, PI)]
 						for (x <- chosen) {
 							val (a, b) = x.piPair
 							Subsume(a, b).claim(ie)
-testinfer = (b, x.hp.acc) :: testinfer
 						}
-println("begin check explore: ")
-ie.explore()
-println("end explore.")
-for ((x, y) <- testinfer) {
-	System.err.println("checking: " + x + " " + y)
-	assert(x.ietmref.to.hasSuper(y.ietmref.to))
-}
+						
+						val propsAfter = props.filter(_.check).length
+						val rpartAfter = rpart.filter(_._1.check).map(_._2).sum
+						val ppartAfter = ppart.filter(_._1.check).map(_._2).sum
+						
+						//val provedAfter = part.filter(_._1.check).map(_._2).sum
+						
+						val contraAfter = ie.hasContra()
+						
+						//ret = new TraceInfo(totnum, provedBefore, contraBefore, chosen, provedAfter, contraAfter) :: ret
+						ret = new TraceInfo(propnum, rweight, pweight, 
+							propsBefore, rpartBefore, ppartBefore, contraBefore, chosen, 
+							propsAfter, rpartAfter, ppartAfter, contraAfter) :: ret
+						
 						loop()
 					}
 				}
 			}
 			loop()
-			
-			(fea2 / totnum, fea3 / totnum)
+			ret.reverse
 		}
 	}
 }
