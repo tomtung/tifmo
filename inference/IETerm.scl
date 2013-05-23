@@ -331,8 +331,8 @@ package inference {
 			protected val f: (List[IETerm], List[Any]) => Set[IETerm] => Unit, 
 			protected val dep: Set[IETerm]) {
 		
-		private[this] val flags = terms.map(_.specifics.add(this))
-		assert(flags.toSet.size == 1)
+		private[this] val flags = terms.toSet[IETerm].map(_.specifics.add(this))
+		assert(flags.size == 1)
 		private[inference] val isNew = flags.head
 		
 		private[this] val depx = dep ++ terms

@@ -7,6 +7,7 @@ import edu.stanford.nlp.pipeline.Annotation
 import edu.stanford.nlp.ling.CoreAnnotations._
 import edu.stanford.nlp.semgraph.SemanticGraphCoreAnnotations.CollapsedDependenciesAnnotation
 import edu.stanford.nlp.dcoref.CorefCoreAnnotations.CorefClusterIdAnnotation
+import edu.stanford.nlp.ling.IndexedWord
 import edu.stanford.nlp.semgraph.SemanticGraph
 import edu.stanford.nlp.semgraph.SemanticGraphEdge
 
@@ -74,7 +75,20 @@ package proc {
 		
 		private[this] def split(parse: SemanticGraph, wa: Array[EnWord]) = {
 			
-			var checklst = List((parse.edgeIterable.toSet, parse.getFirstRoot))
+			var checklst = {
+				val edges = parse.edgeIterable.toSet
+				var root = null:IndexedWord
+				try {
+					root = parse.getFirstRoot
+				} catch {
+					case e: Exception => {}
+				}
+				if (root == null || edges.isEmpty) {
+					Nil
+				} else {
+					List((edges, root))
+				}
+			}
 			var retlst = Nil:List[Set[(EnWord, String, String, EnWord)]]
 			
 			while (!checklst.isEmpty) {
@@ -82,19 +96,30 @@ package proc {
 				checklst = checklst.tail
 				tocheck.find(x => x.getRelation.getShortName == "conj") match {
 					case Some(x) => {
-						
-						val depdes = parse.descendants(x.getDependent)
-						val depsub = tocheck.filter(y => depdes.contains(y.getGovernor))
-						
-						val govdes = parse.descendants(x.getGovernor)
-						val govsub = tocheck.filter(y => govdes.contains(y.getGovernor))
-						
+						def recur(y: IndexedWord, pool: mutable.Set[SemanticGraphEdge], eq: Boolean = false) {
+							for (e <- tocheck) {
+								if ((e.getGovernor eq y) || (!eq && e.getGovernor == y)) {
+									if (pool.add(e)) recur(e.getDependent, pool)
+								}
+							}
+						}
+						def descendEdgeEq(y: IndexedWord) = {
+							val ret = mutable.Set.empty[SemanticGraphEdge]
+							recur(y, ret, x.getDependent == x.getGovernor)
+							ret.toSet
+						}
+						def descendEdge(y: IndexedWord) = {
+							val ret = mutable.Set.empty[SemanticGraphEdge]
+							recur(y, ret)
+							ret.toSet
+						}
+						val depsub = descendEdgeEq(x.getDependent)
+						val govsub = descendEdge(x.getGovernor)
 						val slim = tocheck -- govsub
-						
 						val govpar = parse.getParent(x.getGovernor)
 						val s1 = if (govpar == null) {
 							assert(slim.isEmpty)
-							(slim ++ depsub, x.getDependent)
+							(depsub, x.getDependent)
 						} else {
 							val paredge = parse.getEdge(govpar, x.getGovernor)
 							val tmp = ((slim ++ depsub) - paredge) + (new SemanticGraphEdge(paredge.getGovernor, x.getDependent, paredge.getRelation, paredge.getWeight, paredge.isExtra))

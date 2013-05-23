@@ -24,7 +24,11 @@ package resource {
 		private[this] val allpos = POS.values.toSet
 		
 		def hasWord(s: String) = {
-			allpos.exists(x => stemmer.findStems(s, x).exists(y => dict.getIndexWord(y, x) != null))
+			if (s.isEmpty) {
+				false
+			} else {
+				allpos.exists(x => stemmer.findStems(s, x).exists(y => dict.getIndexWord(y, x) != null))
+			}
 		}
 		
 		

@@ -12,17 +12,17 @@ package knowledge {
 	
 	class EnConfiFunc extends (Align => Double) {
 		
-		private[this] val cache = mutable.Map.empty[List[Set[String]], (mutable.Map[String, Long], Double)]
-		private[this] def cossim(aws: Set[EnWord], bws: Set[EnWord]) = {
+		private[this] val cache = mutable.Map.empty[List[Set[String]], mutable.Map[String, Long]]
+		private[this] def cossim(aws: Set[EnWord], bws: Set[EnWord], avoidws: Set[EnWord]) = {
 			
-			def norm(x: mutable.Map[String, Long]) = {
-				if (x.isEmpty) {
+			def norm(x: mutable.Map[String, Long], avoid: Set[String]) = {
+				var retsq = 0.0
+				for ((k, v) <- x; if !avoid.contains(k)) {
+					retsq += v * v
+				}
+				if (retsq == 0.0) {
 					1.0
 				} else {
-					var retsq = 0.0
-					for ((k, v) <- x) {
-						retsq += v * v
-					}
 					math.sqrt(retsq)
 				}
 			}
@@ -35,30 +35,34 @@ package knowledge {
 					for (l <- oneFromEach[String](sss)) {
 						EnNgramDist.get(l.mkString("", " ", ""), tmp)
 					}
-					val ret = (tmp, norm(tmp))
-					cache(sss) = ret
-					ret
+					cache(sss) = tmp
+					tmp
 				}
 			}
 			
-			def surflex(ws: Set[EnWord]) = {
+			def surflex(x: EnWord) = {
+				if (x.mypos == "D") {
+					Set(x.surf)
+				} else {
+					val tmp = if (x.ner == "O") x.surf.toLowerCase else x.surf
+					Set(tmp, x.lem)
+				}
+			}
+			
+			def genlist(ws: Set[EnWord]) = {
 				val wl = ws.toList
-				val wlm = wl.map(x => {
-					if (x.mypos == "D") {
-						Set(x.surf)
-					} else {
-						val tmp = if (x.ner == "O") x.surf.toLowerCase else x.surf
-						Set(tmp, x.lem)
-					}
-				})
+				val wlm = wl.map(surflex(_))
 				Sorting.stableSort[Set[String], (String, String)](wlm, x => (x.max, x.min)).toList
 			}
 			
-			val (adist, anorm) = lookup(surflex(aws))
-			val (bdist, bnorm) = lookup(surflex(bws))
+			val adist = lookup(genlist(aws))
+			val bdist = lookup(genlist(bws))
+			val avoid = avoidws.flatMap(surflex(_))
+			val anorm = norm(adist, avoid)
+			val bnorm = norm(bdist, avoid)
 			
 			val dot = {
-				val ck = adist.keySet intersect bdist.keySet
+				val ck = (adist.keySet intersect bdist.keySet) -- avoid
 				(0.0 /: ck)((a, k) => a + adist(k) * bdist(k))
 			}
 			
@@ -109,7 +113,7 @@ package knowledge {
 				
 			} else if (tws.size <= 3 && hws.size <= 3) {
 				
-				1.0 / (1.0 - math.log10(cossim(tws, hws)))
+				1.0 / (1.0 - math.log10(cossim(tws, hws, cws)))
 				
 			} else {
 				
