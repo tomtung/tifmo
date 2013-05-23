@@ -205,6 +205,7 @@ package stree {
 			var ret = List(new TraceInfo(propnum, rweight, pweight, 
 				propsInit, rpartInit, ppartInit, contraInit, Nil, 
 				propsInit, rpartInit, ppartInit, contraInit))
+			var allalgns = Nil:List[Align]
 			def loop() {
 				
 				val propsBefore = props.filter(_.check).length
@@ -245,10 +246,17 @@ package stree {
 						//msgs.foreach(println(_))
 						//println("-----------")
 						
+						/*
 						for (x <- chosen) {
 							val (a, b) = x.piPair
 							Subsume(a, b).claim(ie)
 						}
+						*/
+						allalgns = chosen ::: allalgns
+						val sbs = for (x <- allalgns; (a, b) = x.piPair) yield {
+							Subsume(a, b)
+						}
+						sbs.foreach(_.claim(ie))
 						
 						val propsAfter = props.filter(_.check).length
 						val rpartAfter = rpart.filter(_._1.check).map(_._2).sum

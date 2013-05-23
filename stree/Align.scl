@@ -64,7 +64,7 @@ package stree {
 								val pp = (asats.head._1, supps.head)
 								assert(sats.contains(pp))
 								val pren = (sats - pp).flatMap(x => {
-									tpipool.filter(_.roughMatch(x._2)).map((x._1, _))
+									tpipool.filter(_.veryRoughMatch(x._2)).map((x._1, _))
 								})
 								pren + (if (supps.tail.isEmpty) {
 									if (soft) {
@@ -79,7 +79,7 @@ package stree {
 								})
 							} else {
 								sats.flatMap(x => {
-									tpipool.filter(_.roughMatch(x._2)).map((x._1, _))
+									tpipool.filter(_.veryRoughMatch(x._2)).map((x._1, _))
 								})
 							}
 							val ncore = construct(acore, core, supps)

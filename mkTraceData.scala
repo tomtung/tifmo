@@ -49,7 +49,7 @@ for (p <- (f \ "pair")) {
 	
 	tr.foreach(println(_))
 	
-	oos.writeObject(tr)
+	oos.writeObject((tstree, hstree, tr))
 }
 oos.close()
 

@@ -38,7 +38,7 @@ package proc {
 			val document = new Annotation(text)
 			pipeline.annotate(document)
 			
-			var splt = Nil:List[Set[(EnWord, String, String, EnWord)]]
+			var spll = Nil:List[List[Set[(EnWord, String, String, EnWord)]]]
 			doc.waa = (for (sentence <- document.get(classOf[SentencesAnnotation])) yield {
 				
 				val sidx = sentence.get(classOf[SentenceIndexAnnotation])
@@ -63,12 +63,21 @@ package proc {
 				}).toArray
 				
 				val parse = sentence.get(classOf[CollapsedDependenciesAnnotation])
-				splt = split(parse, wa) ::: splt
+				
+				spll = split(parse, wa) :: spll
 				
 				wa
 			}).toArray
 			
-			doc.stree = new STree(splt.reverse.map(annotate(_)).flatten)
+			val pnll = for (spl <- spll; (sp, i) <- spl.zipWithIndex) yield {
+				val tmp = annotate(sp)
+				for (x <- tmp; cid = x.word.asInstanceOf[EnWord].cid; if cid != null && x.word.sign) {
+					x.coref = cid + "&" + i
+				}
+				tmp
+			}
+			
+			doc.stree = new STree(pnll.reverse.flatten)
 			
 			doc.stree
 		}
@@ -148,7 +157,6 @@ package proc {
 				} else {
 					val ret = new PreNode
 					ret.word = x
-					ret.coref = x.cid
 					if (x.ner == "NUMBER") ret.slction = new SelNum(x.lem)
 					pnpool(x) = ret
 					ret

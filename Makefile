@@ -42,7 +42,9 @@ TARGET_PROC = \
 	tifmo/proc/addknowEnglish.class \
 	tifmo/proc/featureEnglish.class
 	
-all: $(TARGET_CORE) $(TARGET_RESOURCE) $(TARGET_KNOWLEDGE) $(TARGET_PROC)
+TARGET_CLASSES = $(TARGET_CORE) $(TARGET_RESOURCE) $(TARGET_KNOWLEDGE) $(TARGET_PROC)
+
+all: $(TARGET_CLASSES)
 
 tifmo/mylib/%.class: mylib/%.scl
 	$(SCALAC) $<
@@ -61,6 +63,7 @@ tifmo/resource/%.class: resource/%.scl
 
 tifmo/proc/%.class: proc/%.scl
 	$(SCALACEX) $<
+
 #########################################################################
 
 clean:

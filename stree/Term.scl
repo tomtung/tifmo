@@ -74,7 +74,7 @@ package stree {
 				} else {
 					constpi(term.word, intoR).ref
 				}
-				if (ie.getCount - ie.getLastCount > 100) {
+				if (ie.getCount - ie.getLastCount > 50) {
 					//println("# of terms: " + ie.getCount)
 					ie.explore()
 				}

@@ -95,7 +95,7 @@ package knowledge {
 				(trimHead(algn.tp.src), trimHead(algn.hp.src))
 			}
 			
-			if (tws.isEmpty || hws.isEmpty) {
+			if ((tws.isEmpty && algn.soft) || hws.isEmpty) {
 				
 				0.3 + 0.4 / (cws.size + hws.filter(x => cws.exists(x.synonymTo(_, true))).size)
 				

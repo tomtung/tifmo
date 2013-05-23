@@ -67,19 +67,15 @@ package stree {
 		
 		@transient private[this] var aprx = null:IR
 		def approx = aprx
-		def approximation(anaph: PI) {
+		def approximation(anaph: Set[PI]) {
 			val core = WORD(word)
-			val presats = for ((r, c) <- children; if c.qtfier == null) yield ((r, c.halfexecPI))
-			val sats = if (anaph != null) {
-				if (outRole != null) {
-					presats.toSet + ((outRole, anaph))
-				} else if (!execorder.isEmpty) {
-					presats.toSet + ((execorder.last, anaph))
-				} else {
-					presats.toSet
-				}
+			val presats = (for ((r, c) <- children; if c.qtfier == null) yield ((r, c.halfexecPI))).toSet
+			val sats = if (outRole != null) {
+				presats ++ anaph.map((outRole, _))
+			} else if (!execorder.isEmpty) {
+				presats ++ anaph.map((execorder.last, _))
 			} else {
-				presats.toSet
+				presats
 			}
 			aprx = IR(core, sats)
 		}
@@ -132,7 +128,7 @@ package stree {
 		
 		@transient private[this] var rfne = null:IR
 		def refine = rfne
-		def refinement(anaph: PI) = {
+		def refinement(anaph: Set[PI]) = {
 			val or = if (outRole != null) {
 				outRole
 			} else if (!execorder.isEmpty) {
@@ -141,7 +137,9 @@ package stree {
 				null
 			}
 			if (or != null) {
-				val nsats = approx.sats + ((or, anaph)) + ((or, refPI)) - ((or, null))
+				val tmp = if (refPI == null) approx.sats else approx.sats + ((or, refPI))
+				val nsats = tmp ++ anaph.map((or, _))
+				
 				rfne = IR(approx.core, nsats)
 				
 				approximation(anaph)
