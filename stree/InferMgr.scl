@@ -141,7 +141,13 @@ package stree {
 				}
 			}
 			*/
-			pre.foreach(_.claim(ie))
+			// claim NE first: deliver the NE label faster so as to eliminate more CP dups
+			for (x <- pre; if x.isInstanceOf[NonEmpty]) {
+				x.claim(ie)
+			}
+			for (x <- pre; if !x.isInstanceOf[NonEmpty]) {
+				x.claim(ie)
+			}
 			aim.foreach(_.setup(ie))
 			//part.foreach(_._1.setup(ie))
 			props.foreach(_.setup(ie))
@@ -178,10 +184,10 @@ package stree {
 			
 			for ((xs, ys) <- tgt) {
 				for (x <- xs) {
-					x.paths.foreach(_.acc.setup(ie))
+					x.paths.foreach(_.acc.setup(ie, false))
 				}
 				for (y <- ys) {
-					y.paths.foreach(_.acc.setup(ie))
+					y.paths.foreach(_.acc.setup(ie, false))
 				}
 			}
 			
@@ -270,6 +276,8 @@ package stree {
 						ret = new TraceInfo(propnum, rweight, pweight, 
 							propsBefore, rpartBefore, ppartBefore, contraBefore, chosen, 
 							propsAfter, rpartAfter, ppartAfter, contraAfter) :: ret
+						
+						System.err.println(ret.head)
 						
 						loop()
 					}

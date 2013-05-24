@@ -6,14 +6,17 @@ import tifmo.stree.InferMgr
 import tifmo.knowledge.EnWord
 import tifmo.knowledge.EnConfiFunc
 
+val traw = "If you suffer from certain genetic illnesses, or carry a gene for that illness, scientists can take one or two cells to check for those genes and transfer only healthy embryos."
+val hraw = "Scientists can determine whether an embryo has genetic illnesses or is a carrier of them."
+
 //val traw = """"Beatrice and Benedict" is an overture by Berlioz."""
 //val hraw = """The program will include Falla's "Night in the Gardens of Spain," Ravel's Piano Concerto in G, Berlioz's Overture to "Beatrice and Benedict," and Roy Harris' Symphony No. 3."""
 
 //val traw = "To the world, M. Larry Lawrence, the new U.S. emissary to Switzerland who hosted President Clinton on his Southern California vacation, will be known as Mr. Ambassador."
 //val hraw = "Larry Lawrence is the head of the U.S. Embassy in Switzerland."
 
-val traw = "Jack Straw, the Foreign Secretary, will meet his Brazilian counterpart, Celso Amorim, in London today."
-val hraw = "Jack Straw is a partner of Celso Amorim."
+//val traw = "Jack Straw, the Foreign Secretary, will meet his Brazilian counterpart, Celso Amorim, in London today."
+//val hraw = "Jack Straw is a partner of Celso Amorim."
 
 //val traw = "The watchdog International Atomic Energy Agency meets in Vienna on September 19."
 //val hraw = "The International Atomic Energy Agency holds a meeting in Vienna."

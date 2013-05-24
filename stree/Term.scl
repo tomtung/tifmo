@@ -36,9 +36,9 @@ package stree {
 		def veryRoughMatch(that: PI) = {
 			(ietmref.to.superSets intersect that.ietmref.to.superSets).exists(!_.isW)
 		}
-		def setup(ie: IEBasic) {
+		def setup(ie: IEBasic, ne: Boolean) {
 			if (ietmref == null) {
-				term.setup(ie)
+				term.setup(ie, ne)
 				itmr = if (term.ietmref.to.roles == null) {
 					term.ietmref
 				} else {
@@ -75,10 +75,10 @@ package stree {
 					constpi(term.word, intoR).ref
 				}
 				if (ie.getCount - ie.getLastCount > 50) {
-					//println("# of terms: " + ie.getCount)
 					ie.explore()
 				}
 			}
+			if (ne) ie.claimNonEmpty(ietmref.to)
 		}
 		def clear() {
 			pcst = null
@@ -141,16 +141,17 @@ package stree {
 		@transient protected[this] var itmr = null:IETermRef
 		def ietmref = itmr
 		def clear() { itmr = null }
-		def setup(ie: IEBasic): Unit
+		def setup(ie: IEBasic, ne: Boolean): Unit
 	}
 	
 	case class WORD(word: WordInfo) extends Term {
 		assert(word != null)
 		
-		def setup(ie: IEBasic) {
+		def setup(ie: IEBasic, ne: Boolean) {
 			if (ietmref == null) {
 				itmr = ie.getConstant(word).ref
 			}
+			if (ne) ie.claimNonEmpty(ietmref.to)
 		}
 	}
 	
@@ -159,10 +160,10 @@ package stree {
 		assert(sats.forall(x => x._1 != null && x._2 != null))
 		
 		def word = core.word
-		def setup(ie: IEBasic) {
+		def setup(ie: IEBasic, ne: Boolean) {
 			if (ietmref == null) {
-				core.setup(ie)
-				sats.foreach(_._2.setup(ie))
+				core.setup(ie, ne)
+				sats.foreach(_._2.setup(ie, ne))
 				itmr = {
 					val coretm = core.ietmref.to
 					val side = if (coretm.roles == null) {
@@ -175,6 +176,7 @@ package stree {
 					ie.getIN(side + coretm).ref
 				}
 			}
+			if (ne) ie.claimNonEmpty(ietmref.to)
 		}
 	}
 	
@@ -183,11 +185,12 @@ package stree {
 		assert(dropR != null)
 		
 		def word = term.word
-		def setup(ie: IEBasic) {
+		def setup(ie: IEBasic, ne: Boolean) {
 			if (ietmref == null) {
-				term.setup(ie)
+				term.setup(ie, ne)
 				itmr = ie.getPI(term.ietmref.to, term.ietmref.to.roles - dropR).ref
 			}
+			if (ne) ie.claimNonEmpty(ietmref.to)
 		}
 	}
 	
@@ -197,12 +200,13 @@ package stree {
 		assert(r != null)
 		
 		def word = term.word
-		def setup(ie: IEBasic) {
+		def setup(ie: IEBasic, ne: Boolean) {
 			if (ietmref == null) {
-				term.setup(ie)
-				arg.setup(ie)
+				term.setup(ie, ne)
+				arg.setup(ie, false)
 				itmr = ie.getDI(term.ietmref.to, arg.ietmref.to, r).ref
 			}
+			if (ne) ie.claimNonEmpty(ietmref.to)
 		}
 	}
 	
@@ -212,12 +216,13 @@ package stree {
 		assert(r != null)
 		
 		def word = term.word
-		def setup(ie: IEBasic) {
+		def setup(ie: IEBasic, ne: Boolean) {
 			if (ietmref == null) {
-				term.setup(ie)
-				arg.setup(ie)
+				term.setup(ie, ne)
+				arg.setup(ie, false)
 				itmr = ie.getDU(term.ietmref.to, arg.ietmref.to, r).ref
 			}
+			if (ne) ie.claimNonEmpty(ietmref.to)
 		}
 	}
 	
@@ -227,12 +232,13 @@ package stree {
 		assert(r != null)
 		
 		def word = term.word
-		def setup(ie: IEBasic) {
+		def setup(ie: IEBasic, ne: Boolean) {
 			if (ietmref == null) {
-				term.setup(ie)
-				arg.setup(ie)
+				term.setup(ie, ne)
+				arg.setup(ie, ne)
 				itmr = ie.getDE(term.ietmref.to, arg.ietmref.to, r).ref
 			}
+			if (ne) ie.claimNonEmpty(ietmref.to)
 		}
 	}
 	
@@ -241,11 +247,12 @@ package stree {
 		assert(sel != null)
 		
 		def word = term.word
-		def setup(ie: IEBasic) {
+		def setup(ie: IEBasic, ne: Boolean) {
 			if (ietmref == null) {
-				term.setup(ie)
+				term.setup(ie, ne)
 				itmr = ie.getSL(term.ietmref.to, sel).ref
 			}
+			if (ne) ie.claimNonEmpty(ietmref.to)
 		}
 	}
 }

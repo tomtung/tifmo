@@ -86,12 +86,12 @@ package stree {
 			recurDemand(a.term, Set(a.intoR), setLexRoles)
 		}
 		def claim(ie: IEBasic) {
-			a.setup(ie)
-			ie.claimNonEmpty(a.ietmref.to)
+			a.setup(ie, true)
+			//ie.claimNonEmpty(a.ietmref.to)
 			ie.explore()
 		}
 		def setup(ie: IEBasic) {
-			a.setup(ie)
+			a.setup(ie, false)
 			ie.explore()
 		}
 		def check = a.ietmref.to.knownNE
@@ -109,14 +109,14 @@ package stree {
 			recurDemand(b.term, Set(b.intoR), setLexRoles)
 		}
 		def claim(ie: IEBasic) {
-			a.setup(ie)
-			b.setup(ie)
+			a.setup(ie, false)
+			b.setup(ie, a.ietmref.to.knownNE)
 			ie.claimSubsume(a.ietmref.to, b.ietmref.to)
 			ie.explore()
 		}
 		def setup(ie: IEBasic) {
-			a.setup(ie)
-			b.setup(ie)
+			a.setup(ie, false)
+			b.setup(ie, false)
 			ie.explore()
 		}
 		def check = a.ietmref.to.hasSuper(b.ietmref.to)
@@ -136,14 +136,14 @@ package stree {
 			recurDemand(b.term, Set(b.intoR), setLexRoles)
 		}
 		def claim(ie: IEBasic) {
-			a.setup(ie)
-			b.setup(ie)
+			a.setup(ie, false)
+			b.setup(ie, false)
 			ie.claimDisjoint(a.ietmref.to, b.ietmref.to)
 			ie.explore()
 		}
 		def setup(ie: IEBasic) {
-			a.setup(ie)
-			b.setup(ie)
+			a.setup(ie, false)
+			b.setup(ie, false)
 			ie.explore()
 		}
 		def check = a.ietmref.to.disjointTo(b.ietmref.to)

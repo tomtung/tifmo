@@ -103,6 +103,10 @@ package knowledge {
 				
 				0.8
 				
+			} else if (tws.isEmpty) {
+				
+				0.0
+				
 			} else if (tws.forall(x => hws.exists(x.synonymTo(_, true)))) {
 				
 				0.1 + 1.0 / (3 + hws.size - tws.size)
