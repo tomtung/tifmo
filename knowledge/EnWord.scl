@@ -121,16 +121,16 @@ package knowledge {
 		@transient lazy val perts = EnWordNet.lexical(syns, PERTAINYM)
 		
 		
-		def synonymTo(that: EnWord, nosign: Boolean = false) = {
+		def synonymTo(that: EnWord, roughly: Boolean = false) = {
 			if (mypos == "D") {
-				that.mypos == "D" && (nosign || sign == that.sign) && (lem == that.lem || {
+				that.mypos == "D" && (roughly || sign == that.sign) && (lem == that.lem || {
 					lem.matches("-?[0-9X][0-9X][0-9X][0-9X].*") && 
 					that.lem.matches("-?[0-9X][0-9X][0-9X][0-9X].*") && 
 					getYear(lem) == getYear(that.lem)
 				})
 			} else {
-				if (nosign) {
-					lex == that.lex || (mypos == that.mypos && longestCommSeq.rate(lem, that.lem) > 0.9) || !(syns intersect that.syns).isEmpty || !(syns intersect that.ants).isEmpty || !(ants intersect that.syns).isEmpty
+				if (roughly) {
+					lex == that.lex || longestCommSeq.rate(lem, that.lem) > 0.9 || !(syns intersect that.syns).isEmpty || !(syns intersect that.ants).isEmpty || !(ants intersect that.syns).isEmpty
 				} else if (sign == that.sign) {
 					lex == that.lex || (mypos == that.mypos && longestCommSeq.rate(lem, that.lem) > 0.9) || !(syns intersect that.syns).isEmpty
 				} else {

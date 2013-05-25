@@ -739,7 +739,9 @@ package inference {
 					val (a, eqa) = selectOneInEquiv(tmp)
 					if (eqa.size >= 2) {
 						mergeEquivToOne(eqa - a, a)
+						
 						System.err.println("Merged " + eqa.size + " terms to one. Total: " + getCount)
+						
 						loop1()
 					}
 				}

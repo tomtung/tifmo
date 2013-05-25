@@ -154,6 +154,8 @@ package stree {
 			rpart.foreach(_._1.setup(ie))
 			ppart.foreach(_._1.setup(ie))
 			
+			System.err.println("Condition explore. over.")
+			
 			val (tgt, selT, selH) = Align.genTarget(pre, aim)
 			
 			// add some additional conditions about selections here
@@ -182,6 +184,8 @@ package stree {
 			}
 			fulltask.foreach(_.claim(ie))
 			
+			System.err.println("target generation & schema matching. over")
+			
 			for ((xs, ys) <- tgt) {
 				for (x <- xs) {
 					x.paths.foreach(_.acc.setup(ie, false))
@@ -190,6 +194,8 @@ package stree {
 					y.paths.foreach(_.acc.setup(ie, false))
 				}
 			}
+			
+			System.err.println("path generation. over")
 			
 			val propnum = props.length
 			val rweight = STree.roleWeight(hypo.streeNodeList)
@@ -212,6 +218,7 @@ package stree {
 				propsInit, rpartInit, ppartInit, contraInit, Nil, 
 				propsInit, rpartInit, ppartInit, contraInit))
 			var allalgns = Nil:List[Align]
+			var invain = 0
 			def loop() {
 				
 				val propsBefore = props.filter(_.check).length
@@ -231,9 +238,14 @@ package stree {
 					val (piT, neH) = tgt.head
 					val ptgt = (piT.filter(_.ietmref.to.knownNE), neH) :: tgt.tail
 					
-					val tmp = Align.all(ptgt)
+					val tmp = Align.all(ptgt).par
+					
+					System.err.println("align generation. over. candidates: " + tmp.length)
+					
 					tmp.foreach(x => x.assign(confiFunc(x)))
-					val fil = tmp.filter(_.score > threshold)
+					val fil = tmp.filter(_.score > threshold).toList
+					
+					System.err.println("assign score. over.")
 					
 					if (!fil.isEmpty) {
 						var score = threshold
@@ -262,7 +274,12 @@ package stree {
 						val sbs = for (x <- allalgns; (a, b) = x.piPair) yield {
 							Subsume(a, b)
 						}
+						
+						System.err.println("generate subsume. over.")
+						
 						sbs.foreach(_.claim(ie))
+						
+						System.err.println("claim subsume. over. chosen: " + chosen.length + " all aligns: " + allalgns.length)
 						
 						val propsAfter = props.filter(_.check).length
 						val rpartAfter = rpart.filter(_._1.check).map(_._2).sum
@@ -271,6 +288,14 @@ package stree {
 						//val provedAfter = part.filter(_._1.check).map(_._2).sum
 						
 						val contraAfter = ie.hasContra()
+						
+						if (propsAfter == propsBefore && rpartAfter == rpartBefore && ppartAfter == ppartBefore) {
+							invain += chosen.length
+						} else {
+							invain = 0
+						}
+						
+						System.err.println("in vain: " + invain)
 						
 						//ret = new TraceInfo(totnum, provedBefore, contraBefore, chosen, provedAfter, contraAfter) :: ret
 						ret = new TraceInfo(propnum, rweight, pweight, 

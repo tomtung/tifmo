@@ -7,38 +7,92 @@ import mylib.oneFromEach
 
 import scala.collection.mutable
 import scala.util.Sorting
+import scala.actors._
 
 package knowledge {
 	
 	class EnConfiFunc extends (Align => Double) {
 		
-		private[this] val cache = mutable.Map.empty[List[Set[String]], mutable.Map[String, Long]]
-		private[this] def cossim(aws: Set[EnWord], bws: Set[EnWord], avoidws: Set[EnWord]) = {
+		private[this] case class DistRet(k: List[Set[String]], v: Option[(mutable.Map[String, Long], Double)])
+		private[this] object DistCache extends Actor {
 			
-			def norm(x: mutable.Map[String, Long], avoid: Set[String]) = {
-				var retsq = 0.0
-				for ((k, v) <- x; if !avoid.contains(k)) {
-					retsq += v * v
-				}
-				if (retsq == 0.0) {
-					1.0
-				} else {
-					math.sqrt(retsq)
-				}
-			}
+			private[this] val cache = mutable.Map.empty[List[Set[String]], (mutable.Map[String, Long], Double)]
 			
-			def lookup(sss: List[Set[String]]) = {
-				if (cache.contains(sss)) {
-					cache(sss)
-				} else {
-					val tmp = mutable.Map.empty[String, Long]
-					for (l <- oneFromEach[String](sss)) {
-						EnNgramDist.get(l.mkString("", " ", ""), tmp)
+			def act() {
+				react {
+					case (k:List[Set[String]], (dist:mutable.Map[String, Long], norm:Double)) => {
+						if (!cache.contains(k)) {
+							cache(k) = (dist, norm)
+						}
+						act()
 					}
-					cache(sss) = tmp
-					tmp
+					case (actor:Actor, k:List[Set[String]]) => {
+						actor ! (if (cache.contains(k)) {
+							DistRet(k, Some(cache(k)))
+						} else {
+							DistRet(k, None)
+						})
+						act()
+					}
 				}
 			}
+		}
+		DistCache.start()
+		private[this] case class NgramRet(k: List[Set[String]], v: Any)
+		private[this] object NgramReader extends Actor {
+			
+			def act() {
+				react {
+					case (actor: Actor, k:List[Set[String]]) => {
+						DistCache ! (Actor.self, k)
+						val ret = Actor.self.receive {
+							case DistRet(kk, v) if kk == k => v match {
+								case Some((dist:mutable.Map[String, Long], norm:Double)) => (dist:mutable.Map[String, Long], norm:Double)
+								case None => {
+									
+									System.err.println("ngram search start: " + k.map(_.size))
+									
+									val tmp = mutable.Map.empty[String, Long]
+									for (l <- oneFromEach[String](k)) {
+										EnNgramDist.get(l.mkString("", " ", ""), tmp)
+									}
+									tmp
+								}
+							}
+						}
+						actor ! NgramRet(k, ret)
+						act()
+					}
+				}
+			}
+		}
+		NgramReader.start()
+		private[this] case class DotRet(k: Set[List[Set[String]]], v: Option[Double])
+		private[this] object DotCache extends Actor {
+			
+			private[this] val cache = mutable.Map.empty[Set[List[Set[String]]], Double]
+			
+			def act() {
+				react {
+					case (k:Set[List[Set[String]]], v:Double) => {
+						if (!cache.contains(k)) {
+							cache(k) = v
+						}
+						act()
+					}
+					case (actor:Actor, k:Set[List[Set[String]]]) => {
+						actor ! (if (cache.contains(k)) {
+							DotRet(k, Some(cache(k)))
+						} else {
+							DotRet(k, None)
+						})
+						act()
+					}
+				}
+			}
+		}
+		DotCache.start()
+		private[this] def cossim(aws: Set[EnWord], bws: Set[EnWord], avoidws: Set[EnWord]) = {
 			
 			def surflex(x: EnWord) = {
 				if (x.mypos == "D") {
@@ -55,18 +109,71 @@ package knowledge {
 				Sorting.stableSort[Set[String], (String, String)](wlm, x => (x.max, x.min)).toList
 			}
 			
-			val adist = lookup(genlist(aws))
-			val bdist = lookup(genlist(bws))
-			val avoid = avoidws.flatMap(surflex(_))
-			val anorm = norm(adist, avoid)
-			val bnorm = norm(bdist, avoid)
+			val awlst = genlist(aws)
+			val bwlst = genlist(bws)
 			
-			val dot = {
-				val ck = (adist.keySet intersect bdist.keySet) -- avoid
-				(0.0 /: ck)((a, k) => a + adist(k) * bdist(k))
+			def lookup(sss: List[Set[String]]) = {
+				DistCache ! (Actor.self, sss)
+				Actor.self.receive {
+					case DistRet(kk, v) if kk == sss => v match {
+						case Some((dist:mutable.Map[String, Long], norm:Double)) => (dist, norm)
+						case None => {
+							NgramReader ! (Actor.self, sss)
+							Actor.self.receive {
+								case NgramRet(kk, v) if kk == sss => v match {
+									case (dist:mutable.Map[String, Long], norm:Double) => {
+										(dist, norm)
+									}
+									case dist:mutable.Map[String, Long] => {
+										val sqs = dist.keys.par.map(k => (dist(k) * dist(k)).toDouble)
+										val norm = math.sqrt(sqs.fold(0.0)(_ + _))
+										val ret = (dist, norm)
+										DistCache ! (sss, ret)
+										ret
+									}
+								}
+							}
+						}
+					}
+				}
 			}
 			
-			dot / anorm / bnorm
+			val (adist, anorm) = lookup(awlst)
+			val (bdist, bnorm) = lookup(bwlst)
+			
+			val dot = {
+				val k = Set(awlst, bwlst)
+				DotCache ! (Actor.self, k)
+				Actor.self.receive {
+					case DotRet(kk, v) if kk == k => v match {
+						case Some(x:Double) => x
+						case None => {
+							val ret = if (adist.size < bdist.size) {
+								adist.keys.par.filter(k => bdist.contains(k)).map(k => {
+									(adist(k) * bdist(k)).toDouble
+								}).fold(0.0)(_ + _)
+							} else {
+								bdist.keys.par.filter(k => adist.contains(k)).map(k => {
+									(adist(k) * bdist(k)).toDouble
+								}).fold(0.0)(_ + _)
+							}
+							DotCache ! (k, ret)
+							ret
+						}
+					}
+				}
+			}
+			
+			val avoid = avoidws.flatMap(surflex(_))
+			
+			val sustdot = (dot /: avoid)((x, k) => if (adist.contains(k) && bdist.contains(k)) x - adist(k) * bdist(k) else x)
+			
+			def substract(x: mutable.Map[String, Long], normx: Double) = {
+				val pre = (normx /: avoid)((a, b) => if (x.contains(b)) a - x(b) * x(b) else a)
+				if (pre.abs < 0.1) 1.0 else pre
+			}
+			
+			sustdot / substract(adist, anorm) / substract(bdist, bnorm)
 		}
 		
 		def apply(algn: Align) = {
