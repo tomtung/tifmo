@@ -122,8 +122,10 @@ package stree {
 			}
 			start.longer = pll.map(_.head._1)
 			val ret = start :: pll.flatMap(_.map(_._1))
-println("generated paths: " + ret.length)
-ret
+			
+			System.err.println("generated paths: " + ret.length)
+			
+			ret
 		}
 		
 		override def equals(a: Any) = {

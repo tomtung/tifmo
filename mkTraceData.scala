@@ -45,7 +45,7 @@ for (p <- (f \ "pair")) {
 	
 	addknowEnglish(imgr, ws)
 	
-	val tr = imgr.trace(new EnConfiFunc, 0.1)
+	val tr = imgr.trace(new EnConfiFunc, 0.1, 9)
 	
 	tr.foreach(println(_))
 	

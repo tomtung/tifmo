@@ -49,12 +49,13 @@ package knowledge {
 							case DistRet(kk, v) if kk == k => v match {
 								case Some((dist:mutable.Map[String, Long], norm:Double)) => (dist:mutable.Map[String, Long], norm:Double)
 								case None => {
-									
-									System.err.println("ngram search start: " + k.map(_.size))
-									
 									val tmp = mutable.Map.empty[String, Long]
 									for (l <- oneFromEach[String](k)) {
-										EnNgramDist.get(l.mkString("", " ", ""), tmp)
+										
+										val sstr = l.mkString("", " ", "")
+										System.err.println("ngram search start: " + sstr)
+										
+										EnNgramDist.get(sstr, tmp)
 									}
 									tmp
 								}

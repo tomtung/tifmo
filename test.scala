@@ -57,7 +57,7 @@ imgr.addPremise(tstree)
 val ws = hstree.streeNodeList.map(_.word.asInstanceOf[EnWord]).toSet ++ tstree.streeNodeList.map(_.word.asInstanceOf[EnWord])
 addknowEnglish(imgr, ws)
 
-val tr = imgr.trace(new EnConfiFunc, 0.1)
+val tr = imgr.trace(new EnConfiFunc, 0.1, 9)
 
 tr.foreach(println(_))
 

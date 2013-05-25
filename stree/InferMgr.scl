@@ -79,7 +79,7 @@ package stree {
 			*/
 		}
 		
-		def trace(confiFunc: (Align) => Double, threshold: Double) = {
+		def trace(confiFunc: (Align) => Double, threshold: Double, patience: Int) = {
 			
 			//allocateRoles()
 			
@@ -290,7 +290,7 @@ package stree {
 						val contraAfter = ie.hasContra()
 						
 						if (propsAfter == propsBefore && rpartAfter == rpartBefore && ppartAfter == ppartBefore) {
-							invain += chosen.length
+							invain += 1 //chosen.length
 						} else {
 							invain = 0
 						}
@@ -304,7 +304,7 @@ package stree {
 						
 						System.err.println(ret.head)
 						
-						loop()
+						if (patience > invain) loop()
 					}
 				}
 			}
