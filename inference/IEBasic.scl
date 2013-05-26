@@ -185,7 +185,7 @@ package inference {
 		private[this] val rPIWIN4 = (x: Set[(IETerm, SemRole)], args: List[Any]) => (dep: Set[IETerm]) => args match {
 			case (h:IETerm) :: Nil => {
 				var task = Nil:List[() => Unit]
-				for (in <- h.mkins; pi <- in.head.mkpis) {
+				for (in <- h.mkins; if !in.aux; pi <- in.head.mkpis) {
 					val sx = sep(x, pi.headrs)
 					if (sx != null) {
 						val (rem, ll) = remll((in.comp - h), pi.headrs)
@@ -263,7 +263,7 @@ package inference {
 				val srss = rmap.keys.toList //Sorting.stableSort[Set[SemRole], SemRole](rmap.keys.toList, _.max).toList
 				val revrl = srss.map(k => if (k.size == 1) k.head else null).reverse
 				var task = Nil:List[() => Unit]
-				for (in <- h.mkins) {
+				for (in <- h.mkins; if !in.aux) {
 					val ll = getll(in.comp - h, rmap.keySet)
 					if (ll.forall(!_.isEmpty)) {
 						for (l <- oneFromEach[Map[Set[SemRole], IETerm]](ll + Set(rmap))) {

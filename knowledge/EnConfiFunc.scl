@@ -13,86 +13,89 @@ package knowledge {
 	
 	class EnConfiFunc extends (Align => Double) {
 		
-		private[this] case class DistRet(k: List[Set[String]], v: Option[(mutable.Map[String, Long], Double)])
-		private[this] object DistCache extends Actor {
+		private[this] case class SetDist(k: List[Set[String]], v: mutable.Map[String, Long])
+		private[this] case class SetNorm(k: List[Set[String]], v: Double)
+		private[this] case class SetDot(k: Set[List[Set[String]]], v: Double)
+		
+		private[this] case class GetDot(a: Actor, k: Set[List[Set[String]]])
+		private[this] case class GetNorm(a: Actor, k: List[Set[String]])
+		private[this] case class GetDist(a: Actor, k: List[Set[String]])
+		
+		private[this] case class DotRet(k: Set[List[Set[String]]], v: Option[Double])
+		private[this] case class NormRet(k: List[Set[String]], v: Option[Double])
+		private[this] case class DistRet(k: List[Set[String]], v: Option[mutable.Map[String, Long]])
+		
+		private[this] object Caching extends Actor {
 			
-			private[this] val cache = mutable.Map.empty[List[Set[String]], (mutable.Map[String, Long], Double)]
+			private[this] val dist = mutable.Map.empty[List[Set[String]], mutable.Map[String, Long]]
+			private[this] val norm = mutable.Map.empty[List[Set[String]], Double]
+			private[this] val dot = mutable.Map.empty[Set[List[Set[String]]], Double]
 			
 			def act() {
 				react {
-					case (k:List[Set[String]], (dist:mutable.Map[String, Long], norm:Double)) => {
-						if (!cache.contains(k)) {
-							cache(k) = (dist, norm)
-						}
+					case SetDist(k, v) => {
+						if (!dist.contains(k)) dist(k) = v
 						act()
 					}
-					case (actor:Actor, k:List[Set[String]]) => {
-						actor ! (if (cache.contains(k)) {
-							DistRet(k, Some(cache(k)))
-						} else {
-							DistRet(k, None)
-						})
+					case SetNorm(k, v) => {
+						if (!norm.contains(k)) norm(k) = v
+						act()
+					}
+					case SetDot(k, v) => {
+						if (!dot.contains(k)) dot(k) = v
+						act()
+					}
+					case GetDot(a, k) => {
+						a ! DotRet(k, dot.get(k))
+						act()
+					}
+					case GetNorm(a, k) => {
+						a ! NormRet(k, norm.get(k))
+						act()
+					}
+					case GetDist(a, k) => {
+						a ! DistRet(k, dist.get(k))
 						act()
 					}
 				}
 			}
 		}
-		DistCache.start()
-		private[this] case class NgramRet(k: List[Set[String]], v: Any)
+		Caching.start()
+		
+		private[this] case class GetNgram(a: Actor, k: List[Set[String]])
+		private[this] case class NgramRet(k: List[Set[String]], v: mutable.Map[String, Long])
+		
 		private[this] object NgramReader extends Actor {
 			
 			def act() {
 				react {
-					case (actor: Actor, k:List[Set[String]]) => {
-						DistCache ! (Actor.self, k)
+					case GetNgram(a, k) => {
+						Caching ! GetDist(Actor.self, k)
 						val ret = Actor.self.receive {
-							case DistRet(kk, v) if kk == k => v match {
-								case Some((dist:mutable.Map[String, Long], norm:Double)) => (dist:mutable.Map[String, Long], norm:Double)
-								case None => {
-									val tmp = mutable.Map.empty[String, Long]
-									for (l <- oneFromEach[String](k)) {
-										
-										val sstr = l.mkString("", " ", "")
-										System.err.println("ngram search start: " + sstr)
-										
-										EnNgramDist.get(sstr, tmp)
-									}
-									tmp
+							case DistRet(kk, v) if kk == k => v
+						} match {
+							case Some(dist) => dist
+							case None => {
+								val tmp = mutable.Map.empty[String, Long]
+								for (l <- oneFromEach[String](k)) {
+									
+									val sstr = l.mkString("", " ", "")
+									System.err.println("ngram search start: " + sstr)
+									
+									EnNgramDist.get(sstr, tmp)
 								}
+								Caching ! SetDist(k, tmp)
+								tmp
 							}
 						}
-						actor ! NgramRet(k, ret)
+						a ! NgramRet(k, ret)
 						act()
 					}
 				}
 			}
 		}
 		NgramReader.start()
-		private[this] case class DotRet(k: Set[List[Set[String]]], v: Option[Double])
-		private[this] object DotCache extends Actor {
-			
-			private[this] val cache = mutable.Map.empty[Set[List[Set[String]]], Double]
-			
-			def act() {
-				react {
-					case (k:Set[List[Set[String]]], v:Double) => {
-						if (!cache.contains(k)) {
-							cache(k) = v
-						}
-						act()
-					}
-					case (actor:Actor, k:Set[List[Set[String]]]) => {
-						actor ! (if (cache.contains(k)) {
-							DotRet(k, Some(cache(k)))
-						} else {
-							DotRet(k, None)
-						})
-						act()
-					}
-				}
-			}
-		}
-		DotCache.start()
+		
 		private[this] def cossim(aws: Set[EnWord], bws: Set[EnWord], avoidws: Set[EnWord]) = {
 			
 			def surflex(x: EnWord) = {
@@ -114,29 +117,23 @@ package knowledge {
 			val bwlst = genlist(bws)
 			
 			def lookup(sss: List[Set[String]]) = {
-				DistCache ! (Actor.self, sss)
-				Actor.self.receive {
-					case DistRet(kk, v) if kk == sss => v match {
-						case Some((dist:mutable.Map[String, Long], norm:Double)) => (dist, norm)
-						case None => {
-							NgramReader ! (Actor.self, sss)
-							Actor.self.receive {
-								case NgramRet(kk, v) if kk == sss => v match {
-									case (dist:mutable.Map[String, Long], norm:Double) => {
-										(dist, norm)
-									}
-									case dist:mutable.Map[String, Long] => {
-										val sqs = dist.keys.par.map(k => (dist(k) * dist(k)).toDouble)
-										val norm = math.sqrt(sqs.fold(0.0)(_ + _))
-										val ret = (dist, norm)
-										DistCache ! (sss, ret)
-										ret
-									}
-								}
-							}
-						}
+				NgramReader ! GetNgram(Actor.self, sss)
+				val dist = Actor.self.receive {
+					case NgramRet(kk, v) if kk == sss => v
+				}
+				Caching ! GetNorm(Actor.self, sss)
+				val norm = Actor.self.receive {
+					case NormRet(kk, v) if kk == sss => v
+				} match {
+					case Some(x) => x
+					case None => {
+						val sqs = dist.keys.par.map(k => (dist(k) * dist(k)).toDouble)
+						val ret = math.sqrt(sqs.fold(0.0)(_ + _))
+						Caching ! SetNorm(sss, ret)
+						ret
 					}
 				}
+				(dist, norm)
 			}
 			
 			val (adist, anorm) = lookup(awlst)
@@ -144,23 +141,23 @@ package knowledge {
 			
 			val dot = {
 				val k = Set(awlst, bwlst)
-				DotCache ! (Actor.self, k)
+				Caching ! GetDot(Actor.self, k)
 				Actor.self.receive {
-					case DotRet(kk, v) if kk == k => v match {
-						case Some(x:Double) => x
-						case None => {
-							val ret = if (adist.size < bdist.size) {
-								adist.keys.par.filter(k => bdist.contains(k)).map(k => {
-									(adist(k) * bdist(k)).toDouble
-								}).fold(0.0)(_ + _)
-							} else {
-								bdist.keys.par.filter(k => adist.contains(k)).map(k => {
-									(adist(k) * bdist(k)).toDouble
-								}).fold(0.0)(_ + _)
-							}
-							DotCache ! (k, ret)
-							ret
+					case DotRet(kk, v) if kk == k => v
+				} match {
+					case Some(x) => x
+					case None => {
+						val ret = if (adist.size < bdist.size) {
+							adist.keys.par.filter(k => bdist.contains(k)).map(k => {
+								(adist(k) * bdist(k)).toDouble
+							}).fold(0.0)(_ + _)
+						} else {
+							bdist.keys.par.filter(k => adist.contains(k)).map(k => {
+								(adist(k) * bdist(k)).toDouble
+							}).fold(0.0)(_ + _)
 						}
+						Caching ! SetDot(k, ret)
+						ret
 					}
 				}
 			}
@@ -219,7 +216,7 @@ package knowledge {
 				
 				0.1 + 1.0 / (3 + hws.size - tws.size)
 				
-			} else if (hws.size == 1 && tws.forall(x => hws.head.getContext(2, 3).exists(x.synonymTo(_, true)))) {
+			} else if (hws.size == 1 && tws.forall(x => hws.head.getContext(3, 4).exists(x.synonymTo(_, true)))) {
 				
 				0.0
 				

@@ -398,8 +398,13 @@ package inference {
 						}
 					}
 				}
+				
+				//System.err.println("claim CP start.")
+				
 				addCP(h, t)
 				task.foreach(_())
+				
+				//System.err.println("claim CP end.")
 			}
 		}
 		
@@ -485,14 +490,16 @@ package inference {
 		}
 		
 		private[this] def squeeze(t: Set[IETerm]) = {
-			t.filter(x => !t.exists(y => y.hasSuper(x) && !x.hasSuper(y)))
+			val fil = t.filter(x => !t.exists(y => y.hasSuper(x) && !x.hasSuper(y)))
+			fil.map(x => fil.filter(y => y.hasSuper(x) && y.hasSub(x))).map(_.head)
 		}
-		private[this] def multi(fil: Set[IETerm]) = {
-			fil.map(x => fil.filter(y => y.hasSuper(x) && y.hasSub(x))).size > 1
-		}
+		//private[this] def multi(fil: Set[IETerm]) = {
+		//	fil.map(x => fil.filter(y => y.hasSuper(x) && y.hasSub(x))).size > 1
+		//}
 		private[this] def applyIN(h: IETerm, t: Set[IETerm], aux: Boolean) {
 			h.isins.filter(x => t.subsetOf(x.comp)).foreach(_.dispose())
-			if (!multi(t)) {
+			//if (!multi(t)) {
+			if (t.size == 1) {
 				claimSubsume(t.head, h)
 			} else {
 				val subs = t.minBy[Int](_.subSize).subSets.filter(x => t.forall(_.hasSub(x)))
@@ -527,7 +534,12 @@ package inference {
 				
 				def addINReduce(h: IETerm, t: Set[IETerm], aux: Boolean) = {
 					val comp = squeeze(t)
-					if (multi(comp)) {
+					//if (multi(comp)) {
+					if (comp.size > 1) {
+					//val csize = comp.map(x => comp.filter(y => y.hasSuper(x) && y.hasSub(x))).size
+					//if (csize > 9) {
+					//	false
+					//} else if (csize > 1) {
 						
 						if (!aux) {
 							for (in <- h.isins.toList; if in.aux && in.comp.subsetOf(comp)) {
@@ -558,20 +570,28 @@ package inference {
 							addINReduce(in.head, (in.comp - h) ++ t, in.aux)
 						}
 					} else {
-						val whole = h.superSets.filter(x => !h.hasSub(x) && x.isins.isEmpty)
-						for (sub <- h.subSets; if !h.hasSuper(sub)) {
-							for (in <- sub.isins.toList) {
-								val (yes, no) = in.comp.partition(whole.contains(_))
-								if (!yes.isEmpty) {
-									addINReduce(sub, no ++ t, aux || in.aux)
+						
+						if (!aux) {
+						
+							val whole = h.superSets.filter(x => !h.hasSub(x) && x.isins.isEmpty)
+							for (sub <- h.subSets; if !h.hasSuper(sub)) {
+								for (in <- sub.isins.toList) {
+									val (yes, no) = in.comp.partition(whole.contains(_))
+									if (!yes.isEmpty) {
+										addINReduce(sub, no ++ t, aux || in.aux)
+									}
 								}
 							}
+							
 						}
+						
+						
 					}
 				}
 			}
 			val mt = squeeze(t)
-			if (!multi(mt)) {
+			//if (!multi(mt)) {
+			if (mt.size == 1) {
 				claimSubsume(mt.head, h)
 			} else {
 				val ll = mt.map(x => if (x.isins.isEmpty) {
@@ -579,11 +599,16 @@ package inference {
 					} else {
 						x.isins.map(x => (x.comp, x.aux)).toSet
 					})
+				
+				//System.err.println("claim IN start: " + ll.toList.map(_.size))
+				
 				for (l <- oneFromEach[(Set[IETerm], Boolean)](ll)) {
-					val laux = aux || l.exists(_._2)
 					val comp = (Set.empty[IETerm] /: l)(_ ++ _._1)
+					val laux = aux || l.exists(_._2) || comp.size > 7
 					addINhkIN(h, comp, laux)
 				}
+				
+				//System.err.println("claim IN end.")
 			}
 		}
 		

@@ -23,7 +23,9 @@ package resource {
 		private[this] val stemmer = new WordnetStemmer(dict)
 		private[this] val allpos = POS.values.toSet
 		
-		def hasWord(s: String) = {
+		private[this] val lock = new AnyRef
+		
+		def hasWord(s: String) = lock.synchronized {
 			if (s.isEmpty) {
 				false
 			} else {
@@ -34,7 +36,7 @@ package resource {
 		
 		type SemEntry = ISynset
 		
-		def synsets(lem: String, mypos: String) = {
+		def synsets(lem: String, mypos: String) = lock.synchronized {
 			
 			val stems = mypos match {
 				case "J" => stemmer.findStems(lem, POS.ADJECTIVE).map((POS.ADJECTIVE, _)).toSet
@@ -50,7 +52,9 @@ package resource {
 			}
 		}
 		
-		def getLemmas(ss: Set[SemEntry]) = ss.flatMap(_.getWords.map(_.getLemma))
+		def getLemmas(ss: Set[SemEntry]) = lock.synchronized {
+			ss.flatMap(_.getWords.map(_.getLemma))
+		}
 		
 		def getPos(s: SemEntry) = s.getPOS match {
 			case POS.ADJECTIVE => "J"
@@ -62,13 +66,13 @@ package resource {
 		
 		type WordNetPointer = Pointer
 		
-		def lexical(ss: Set[SemEntry], rel: WordNetPointer) = {
+		def lexical(ss: Set[SemEntry], rel: WordNetPointer) = lock.synchronized {
 			val ws = ss.flatMap(_.getWords)
 			val rws = ws.flatMap(_.getRelatedWords(rel))
 			rws.map(dict.getWord(_).getSynset)
 		}
 		
-		def semantic(ss: Set[SemEntry], rel: WordNetPointer) = {
+		def semantic(ss: Set[SemEntry], rel: WordNetPointer) = lock.synchronized {
 			val rss = ss.flatMap(_.getRelatedSynsets(rel))
 			rss.map(dict.getSynset(_))
 		}

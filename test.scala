@@ -12,8 +12,11 @@ import tifmo.knowledge.EnConfiFunc
 //val traw = "On 12 August, the San Carlos Battalion came across mines placed in their path and one soldier was killed while two were seriously injured. Meanwhile on 10 August, urban commandos took a patrol car by surprise and dropped a grenade inside the car, injuring four and partially destroying the vehicle."
 //val hraw = "Four people were injured by a grenade."
 
-val traw = "The Truth and Reconciliation Commission's investigators submitted the preliminary results of their work in early October to around 200 organisations and individuals to warn them of charges against them and to give them the opportunity to respond before final drafting of the report."
-val hraw = "The Commission investigated 200 people and oragnisations, before charging them, in order to prevent them from responding prior to the official release of the report."
+//val traw = "The Truth and Reconciliation Commission's investigators submitted the preliminary results of their work in early October to around 200 organisations and individuals to warn them of charges against them and to give them the opportunity to respond before final drafting of the report."
+//val hraw = "The Commission investigated 200 people and oragnisations, before charging them, in order to prevent them from responding prior to the official release of the report."
+
+val traw = "The Damascus public have been welcomed into the election candidate's private homes or to specially erected tents where voters have been enjoying food, drink and entertainment, particularly in the home of the wealthy candidate, Adnan Mullah, where dozens of supporters and friends have been invited to dinner every evening."
+val hraw = "Candidates are entertaining voters in their homes."
 
 //val traw = "The council prohibited any travel outside of Haiti by all officers of the Haitian military and police and all major participants in the September, 1991, coup."
 //val hraw = "The council is prohibited to travel outside of Haiti by military officers."
