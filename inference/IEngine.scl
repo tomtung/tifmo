@@ -575,10 +575,12 @@ package inference {
 						
 							val whole = h.superSets.filter(x => !h.hasSub(x) && x.isins.isEmpty)
 							for (sub <- h.subSets; if !h.hasSuper(sub)) {
-								for (in <- sub.isins.toList) {
+//								for (in <- sub.isins.toList) {
+								for (in <- sub.isins.toList; if !in.aux) {
 									val (yes, no) = in.comp.partition(whole.contains(_))
 									if (!yes.isEmpty) {
-										addINReduce(sub, no ++ t, aux || in.aux)
+										//addINReduce(sub, no ++ t, aux || in.aux)
+										addINReduce(sub, no ++ t, false)
 									}
 								}
 							}
