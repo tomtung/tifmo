@@ -232,11 +232,9 @@ package inference {
 							task = (() => claimSubsume(a, in.head)) :: task
 						}
 					}
-					if (a.isins.isEmpty) {
-						for (in <- b.mkins) {
-							if (in.comp.contains(a)) {
-								task = (() => claimIN(in.head, in.comp, in.aux)) :: task
-							}
+					for (in <- a.mkins intersect b.mkins; if !in.aux) {
+						if (in.comp.contains(a) && in.comp.contains(b)) {
+							task = (() => claimIN(in.head, in.comp, in.aux)) :: task
 						}
 					}
 					/*
@@ -502,10 +500,13 @@ package inference {
 			if (t.size == 1) {
 				claimSubsume(t.head, h)
 			} else {
-				val subs = t.minBy[Int](_.subSize).subSets.filter(x => t.forall(_.hasSub(x)))
-				subs.foreach(claimSubsume(_, h))
 				val tmp = new IEPredIN(h, t, aux)
-				if (tmp.apply()) {
+				if (!h.isins.contains(tmp)) {
+				//if (tmp.apply()) {
+					val subs = t.minBy[Int](_.subSize).subSets.filter(x => t.forall(_.hasSub(x)))
+					subs.foreach(claimSubsume(_, h))
+					tmp.apply()
+					
 					if (!aux) {
 						/*
 						triggers.enqueue(() => {
@@ -532,12 +533,14 @@ package inference {
 			
 			def addINhkIN(h: IETerm, t: Set[IETerm], aux: Boolean) {
 				
-				def addINReduce(h: IETerm, t: Set[IETerm], aux: Boolean) = {
-					val comp = squeeze(t)
+				//def addINReduce(h: IETerm, t: Set[IETerm], preaux: Boolean) = {
+				def addINReduce(h: IETerm, comp: Set[IETerm], aux: Boolean) = {
+					//val comp = squeeze(t)
+					//val aux = preaux || (comp.size > 7)
 					//if (multi(comp)) {
 					if (comp.size > 1) {
 					//val csize = comp.map(x => comp.filter(y => y.hasSuper(x) && y.hasSub(x))).size
-					//if (csize > 9) {
+					//if (csize > 7) {
 					//	false
 					//} else if (csize > 1) {
 						
@@ -563,11 +566,13 @@ package inference {
 					}
 				}
 				
-				if (addINReduce(h, t, aux)) {
+				val sqt = squeeze(t)
+				if (addINReduce(h, sqt, aux || sqt.size > 7)) {
 					if (h.isins.isEmpty) {
 						for (in <- h.mkins.toList) {
 							in.dispose()
-							addINReduce(in.head, (in.comp - h) ++ t, in.aux)
+							val tmp = squeeze((in.comp - h) ++ t)
+							addINReduce(in.head, tmp, in.aux || tmp.size > 7)
 						}
 					} else {
 						
@@ -580,7 +585,8 @@ package inference {
 									val (yes, no) = in.comp.partition(whole.contains(_))
 									if (!yes.isEmpty) {
 										//addINReduce(sub, no ++ t, aux || in.aux)
-										addINReduce(sub, no ++ t, false)
+										val sq = squeeze(no ++ t)
+										if (sq.size <= 7) addINReduce(sub, sq, false)
 									}
 								}
 							}
@@ -606,7 +612,7 @@ package inference {
 				
 				for (l <- oneFromEach[(Set[IETerm], Boolean)](ll)) {
 					val comp = (Set.empty[IETerm] /: l)(_ ++ _._1)
-					val laux = aux || l.exists(_._2) || comp.size > 7
+					val laux = aux || l.exists(_._2)
 					addINhkIN(h, comp, laux)
 				}
 				
