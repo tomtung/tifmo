@@ -6,6 +6,15 @@ import tifmo.stree.InferMgr
 import tifmo.knowledge.EnWord
 import tifmo.knowledge.EnConfiFunc
 
+//val traw = "Hurricane Isabel was a tropical storm when she entered Virginia, but caused damage to 75% of the state, making it one of the costliest disasters in Virginia's history."
+//val hraw = "A tropical storm has caused significant property damage or loss of life."
+
+//val traw = "Olympic officials familiar with Salt Lake City's bid for the 2002 Winter Games have described in recent weeks a process by which Salt Lake City Olympic officials targeted the votes of 17 African IOC members after losing by four votes to Nagano, Japan, for the right to play host to the 1998 Winter Olympics."
+//val hraw = "Before Salt Lake City, Winter Olympic Games took place in Nagano."
+
+val traw = "Arabic, for example, is used densely across North Africa and from the Eastern Mediterranean to the Philippines, as the key language of the Arab world and the primary vehicle of Islam."
+val hraw = "Arabic is the primary language of the Philippines."
+
 //val traw = "If you suffer from certain genetic illnesses, or carry a gene for that illness, scientists can take one or two cells to check for those genes and transfer only healthy embryos."
 //val hraw = "Scientists can determine whether an embryo has genetic illnesses or is a carrier of them."
 
@@ -15,8 +24,8 @@ import tifmo.knowledge.EnConfiFunc
 //val traw = "The Truth and Reconciliation Commission's investigators submitted the preliminary results of their work in early October to around 200 organisations and individuals to warn them of charges against them and to give them the opportunity to respond before final drafting of the report."
 //val hraw = "The Commission investigated 200 people and oragnisations, before charging them, in order to prevent them from responding prior to the official release of the report."
 
-val traw = "The Damascus public have been welcomed into the election candidate's private homes or to specially erected tents where voters have been enjoying food, drink and entertainment, particularly in the home of the wealthy candidate, Adnan Mullah, where dozens of supporters and friends have been invited to dinner every evening."
-val hraw = "Candidates are entertaining voters in their homes."
+//val traw = "The Damascus public have been welcomed into the election candidate's private homes or to specially erected tents where voters have been enjoying food, drink and entertainment, particularly in the home of the wealthy candidate, Adnan Mullah, where dozens of supporters and friends have been invited to dinner every evening."
+//val hraw = "Candidates are entertaining voters in their homes."
 
 //val traw = "The council prohibited any travel outside of Haiti by all officers of the Haitian military and police and all major participants in the September, 1991, coup."
 //val hraw = "The council is prohibited to travel outside of Haiti by military officers."

@@ -1,10 +1,17 @@
 package tifmo
 
+import stree.STree
+import stree.TraceInfo
+
 
 package proc {
 	
 	object featureEnglish {
 		
-		
+		def apply(tstree: STree, hstree: STree, tr: List[TraceInfo]) = {
+			
+			
+			
+		}
 	}
 }

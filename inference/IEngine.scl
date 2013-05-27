@@ -48,9 +48,9 @@ package inference {
 		 */
 		protected def newTerm(roles: Set[SemRole]) = {
 			val term = new IETerm(roles, false, counter)
+			(new IEPredSubsume(term, term)).apply()
 			counter += 1
 			anyTermPool.foreach(_(term, Nil)(Set.empty[IETerm]))
-			applySubsume(term, term)
 			val w = getW(roles)
 			for (x <- w.superSets) {
 				applySubsume(term, x)
@@ -93,6 +93,10 @@ package inference {
 				}
 			}
 		}
+		private[this] def squeeze(t: Set[IETerm]) = {
+			val fil = t.filter(x => !t.exists(y => y.hasSuper(x) && !x.hasSuper(y)))
+			fil.map(x => fil.filter(y => y.hasSuper(x) && y.hasSub(x))).map(_.head)
+		}
 		/**
 		 * Get intersection.
 		 */
@@ -103,7 +107,10 @@ package inference {
 				whole.contains(x) || {
 					x.isins.find(_.comp.subsetOf(whole)) match {
 						case Some(y) => {
-							if (!aux && y.aux) applyIN(x, y.comp, false)
+							if (!aux && y.aux) {
+								val sq = squeeze(y.comp)
+								if (sq.size <= 7) applyIN(x, sq, false)
+							}
 							true
 						}
 						case None => false
@@ -487,15 +494,11 @@ package inference {
 			}
 		}
 		
-		private[this] def squeeze(t: Set[IETerm]) = {
-			val fil = t.filter(x => !t.exists(y => y.hasSuper(x) && !x.hasSuper(y)))
-			fil.map(x => fil.filter(y => y.hasSuper(x) && y.hasSub(x))).map(_.head)
+		private[this] def esssub(x: Set[IETerm], y: Set[IETerm]) = {
+			x.subsetOf(y.flatMap(z => z.subSets intersect z.superSets))
 		}
-		//private[this] def multi(fil: Set[IETerm]) = {
-		//	fil.map(x => fil.filter(y => y.hasSuper(x) && y.hasSub(x))).size > 1
-		//}
 		private[this] def applyIN(h: IETerm, t: Set[IETerm], aux: Boolean) {
-			h.isins.filter(x => t.subsetOf(x.comp)).foreach(_.dispose())
+			h.isins.filter(x => esssub(t, x.comp)).foreach(_.dispose())
 			//if (!multi(t)) {
 			if (t.size == 1) {
 				claimSubsume(t.head, h)
@@ -545,16 +548,16 @@ package inference {
 					//} else if (csize > 1) {
 						
 						if (!aux) {
-							for (in <- h.isins.toList; if in.aux && in.comp.subsetOf(comp)) {
+							for (in <- h.isins.toList; if in.aux) {
 								val sq = squeeze(in.comp)
-								if (!h.isins.exists(_.comp.subsetOf(sq))) {
+								if (esssub(sq, comp) && !h.isins.exists(x => in != x && esssub(x.comp, sq))) {
 									applyIN(h, sq, false)
 								}
 							}
 						}
 						
-						if (!h.isins.exists(_.comp.subsetOf(comp))) {
-							val faux = aux && h.isins.forall(x => x.aux || !comp.subsetOf(x.comp))
+						if (!h.isins.exists(x => esssub(x.comp, comp))) {
+							val faux = aux && h.isins.forall(x => x.aux || !esssub(comp, x.comp))
 							applyIN(h, comp, faux)
 							true
 						} else {
@@ -578,7 +581,7 @@ package inference {
 						
 						if (!aux) {
 						
-							val whole = h.superSets.filter(x => !h.hasSub(x) && x.isins.isEmpty)
+							val whole = h.superSets.filter(x => x.isins.isEmpty)
 							for (sub <- h.subSets; if !h.hasSuper(sub)) {
 //								for (in <- sub.isins.toList) {
 								for (in <- sub.isins.toList; if !in.aux) {
@@ -609,6 +612,7 @@ package inference {
 					})
 				
 				//System.err.println("claim IN start: " + ll.toList.map(_.size))
+				//System.err.println("claim IN start: " + ll)
 				
 				for (l <- oneFromEach[(Set[IETerm], Boolean)](ll)) {
 					val comp = (Set.empty[IETerm] /: l)(_ ++ _._1)
