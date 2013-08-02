@@ -16,14 +16,21 @@ package proc {
 		
 		def apply(s: String) = {
 			
+			var tmp = s.trim
+			
+			// US$ rule
+			tmp = tmp.replaceAll("US\\$", "\\$")
+			
 			// hyphen hyphen rule
-			val sp = s.trim.replaceAll("--+", ". ").split(" +")
+			tmp = tmp.replaceAll("--+", ". ")
+			
+			var tmpsp = tmp.split(" +")
 			
 			// hyphen rule
-			val sphr = for (pw <- sp) yield {
+			tmpsp = for (pw <- tmpsp) yield {
 				if (pw.indexOf("-") != -1) {
 					if (pw == "-") {
-						"."
+						","
 					} else if (pw.matches("-[A-Za-z].+")) {
 						pw.replaceAll("-", "(")
 					} else if (pw.substring(pw.length - 1, pw.length) == "-") {
@@ -43,7 +50,7 @@ package proc {
 			}
 			
 			// slash rule
-			val spsl = for (pw <- sphr) yield {
+			tmpsp = for (pw <- tmpsp) yield {
 				if (pw.matches("[a-zA-Z]+/[a-zA-Z]+")) {
 					pw.replaceAll("/", " ")
 				} else {
@@ -52,7 +59,7 @@ package proc {
 			}
 			
 			// normalize
-			biun.normalize(spsl.mkString("", " ", ""))
+			biun.normalize(tmpsp.mkString("", " ", ""))
 		}
 	}
 }

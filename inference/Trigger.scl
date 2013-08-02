@@ -1,0 +1,462 @@
+package tifmo
+
+import knowledge.SemRole.SemRole
+import scala.collection.mutable
+
+package inference {
+	
+	abstract case class FuncArg(arg: Any) {
+		private[inference] val terms: Set[IETerm]
+	}
+	
+	private[inference] abstract class Disposer {
+		private[inference] val dis: () => Unit
+	}
+	
+	private[inference] abstract class PreTrigger {
+		private[inference] val guard: PreGuard
+	}
+	
+	private[inference] class Trigger[T <: IEPred](private[inference] val guard: Guard[T]) extends PreTrigger {
+		
+		private[inference] def dispatch(pool: mutable.Set[Trigger[T]], dep: Set[IETerm]): Disposer = {
+			if (pool.add(this)) {
+				object ret extends Disposer {
+					val dis: () => Unit = () => {
+						pool.remove(Trigger.this)
+						dep.foreach(_.disposers.remove(dis))
+					}
+				}
+				dep.foreach(_.disposers.add(ret.dis))
+				ret
+			} else {
+				null
+			}
+		}
+		
+		private[inference] def change(a: IETerm) {
+			guard.change(this, a)
+		}
+		
+		private[inference] def fire(pred: T) {
+			guard.trig(this, pred)
+		}
+		
+		override def equals(a: Any) = {
+			if (a.isInstanceOf[PreTrigger]) {
+				val that = a.asInstanceOf[PreTrigger]
+				guard == that.guard && guard.triggerRole(this) == that.guard.triggerRole(that)
+			} else {
+				false
+			}
+		}
+		override def hashCode = guard.triggerHash(this)
+	}
+	
+	private[inference] abstract class PreGuard {
+		private[inference] def triggerHash(tg: PreTrigger): Int
+		private[inference] def triggerRole(tg: PreTrigger): Any
+	}
+	
+	private[inference] trait Guard[T <: IEPred] extends PreGuard {
+		private[inference] def change(tg: Trigger[T], term: IETerm): Unit
+		private[inference] def locate(): Unit
+		private[inference] def trig(tg: Trigger[T], pred: T): Unit
+	}
+	
+	private[inference] abstract class SimpleGuard extends PreGuard {
+		private[inference] val args: List[FuncArg]
+		private[inference] val f: (Nothing, List[FuncArg]) => Unit
+		
+		private[inference] def triggerHash(ptg: PreTrigger) = hashCode
+		private[inference] def triggerRole(ptg: PreTrigger) = null
+		
+		override def equals(a: Any) = {
+			if (a.isInstanceOf[SimpleGuard]) {
+				val that = a.asInstanceOf[SimpleGuard]
+				f == that.f && args == that.args
+			} else {
+				false
+			}
+		}
+		override val hashCode = ("SimpleGuard", args, f).hashCode
+	}
+	
+	private[inference] trait Watcher[T <: IEPred] extends SimpleGuard with Guard[T] {
+		protected[this]	val pool: (IETerm) => mutable.Set[Trigger[T]]
+		protected[this]	val preds: (IETerm) => mutable.Set[T]
+		
+		private[this] val dep = args.flatMap(_.terms).toSet
+		assert(dep.forall(x => x.ref.to == x))
+		
+		private[inference] val f: (T, List[FuncArg]) => Unit
+		
+		private[this] val tg = new Trigger[T](this)
+		private[this] var tm = null:IETerm
+		private[this] var dis = null:Disposer
+		
+		private[inference] def initialize(x: IETerm) {
+			tm = x
+			locate()
+		}
+		
+		private[inference] def change(tg: Trigger[T], term: IETerm) {
+			dis.dis()
+			tm = term
+		}
+		
+		private[inference] def locate() {
+			dis = tg.dispatch(pool(tm), dep)
+			if (dis != null) {
+				for (p <- preds(tm).toList; if tm.schedcache.contains(p)) {
+					f(p, args)
+				}
+			}
+		}
+		
+		private[inference] def trig(ltg: Trigger[T], pred: T) {
+			assert(ltg eq tg)
+			f(pred, args)
+		}
+	}
+	
+	private[inference] class WatcherNonEmpty(
+			private[inference] val args: List[FuncArg], 
+			private[inference] val f: (IEPredNonEmpty, List[FuncArg]) => Unit)
+		extends Watcher[IEPredNonEmpty] {
+		
+		protected[this]	val pool = (x:IETerm) => x.neTriggers
+		protected[this]	val preds = (x:IETerm) => x.kne
+	}
+	
+	private[inference] class WatcherSub(
+			private[inference] val args: List[FuncArg], 
+			private[inference] val f: (IEPredSubsume, List[FuncArg]) => Unit)
+		extends Watcher[IEPredSubsume] {
+		
+		protected[this]	val pool = (x:IETerm) => x.subTriggers
+		protected[this]	val preds = (x:IETerm) => x.assub
+	}
+	
+	private[inference] class WatcherSuper(
+			private[inference] val args: List[FuncArg], 
+			private[inference] val f: (IEPredSubsume, List[FuncArg]) => Unit)
+		extends Watcher[IEPredSubsume] {
+		
+		protected[this]	val pool = (x:IETerm) => x.superTriggers
+		protected[this]	val preds = (x:IETerm) => x.assuper
+	}
+	
+	private[inference] class WatcherDisjoint(
+			private[inference] val args: List[FuncArg], 
+			private[inference] val f: (IEPredDisjoint, List[FuncArg]) => Unit)
+		extends Watcher[IEPredDisjoint] {
+		
+		protected[this]	val pool = (x:IETerm) => x.djtTriggers
+		protected[this]	val preds = (x:IETerm) => x.djts
+	}
+	
+	private[inference] class WatcherIsCP(
+			private[inference] val args: List[FuncArg], 
+			private[inference] val f: (IEPredCP, List[FuncArg]) => Unit)
+		extends Watcher[IEPredCP] {
+		
+		protected[this]	val pool = (x:IETerm) => x.iscpTriggers
+		protected[this]	val preds = (x:IETerm) => x.iscps
+	}
+	
+	private[inference] class WatcherMkCP(
+			private[inference] val args: List[FuncArg], 
+			private[inference] val f: (IEPredCP, List[FuncArg]) => Unit)
+		extends Watcher[IEPredCP] {
+		
+		protected[this]	val pool = (x:IETerm) => x.mkcpTriggers
+		protected[this]	val preds = (x:IETerm) => x.mkcps
+	}
+	
+	private[inference] class WatcherIsPI(
+			private[inference] val args: List[FuncArg], 
+			private[inference] val f: (IEPredPI, List[FuncArg]) => Unit)
+		extends Watcher[IEPredPI] {
+		
+		protected[this]	val pool = (x:IETerm) => x.ispiTriggers
+		protected[this]	val preds = (x:IETerm) => x.ispis
+	}
+	
+	private[inference] class WatcherMkPI(
+			private[inference] val args: List[FuncArg], 
+			private[inference] val f: (IEPredPI, List[FuncArg]) => Unit)
+		extends Watcher[IEPredPI] {
+		
+		protected[this]	val pool = (x:IETerm) => x.mkpiTriggers
+		protected[this]	val preds = (x:IETerm) => x.mkpis
+	}
+	
+	private[inference] class WatcherIsIN(
+			private[inference] val args: List[FuncArg], 
+			private[inference] val f: (IEPredIN, List[FuncArg]) => Unit)
+		extends Watcher[IEPredIN] {
+		
+		protected[this]	val pool = (x:IETerm) => x.isinTriggers
+		protected[this]	val preds = (x:IETerm) => x.isins
+	}
+	
+	private[inference] class ForCPof(
+			private[inference] val args: List[FuncArg], 
+			private[inference] val f: (IEPredCP, List[FuncArg]) => Unit)
+		extends Guard[IEPredCP] {
+		
+		private[this] val dep = args.flatMap(_.terms).toSet
+		assert(dep.forall(x => x.ref.to == x))
+		
+		private[this] var tgs = null:Array[Trigger[IEPredCP]]
+		private[this] var rss = null:Array[Set[SemRole]]
+		private[this] var tms = null:Array[IETerm]
+		private[this] var dis = null:Array[Disposer]
+		private[this] var cur = null:Set[(IETerm, SemRole)]
+		private def current = cur
+		
+		private[inference] def initialize(comp: Set[(IETerm, SemRole)]) {
+			tgs = new Array[Trigger[IEPredCP]](comp.size)
+			rss = new Array[Set[SemRole]](comp.size)
+			tms = new Array[IETerm](comp.size)
+			dis = new Array[Disposer](comp.size)
+			var i = 0
+			for ((t, r) <- comp) {
+				tgs(i) = new Trigger[IEPredCP](this)
+				rss(i) = if (r == null) t.roles else Set(r)
+				tms(i) = t
+				assert(t.ref.to == t)
+				i += 1
+			}
+			cur = comp
+			locate()
+		}
+		
+		private[inference] def change(ltg: Trigger[IEPredCP], term: IETerm) {
+			(0 until tgs.length).find(tgs(_) eq ltg) match {
+				case Some(i) => {
+					dis.foreach(x => if (x != null) x.dis())
+					tms(i) = term
+					cur = (tms zip rss.map(rs => if (rs.size == 1) rs.head else null)).toSet
+				}
+				case None => { throw new Exception("this is weird.") }
+			}
+		}
+		
+		private[inference] def locate() {
+			for (i <- 0 until dis.length) {
+				dis(i) = tgs(i).dispatch(tms(i).mkcpTriggers, dep)
+			}
+			if (dis(0) != null) {
+				for (p <- tms(0).mkcps.toList; if tms(0).schedcache.contains(p)) {
+					if (p.comp == current) f(p, args)
+				}
+			}
+		}
+		
+		private[inference] def trig(ltg: Trigger[IEPredCP], pred: IEPredCP) {
+			if (ltg eq tgs(0)) {
+				if (pred.comp == current) f(pred, args)
+			}
+		}
+		private[inference] def triggerHash(ptg: PreTrigger) = {
+			(hashCode, triggerRole(ptg)).hashCode
+		}
+		private[inference] def triggerRole(ptg: PreTrigger) = {
+			(0 until tgs.length).find(tgs(_) eq ptg) match {
+				case Some(i) => {
+					rss(i)
+				}
+				case None => { throw new Exception("this is weird.") }
+			}
+		}
+		
+		override def equals(a: Any) = {
+			if (a.isInstanceOf[ForCPof]) {
+				val that = a.asInstanceOf[ForCPof]
+				current == that.current && f == that.f && args == that.args
+			} else {
+				false
+			}
+		}
+		override def hashCode = ("ForCPof", current, args, f).hashCode
+	}
+	
+	private[inference] class IfSubsume(
+			private[inference] val args: List[FuncArg], 
+			private[inference] val f: (IEPredSubsume, List[FuncArg]) => Unit)
+		extends Guard[IEPredSubsume] {
+		
+		private[this] val dep = args.flatMap(_.terms).toSet
+		assert(dep.forall(x => x.ref.to == x))
+		
+		private[this] var tgsub = null:Trigger[IEPredSubsume]
+		private[this] var tgsuper = null:Trigger[IEPredSubsume]
+		private[this] var tmsub = null:IETerm
+		private[this] var tmsuper = null:IETerm
+		private[this] var dissub = null:Disposer
+		private[this] var dissuper = null:Disposer
+		private def current = (tmsub, tmsuper)
+		
+		private[inference] def initialize(a: IETerm, b: IETerm) {
+			tgsub = new Trigger[IEPredSubsume](this)
+			tgsuper = new Trigger[IEPredSubsume](this)
+			tmsub = a
+			tmsuper = b
+			locate()
+		}
+		
+		private[inference] def change(ltg: Trigger[IEPredSubsume], term: IETerm) {
+			dissub.dis()
+			dissuper.dis()
+			if (ltg eq tgsub) {
+				tmsub = term
+			} else {
+				assert(ltg eq tgsuper)
+				tmsuper = term
+			}
+		}
+		
+		private[inference] def locate() {
+			dissub = tgsub.dispatch(tmsub.subTriggers, dep)
+			dissuper = tgsuper.dispatch(tmsuper.superTriggers, dep)
+			if (dissub != null) {
+				val tmp = new IEPredSubsume(tmsub, tmsuper)
+				if (tmsub.assub.contains(tmp) && tmsub.schedcache.contains(tmp)) {
+					f(tmp, args)
+				}
+			}
+		}
+		
+		private[inference] def trig(ltg: Trigger[IEPredSubsume], pred: IEPredSubsume) {
+			if ((ltg eq tgsub) && pred.superset == tmsuper) f(pred, args)
+		}
+		private[inference] def triggerHash(ptg: PreTrigger) = {
+			(hashCode, triggerRole(ptg)).hashCode
+		}
+		private[inference] def triggerRole(ptg: PreTrigger) = {
+			if (ptg eq tgsub) {
+				"Sub"
+			} else {
+				assert(ptg eq tgsuper)
+				"Super"
+			}
+		}
+		
+		override def equals(a: Any) = {
+			if (a.isInstanceOf[IfSubsume]) {
+				val that = a.asInstanceOf[IfSubsume]
+				current == that.current && f == that.f && args == that.args
+			} else {
+				false
+			}
+		}
+		override def hashCode = ("IfSubsume", current, args, f).hashCode
+	}
+	
+	private[inference] class IfDisjoint(
+			private[inference] val args: List[FuncArg], 
+			private[inference] val f: (IEPredDisjoint, List[FuncArg]) => Unit)
+		extends Guard[IEPredDisjoint] {
+		
+		private[this] val dep = args.flatMap(_.terms).toSet
+		assert(dep.forall(x => x.ref.to == x))
+		
+		private[this] var tg1 = null:Trigger[IEPredDisjoint]
+		private[this] var tg2 = null:Trigger[IEPredDisjoint]
+		private[this] var tm1 = null:IETerm
+		private[this] var tm2 = null:IETerm
+		private[this] var dis1 = null:Disposer
+		private[this] var dis2 = null:Disposer
+		private def current = Set(tm1, tm2)
+		
+		private[inference] def initialize(a: IETerm, b: IETerm) {
+			tg1 = new Trigger[IEPredDisjoint](this)
+			tg2 = new Trigger[IEPredDisjoint](this)
+			tm1 = a
+			tm2 = b
+			locate()
+		}
+		
+		private[inference] def change(ltg: Trigger[IEPredDisjoint], term: IETerm) {
+			dis1.dis()
+			if (dis2 != null) dis2.dis()
+			if (ltg eq tg1) {
+				tm1 = term
+			} else {
+				assert(ltg eq tg2)
+				tm2 = term
+			}
+		}
+		
+		private[inference] def locate() {
+			dis1 = tg1.dispatch(tm1.djtTriggers, dep)
+			dis2 = tg2.dispatch(tm2.djtTriggers, dep)
+			if (dis1 != null) {
+				val tmp = new IEPredDisjoint(tm1, tm2)
+				if (tm1.djts.contains(tmp) && tm1.schedcache.contains(tmp)) {
+					f(tmp, args)
+				}
+			}
+		}
+		
+		private[inference] def trig(ltg: Trigger[IEPredDisjoint], pred: IEPredDisjoint) {
+			if ((ltg eq tg1) && pred.pair == current) f(pred, args)
+		}
+		private[inference] def triggerHash(ptg: PreTrigger) = hashCode
+		private[inference] def triggerRole(ptg: PreTrigger) = null
+		
+		override def equals(a: Any) = {
+			if (a.isInstanceOf[IfDisjoint]) {
+				val that = a.asInstanceOf[IfDisjoint]
+				current == that.current && f == that.f && args == that.args
+			} else {
+				false
+			}
+		}
+		override def hashCode = ("IfDisjoint", current, args, f).hashCode
+	}
+	
+	
+	trait FAConversion {
+		
+		protected[this] implicit def convert1(x: IETerm) = new FuncArg(x) {
+			private[inference] val terms = Set(x)
+		}
+		
+		protected[this] implicit def convert2(x: SemRole) = new FuncArg(x) {
+			private[inference] val terms = Set.empty[IETerm]
+		}
+		
+		protected[this] implicit def convert3(x: Iterable[IETerm]) = new FuncArg(x) {
+			private[inference] val terms = x.toSet
+		}
+		
+		protected[this] implicit def convert4(x: Set[(IETerm, SemRole)]) = new FuncArg(x) {
+			private[inference] val terms = x.map(_._1)
+		}
+		
+		protected[this] implicit def convert5(x: Iterable[SemRole]) = new FuncArg(x) {
+			private[inference] val terms = Set.empty[IETerm]
+		}
+		
+		protected[this] implicit def convert6(x: List[Set[(IETerm, SemRole)]]) = new FuncArg(x) {
+			private[inference] val terms = x.flatMap(_.map(_._1)).toSet
+		}
+		
+		protected[this] implicit def convert7(x: List[Set[IETerm]]) = new FuncArg(x) {
+			private[inference] val terms = x.flatten.toSet
+		}
+		
+		protected[this] implicit def convert8(x: IEngine) = new FuncArg(x) {
+			private[inference] val terms = Set.empty[IETerm]
+		}
+		
+		protected[this] implicit def convert9(x: Slction) = new FuncArg(x) {
+			private[inference] val terms = Set.empty[IETerm]
+		}
+		
+	}
+	
+}

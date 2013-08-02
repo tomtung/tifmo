@@ -19,8 +19,11 @@ package stree {
 		
 		var qtfier = null:Qtfier
 		
-		var slction = null:Slction
+		var sel = Set.empty[Slction]
 		
+		var rootNeg = false
+		
+		var updateCoref = false
 		
 		private var prt = null:PreNode
 		private[this] var children = mutable.Map.empty[(SemRole, PreNode), Int]
@@ -29,11 +32,16 @@ package stree {
 		
 		def addChild(irole: SemRole, child: PreNode, index: Int) {
 			child.prt = this
-			children((irole, child)) = -index
+			children((irole, child)) = index
 		}
 		
-		lazy val sortedChildren = {
-			Sorting.stableSort[(SemRole, PreNode), Int](children.keys.toList, children(_))
+		def deleteChild(irole: SemRole, child: PreNode) {
+			child.prt = null
+			children.remove((irole, child))
+		}
+		
+		def sortedChildren = {
+			Sorting.stableSort[(SemRole, PreNode), Int](children.keys.toList, -children(_))
 		}
 		
 		

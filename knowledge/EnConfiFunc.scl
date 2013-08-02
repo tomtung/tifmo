@@ -2,8 +2,14 @@ package tifmo
 
 import stree.Align
 import stree.PI
+import stree.Term
+import stree.WORD
+import stree.IR
+import stree.PO
 import resource.EnNgramDist
 import mylib.oneFromEach
+import knowledge.SemRole.SemRole
+import knowledge.SemRole
 
 import scala.collection.mutable
 import scala.util.Sorting
@@ -11,7 +17,7 @@ import scala.actors._
 
 package knowledge {
 	
-	class EnConfiFunc extends (Align => Double) {
+	class EnConfiFunc(alltw: Set[EnWord]) extends (Align => (Double, String)) {
 		
 		private[this] case class SetDist(k: List[Set[String]], v: mutable.Map[String, Long])
 		private[this] case class SetNorm(k: List[Set[String]], v: Double)
@@ -127,8 +133,10 @@ package knowledge {
 				} match {
 					case Some(x) => x
 					case None => {
-						val sqs = dist.keys.par.map(k => (dist(k) * dist(k)).toDouble)
-						val ret = math.sqrt(sqs.fold(0.0)(_ + _))
+						//val sqs = dist.keys.par.map(k => (dist(k) * dist(k)).toDouble)
+						//val ret = math.sqrt(sqs.fold(0.0)(_ + _))
+						val sqs = dist.keys.map(k => (dist(k) * dist(k)).toDouble)
+						val ret = math.sqrt((0.0 /: sqs)(_ + _))
 						Caching ! SetNorm(sss, ret)
 						ret
 					}
@@ -177,56 +185,183 @@ package knowledge {
 		def apply(algn: Align) = {
 	
 			val cws = algn.clue.src.map(_.term.word.asInstanceOf[EnWord]).toSet
+			/*
+			val (contra, limcontra) = {
+				
+				var ret = false
+				var ret2 = false
+				
+				def getRWR(x: PI) = {
+					
+					var r1lst = Nil:List[SemRole]
+					var wlst = Nil:List[EnWord]
+					var r2lst = Nil:List[SemRole]
+					
+					def recur(y: Term) {
+						y match {
+							case WORD(word) => {
+								wlst = word.asInstanceOf[EnWord] :: wlst
+								r2lst = null :: r2lst
+							}
+							case IR(core, sats) => {
+								if (sats.isEmpty) {
+									recur(core)
+								} else {
+									assert(sats.size == 1)
+									val (r, itm) = sats.head
+									wlst = core.word.asInstanceOf[EnWord] :: wlst
+									r2lst = r :: r2lst
+									
+									r1lst = itm.intoR :: r1lst
+									recur(itm.term)
+									
+								}
+							}
+							case PO(tm, r) => {
+								recur(tm)
+							}
+							case _ => throw new Exception("???!")
+						}
+					}
+					
+					r1lst = x.intoR :: r1lst
+					recur(x.term)
+					
+					(wlst zip (r1lst zip r2lst)).reverse
+				}
+				
+				val trwr = getRWR(algn.tp.acc)
+				val hrwr = {
+					val pre = getRWR(algn.hp.acc)
+					if (cws.exists(z => z.synonymTo(trwr.head._1) || z.antonymTo(trwr.head._1))) {
+						pre
+					} else {
+						pre.dropWhile(y => cws.exists(z => z.synonymTo(y._1) || z.antonymTo(y._1)))
+					}
+				}
+				
+				for ((w, (r1, r2)) <- hrwr; if w.hasPolarity) {
+					if (trwr.forall(x => !w.samePolarity(x._1))) {
+						ret = true
+					}
+				}
+				
+				var unmatchsign1 = false
+				for ((x, (r1, r2)) <- hrwr; if !x.sign) {
+					if (trwr.exists(y => x.synonymTo(y._1, true) && !x.synonymTo(y._1) && y._1.sign)) unmatchsign1 = true
+				}
+				var unmatchsign2 = false
+				for ((x, (r1, r2)) <- trwr; if !x.sign) {
+					if (hrwr.exists(y => x.synonymTo(y._1, true) && !x.synonymTo(y._1) && y._1.sign)) unmatchsign2 = true
+				}
+				if ((unmatchsign1 ^ unmatchsign2) ^ {
+					val tneg = trwr.filter(_._1.isNegWord)
+					val hneg = hrwr.filter(_._1.isNegWord)
+					if (tneg.isEmpty ^ hneg.isEmpty) {
+						!trwr.exists(x => hneg.exists(y => x._1.synonymTo(y._1))) && 
+							!hrwr.exists(x => tneg.exists(y => x._1.synonymTo(y._1)))
+					} else {
+						false
+					}
+					//(trwr.exists(_._1.isNegWord) ^ hrwr.exists(_._1.isNegWord))
+				}) {
+					ret = true
+					//ret2 = unmatchsign1 ^ unmatchsign2
+				}
+				
+				
+				val sensitiveRoles = Set(SemRole.SBJ, SemRole.OBJ, SemRole.IOBJ)
+				for {
+					(tw, (tr1, tr2)) <- trwr
+					(hw, (hr1, hr2)) <- hrwr
+					if (tw.mypos == "V" && hw.mypos == "V" && tw.synonymTo(hw))
+				} {
+					if ((sensitiveRoles.contains(tr1) && sensitiveRoles.contains(hr1) && tr1 != hr1) || (sensitiveRoles.contains(tr2) && sensitiveRoles.contains(hr2) && tr2 != hr2)) {
+						ret = true
+						ret2 = true
+					}
+				}
+				
+				(ret, ret2)
+			}
+			*/
+			val (contra, limcontra) = (false, false)
 			
 			def trimHead(x: List[PI]) = {
 				val wl = x.map(_.term.word.asInstanceOf[EnWord])
-				val dwl = wl.dropWhile(y => cws.exists(y.synonymTo(_)))
-				dwl.filter(!_.isStopwd).toSet
+				val dwl = wl.dropWhile(y => cws.exists(z => y.synonymTo(z) || y.antonymTo(z)))
+				dwl.toSet
 			}
 			
 			val (tws, hws) = if (algn.soft) {
-				val tmp = trimHead(algn.tp.src.init)
-				if (tmp.isEmpty) {
-					(trimHead(algn.tp.src), trimHead(algn.hp.src))
-				} else {
-					val tlw = algn.tp.src.last.term.word.asInstanceOf[EnWord]
-					if (tlw.ner != "O" || tlw.synonymTo(algn.hp.src.last.term.word.asInstanceOf[EnWord], true)) {
-						(tmp, trimHead(algn.hp.src.init))
-					} else {
-						(trimHead(algn.tp.src), trimHead(algn.hp.src.init))
-					}
-				}
+				(trimHead(algn.tp.src.init).filter(y => !y.isStopwd || y.mypos == "D"), trimHead(algn.hp.src.init).filter(y => !y.isStopwd || y.mypos == "D"))
 			} else {
 				(trimHead(algn.tp.src), trimHead(algn.hp.src))
 			}
 			
-			if ((tws.isEmpty && algn.soft) || hws.isEmpty) {
+			if (!hws.filter(x => x.mypos == "D" && !tws.exists(x.synonymTo(_, true))).isEmpty) {
 				
-				0.3 + 0.4 / (cws.size + hws.filter(x => cws.exists(x.synonymTo(_, true))).size)
+				(0.0, "0-FILTERED")
+				
+			} else if ((tws.isEmpty && algn.soft) || hws.isEmpty) {
+				
+				val eval = (cws.size + hws.filter(x => cws.exists(x.synonymTo(_, true))).size + (tws.filter(_.mypos == "V").size max 1) - 1).toDouble
+				(0.1 + 0.15 / eval, "c-RELATION")
 				
 			} else if (hws.forall(x => tws.exists(x.synonymTo(_, true)))) {
 				
-				0.8
+				if (contra) {
+					if (algn.soft) {
+						(0.15, "a-CONTRA")
+					} else {
+						(0.10001, "a-CONTRA")
+					}
+				} else {
+					val eval = (tws.filter(_.mypos == "V").size max 1).toDouble
+					(0.1 + 0.2 / eval, "d-SUPER")
+				}
 				
-			} else if (tws.isEmpty) {
+			} else if (tws.isEmpty || hws.forall(x => !tws.exists(x.synonymTo(_, true)) && alltw.exists(x.synonymTo(_, true)))) {
 				
-				0.0
+				(0.0, "0-FILTERED")
 				
 			} else if (tws.forall(x => hws.exists(x.synonymTo(_, true)))) {
 				
-				0.1 + 1.0 / (3 + hws.size - tws.size)
+				if (contra) {
+					if (algn.soft) {
+						(0.15, "a-CONTRA")
+					} else {
+						(0.10001, "a-CONTRA")
+					}
+				} else {
+					val eval = ((hws.size - tws.size) max 1).toDouble
+					(0.1 + 0.1 / eval, "b-SUB")
+				}
 				
 			} else if (hws.size == 1 && tws.forall(x => hws.head.getContext(3, 4).exists(x.synonymTo(_, true)))) {
 				
-				0.0
+				(0.0, "0-FILTERED")
 				
 			} else if (tws.size <= 3 && hws.size <= 3) {
 				
-				1.0 / (1.0 - math.log10(cossim(tws, hws, cws)))
+				val eval = (1.0 - math.log10(cossim(tws, hws, cws)))
+				if (limcontra) {
+					if (eval < 10.0) {
+						if (algn.soft) {
+							(1.0 / eval, "a-CONTRA")
+						} else {
+							(0.10001, "a-CONTRA")
+						}
+					} else {
+						(0.0, "0-FILTERED")
+					}
+				} else {
+					(1.0 / eval, "e-SIM")
+				}
 				
 			} else {
 				
-				0.0
+				(0.0, "0-FILTERED")
 				
 			}
 		}

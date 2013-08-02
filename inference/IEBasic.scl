@@ -4,34 +4,19 @@ import mylib.oneFromEach
 import mylib.listPartitions
 import knowledge.WordInfo
 import knowledge.SemRole.SemRole
-import scala.util.Sorting
+
 import scala.collection.mutable
 
 package inference {
 	
 	/**
-	 * Interface for implementing a selection operator.
-	 */
-	abstract class Slction extends Serializable {
-		/**
-		 * Definition process for a selection. Write your own axioms here.
-		 * 
-		 * @param h The new term corresponding to the selection.
-		 * @param a The term being selected.
-		 * @param ie The inference engine.
-		 * @param sls List of previously declared selections.
-		 */
-		def claimSL(h: IETerm, a: IETerm, ie: IEBasic, sls: List[(IETermRef, Slction, IETermRef)]): Unit
-	}
-	
-	/**
 	 * The basic class which implements inference rules for algebraic forms. 
 	 */
-	class IEBasic extends IEngine {
+	class IEBasic extends IEngine with FAConversion {
 		
 		// contradiction awareness
 		private[this] var flagContra = false
-		protected def contradict(a: IETerm) {
+		protected[this] def contradict(a: IETerm) {
 			flagContra = true
 		}
 		/**
@@ -73,537 +58,383 @@ package inference {
 		///////////////////////////////////////////////////
 		
 		// rule: PI(A), B \subset A => PI(B) \subset PI(A)
-		private[this] val rPISub0 = (args: List[Any]) => args match {
-			case (pib:IETerm) :: (rs:Set[SemRole]) :: (pia:IETerm) :: Nil => {
-				claimSubsume(pib, pia)
-			}
-			case _ => throw new Exception("rPISub0 error!")
+		private[this] val rPISub0 = (pia: IETerm, suba: IETerm, rs: Set[SemRole]) => {
+			constructPI(suba, rs, List(pia), (x:IETermRef, args: List[FuncArg]) => args match {
+				case FuncArg(pia:IETerm) :: Nil => {
+					claimSubsume(x.to, pia)
+				}
+				case _ => throw new Exception("rPISub0 error!")
+			})
 		}
-		private[this] val rPISub1 = (pib: IETerm, args: List[Any]) => conclude(pib :: args, rPISub0)_
-		private[this] val rPISub2 = (b: IETerm, args:List[Any]) => args match {
-			case (rs:Set[SemRole]) :: (pia:IETerm) :: Nil => {
-				constructPI(b, rs, args, rPISub1)_
+		private[this] val rPISub1 = (sub: IEPredSubsume, args: List[FuncArg]) => {
+			for (pi <- sub.superset.mkpis.toList) {
+				rPISub0(pi.head, sub.subset, pi.headrs)
 			}
-			case _ => throw new Exception("rPISub2 error!")
 		}
-		private[this] val rPISub3 = (a: IETerm, r: SemRole, args: List[Any]) => args match {
-			case (pia:IETerm) :: Nil => {
-				val rs = if (r == null) pia.roles else Set(r)
-				foreachSubset(a, rs :: args, rPISub2)_
+		private[this] val rPISub2 = (a: IETerm) => {
+			if (a.roles != null) {
+				foreachSubset(a, Nil, rPISub1)
 			}
-			case _ => throw new Exception("rPISub3 error!")
 		}
-		private[this] val rPISub4 = (pia: IETerm, args: List[Any]) => foreachIsPI(pia, pia :: args, rPISub3)_
+		forAnyTerm(rPISub2)
+		private[this] val rPISub3 = (pi: IEPredPI, args: List[FuncArg]) => {
+			for (x <- pi.compt.subSets) {
+				rPISub0(pi.head, x, pi.headrs)
+			}
+		}
+		private[this] val rPISub4 = (a: IETerm) => {
+			if (a.roles != null) {
+				foreachMkPI(a, Nil, rPISub3)
+			}
+		}
 		forAnyTerm(rPISub4)
 		/////////////////////////////////////////////////
 		
 		// rule: T = PI((X x Y x ...) x A x B x ...), A.ne, B.ne, ... => T = X x Y x ...
-		private[this] val rPICP0 = (args: List[Any]) => args match {
-			case (fil:Set[(IETerm, SemRole)]) :: (rs:Set[SemRole]) :: (pia:IETerm) :: Nil => {
-				claimCP(pia, fil)
-			}
-			case _ => throw new Exception("rPICP0 error!")
-		}
-		private[this] val rPICP1_loop: List[Any] => Set[IETerm] => Unit = (args: List[Any]) => args match {
-			case (cl:List[IETerm]) :: (rest:List[Any]) => {
-				if (cl.isEmpty) {
-					conclude(rest, rPICP0)_
+		private[this] val rPICP0 = (pi: IEPredPI, cp: IEPredCP) => {
+			val fil = cp.roleMap.keySet.filter(_.subsetOf(pi.headrs))
+			if (fil.flatten == pi.headrs) {
+				val comp = fil.map(cp.roleMap(_))
+				val cl = cp.comp.map(_._1) -- comp.map(_._1)
+				if (fil.size == 1) {
+					val tmp = comp.head._1
+					claimSubsume(pi.head, tmp)
+					if (cl.forall(_.knownNE)) claimSubsume(tmp, pi.head)
 				} else {
-					ifNotEmpty(cl.head, cl.tail :: rest, rPICP1_loop)_
+					if (cl.forall(_.knownNE)) claimCP(pi.head, comp)
 				}
 			}
-			case _ => throw new Exception("rPICP1_loop error!")
 		}
-		private[this] val rPICP2 = (acomp: Set[(IETerm, SemRole)], args: List[Any]) => (dep: Set[IETerm]) => args match {
-			case (rs:Set[SemRole]) :: (pia:IETerm) :: Nil => {
-				val fil = acomp.filter(x => if (x._2 == null) x._1.roles.subsetOf(rs) else rs.contains(x._2))
-				val frs = fil.flatMap(x => if (x._2 == null) x._1.roles else Set(x._2))
-				if (frs == rs) {
-					if (fil.size == 1) {
-						claimSubsume(pia, fil.head._1)
-					}
-					val allt = acomp.map(_._1)
-					val cl = Sorting.stableSort[IETerm]((allt -- fil.map(_._1)).toList).toList
-					rPICP1_loop(cl :: fil :: args)(dep ++ allt)
-				}
+		private[this] val rPICP1 = (cp: IEPredCP, args: List[FuncArg]) => {
+			for (pi <- cp.head.mkpis.toList) {
+				rPICP0(pi, cp)
 			}
-			case _ => throw new Exception("rPICP2 error!")
 		}
-		private[this] val rPICP3 = (a: IETerm, r: SemRole, args: List[Any]) => args match {
-			case (pia:IETerm) :: Nil => {
-				val rs = if (r == null) pia.roles else Set(r)
-				foreachIsCP(a, rs :: args, rPICP2)_
+		private[this] val rPICP2 = (x: IETerm) => {
+			if (x.roles != null) foreachIsCP(x, Nil, rPICP1)
+		}
+		forAnyTerm(rPICP2)
+		private[this] val rPICP3 = (pi: IEPredPI, args: List[FuncArg]) => {
+			for (cp <- pi.compt.iscps.toList) {
+				rPICP0(pi, cp)
 			}
-			case _ => throw new Exception("rPICP3 error!")
 		}
-		private[this] val rPICP4 = (pia: IETerm, args: List[Any]) => foreachIsPI(pia, pia :: args, rPICP3)_
+		private[this] val rPICP4 = (x: IETerm) => foreachIsPI(x, Nil, rPICP3)
 		forAnyTerm(rPICP4)
+		private[this] val rPICP5 = (ne: IEPredNonEmpty, args: List[FuncArg]) => {
+			var tmp = Nil:List[(IEPredCP, IEPredPI)]
+			for (cp <- ne.term.mkcps; pi <- cp.head.mkpis) {
+				tmp = (cp, pi) :: tmp
+			}
+			for ((cp, pi) <- tmp) {
+				rPICP0(pi, cp)
+			}
+		}
+		private[this] val rPICP6 = (x: IETerm) => ifNotEmpty(x, Nil, rPICP5)
+		forAnyTerm(rPICP6)
 		/////////////////////////////////////////////////
 		
-		// rule: PI(X x A \cap B) = X \cap PI(W x A \cap B)
-		private[this] val rPIWIN0 = (args: List[Any]) => args match {
-			case (x:IETerm) :: (mm:List[IETerm]) :: (pixab:IETerm) :: Nil => {
-				claimIN(pixab, Set(x) ++ mm, true)
-			}
-			case _ => throw new Exception("rPIWIN0 error!")
-		}
-		private[this] val rPIWIN1 = (x: IETerm, args: List[Any]) => conclude(x :: args, rPIWIN0)_
-		private[this] val rPIWIN2 = (x: IETerm, args: List[Any]) => args match {
-			case (mm:List[IETerm]) :: (rs:Set[SemRole]) :: (pixab:IETerm) :: Nil => {
-				constructPI(x, rs, mm :: pixab :: Nil, rPIWIN1)_
-			}
-			case _ => throw new Exception("rPIWIN2 error!")
-		}
-		private[this] val rPIWIN3_loop: (IETerm, List[Any]) => Set[IETerm] => Unit = (x: IETerm, args: List[Any]) => args match {
-			case (rr:List[IETermRef]) :: (tl:List[Set[(IETerm, SemRole)]]) :: (remain:List[Any]) => {
-				val nrr = if (x != null) x.ref :: rr else rr
-				if (tl.isEmpty) {
-					constructIN(nrr.map(_.to).toSet, remain, rPIWIN2)_
-				} else {
-					constructCP(tl.head, nrr :: tl.tail :: remain, rPIWIN3_loop)_
-				}
-			}
-			case _ => throw new Exception("rPIWIN3_loop error!")
-		}
-		private[this] def sep(x: Set[(IETerm, SemRole)], rs: Set[SemRole]) = {
-			x.find(y => if (y._2 == null) y._1.roles == rs else Set(y._2) == rs) match {
-				case Some(y) => if (!y._1.isW) (y._1, x - y + ((getW(y._1.roles), y._2))) else null
-				case None => null
-			}
-		}
-		private[this] def remll(bs: Set[IETerm], rs: Set[SemRole]) = {
-			var rem = Nil:List[IETermRef]
-			val ll = (for (b <- bs) yield {
-				val tmp = b.asCP.filter(_.filter(_._1.isW).size <= 1).map(sep(_, rs)) - null
-				if (tmp.isEmpty) {
-					rem = b.ref :: rem
-				}
-				tmp
-			}) - Set.empty[(IETerm, Set[(IETerm, SemRole)])]
-			(rem, ll)
-		}
-		private[this] val rPIWIN4 = (x: Set[(IETerm, SemRole)], args: List[Any]) => (dep: Set[IETerm]) => args match {
-			case (h:IETerm) :: Nil => {
-				var task = Nil:List[() => Unit]
-				for (in <- h.mkins; if !in.aux; pi <- in.head.mkpis) {
-					val sx = sep(x, pi.headrs)
-					if (sx != null) {
-						val (rem, ll) = remll((in.comp - h), pi.headrs)
-						for (l <- oneFromEach[(IETerm, Set[(IETerm, SemRole)])](ll + Set(sx))) {
-							val (mm, nn) = l.unzip
-							val nargs = rem :: nn :: mm :: pi.headrs :: pi.head :: Nil
-							val ndep = dep + pi.head + in.head ++ in.comp ++ mm ++ nn.flatMap(_.map(_._1))
-							task = (() => rPIWIN3_loop(null, nargs)(ndep)) :: task
-						}
+		// rule: A -> B, C -> D => A x C -> B x D
+		private[this] val rCPSub1 = (cp: IEPredCP, args: List[FuncArg]) => {
+			def findAllCP(ll: Set[Set[(IETerm, SemRole)]]) = {
+				val kk = oneFromEach.map[(IETerm, SemRole), (Set[IETerm], Set[(IETerm, SemRole)])](ll, null, (x, y) => {
+					if (x == null) {
+						(y._1.mkcps.filter(_.comp.contains(y)).map(_.head).toSet, Set(y))
+					} else {
+						val tmp = x._2 + y
+						(y._1.mkcps.filter(z => tmp.subsetOf(z.comp)).map(_.head).toSet, tmp)
 					}
-				}
-				task.foreach(_())
+				}, _._1.isEmpty)
+				kk.flatMap(x => x._1.filter(y => y.hasCP(x._2)))
 			}
-			case _ => throw new Exception("rPIWIN4 error!")
-		}
-		private[this] val rPIWIN5 = (x: IETerm, args: List[Any]) => (dep: Set[IETerm]) => {
-			if (x.roles != null) {
-				foreachIsCP(x, x :: args, rPIWIN4)(dep)
-			}
-		}
-		forAnyTerm(rPIWIN5)
-		private[this] val rPIWIN6 = (bs: Set[IETerm], args: List[Any]) => (dep: Set[IETerm]) => args match {
-			case (rs:Set[SemRole]) :: (pixab:IETerm) :: Nil => {
-				val (rem, ll) = remll(bs, rs)
-				for (l <- oneFromEach[(IETerm, Set[(IETerm, SemRole)])](ll)) {
-					val (mm, nn) = l.unzip
-					rPIWIN3_loop(null, rem :: nn :: mm :: args)(dep ++ bs ++ mm ++ nn.flatMap(_.map(_._1)))
-				}
-			}
-			case _ => throw new Exception("rPIWIN6 error!")
-		}
-		private[this] val rPIWIN7 = (xab: IETerm, r: SemRole, args: List[Any]) => args match {
-			case (pixab:IETerm) :: Nil => {
-				val rs = if (r == null) pixab.roles else Set(r)
-				foreachIsIN(xab, rs :: args, rPIWIN6)_
-			}
-			case _ => throw new Exception("rPIWIN7 error!")
-		}
-		private[this] val rPIWIN8 = (pixab: IETerm, args: List[Any]) => foreachIsPI(pixab, pixab :: args, rPIWIN7)_
-		forAnyTerm(rPIWIN8)
-		/////////////////////////////////////////////////
-		
-		// rule: (A x B) \cap (C x D) = (A \cap C) x (B \cap D)
-		private[this] val rCPIN0 = (args: List[Any]) => args match {
-			case (rr:List[IETermRef]) :: (revrl:List[SemRole]) :: (a:IETerm) :: Nil => {
-				val comp = rr.map(_.to).zip(revrl).toSet
-				claimCP(a, comp)
-			}
-			case _ => throw new Exception("rCPIN0 error!")
-		}
-		private[this] val rCPIN1_loop: (IETerm, List[Any]) => (Set[IETerm]) => Unit = (x: IETerm, args: List[Any]) => args match {
-			case (rr:List[IETermRef]) :: (tl:List[Set[IETerm]]) :: (remain:List[Any]) => {
-				val nrr = if (x != null) x.ref :: rr else rr
-				if (tl.isEmpty) {
-					conclude(nrr :: remain, rCPIN0)_
-				} else {
-					constructIN(tl.head, nrr :: tl.tail :: remain, rCPIN1_loop)_
-				}
-			}
-			case _ => throw new Exception("rCPIN1_loop error!")
-		}
-		private[this] def getll(bs: Set[IETerm], rss: Set[Set[SemRole]]) = {
-			for (b <- bs) yield {
-				for (cp <- b.iscps.toSet; if cp.roleMap.keySet == rss) yield {
-					cp.roleMap
-				}
-			}
-		}
-		private[this] val rCPIN2 = (x: Set[(IETerm, SemRole)], args: List[Any]) => (dep: Set[IETerm]) => args match {
-			case (h:IETerm) :: Nil => {
-				val rmap = x.map(y => {
-					val k = if (y._2 == null) y._1.roles else Set(y._2)
-					(k, y._1)
-				}).toMap
-				val srss = rmap.keys.toList //Sorting.stableSort[Set[SemRole], SemRole](rmap.keys.toList, _.max).toList
-				val revrl = srss.map(k => if (k.size == 1) k.head else null).reverse
-				var task = Nil:List[() => Unit]
-				for (in <- h.mkins; if !in.aux) {
-					val ll = getll(in.comp - h, rmap.keySet)
-					if (ll.forall(!_.isEmpty)) {
-						for (l <- oneFromEach[Map[Set[SemRole], IETerm]](ll + Set(rmap))) {
-							val tl = for (k <- srss) yield {
-								l.map(_(k)).toSet
-							}
-							val nargs = (Nil:List[IETermRef]) :: tl :: revrl :: in.head :: Nil
-							val ndep = dep + in.head ++ in.comp ++ tl.flatten
-							task = (() => rCPIN1_loop(null, nargs)(ndep)) :: task
-						}
-					}
-				}
-				task.foreach(_())
-			}
-			case _ => throw new Exception("rCPIN2 error!")
-		}
-		private[this] val rCPIN3 = (x: IETerm, args: List[Any]) => (dep: Set[IETerm]) => {
-			if (x.roles != null) {
-				foreachIsCP(x, x :: args, rCPIN2)(dep)
-			}
-		}
-		forAnyTerm(rCPIN3)
-		private[this] val rCPIN4 = (x: Set[IETerm], args: List[Any]) => (dep: Set[IETerm]) => {
-			val rsss = x.map(_.iscps.map(_.roleMap.keySet).toSet)
-			val crsss = rsss.head.filter(y => rsss.tail.forall(_.contains(y)))
 			var task = Nil:List[() => Unit]
-			for (rss <- crsss) {
-				val srss = rss.toList // Sorting.stableSort[Set[SemRole], SemRole](rss.toList, _.max).toList
-				val revrl = srss.map(k => if (k.size == 1) k.head else null).reverse
-				val ll = getll(x, rss)
-				for (l <- oneFromEach[Map[Set[SemRole], IETerm]](ll)) {
-					val tl = for (k <- srss) yield {
-						l.map(_(k)).toSet
-					}
-					val nargs = (Nil:List[IETermRef]) :: tl :: revrl :: args
-					val ndep = dep ++ x ++ tl.flatten
-					task = (() => rCPIN1_loop(null, nargs)(ndep)) :: task
+			if (cp.comp.filter(_._1.isW).size <= 1) {
+				val llsuper = cp.comp.map(x => x._1.superSets.map(y => (y, x._2)))
+				for (x <- findAllCP(llsuper)) {
+					task = (() => claimSubsume(cp.head, x)) :: task
+				}
+				val llsub = cp.comp.map(x => x._1.subSets.map(y => (y, x._2)))
+				for (x <- findAllCP(llsub)) {
+					task = (() => claimSubsume(x, cp.head)) :: task
 				}
 			}
 			task.foreach(_())
 		}
-		private[this] val rCPIN5 = (a: IETerm, args: List[Any]) => (dep: Set[IETerm]) => {
-			if (a.roles != null) {
-				foreachIsIN(a, a :: args, rCPIN4)(dep)
-			}
+		private[this] val rCPSub2 = (x: IETerm) => {
+			if (x.roles != null) foreachIsCP(x, Nil, rCPSub1)
 		}
-		forAnyTerm(rCPIN5)
+		forAnyTerm(rCPSub2)
+		private[this] val rCPSub3 = (sub: IEPredSubsume, args: List[FuncArg]) => {
+			var task = Nil:List[() => Unit]
+			for (x <- sub.subset.mkcps; y <- sub.superset.mkcps; if x.roleMap.keySet == y.roleMap.keySet) {
+				if (x.roleMap.keys.forall(k => x.roleMap(k)._1.hasSuper(y.roleMap(k)._1))) {
+					task = (() => claimSubsume(x.head, y.head)) :: task
+				}
+			}
+			task.foreach(_())
+		}
+		private[this] val rCPSub4 = (x: IETerm) => foreachSubset(x, Nil, rCPSub3)
+		forAnyTerm(rCPSub4)
 		/////////////////////////////////////////////////
 		
 		// rule: PI1(A), PI2(A) => A \subset PI1(A) x PI2(A)
-		private[this] val rPIdef0 = (args: List[Any]) => args match {
-			case (x:IETerm) :: (comp:Set[(IETerm, SemRole)]) :: (a:IETerm) :: Nil => {
-				claimSubsume(a, x)
-				for ((t, r) <- comp) {
-					claimPI(t, x, r)
+		private[this] val rPIdef0 = (cp: IEPredCP, args: List[Any]) => args match {
+			case FuncArg(x:IETerm) :: Nil => {
+				claimSubsume(x, cp.head)
+				for ((t, r) <- cp.comp) {
+					claimPI(t, cp.head, r)
 				}
 			}
 			case _ => throw new Exception("rPIdef0 error!")
 		}
-		private[this] val rPIdef1 = (x: IETerm, args: List[Any]) => conclude(x :: args, rPIdef0)_
-		private[this] val rPIdef2 = (pia: IETerm, r: SemRole, args: List[Any]) => (dep: Set[IETerm]) => args match {
-			case (a:IETerm) :: Nil => {
-				val rs = if (r == null) pia.roles else Set(r)
-				for (lrs <- listPartitions[SemRole](a.roles -- rs, a.mkpis.map(_.headrs))) {
-					val comp = lrs.map(x => a.mkpis.find(_.headrs == x) match {
-						case Some(y) => {
-							(y.head, y.compr)
-						}
-						case None => throw new Exception("rPIdef2 find error!")
-					}).toSet + ((pia, r))
-					forCPof(comp, comp :: args, rPIdef1)(dep)
-				}
-			}
-			case _ => throw new Exception("rPIdef2 error!")
-		}
-		private[this] val rPIdef3 = (a: IETerm, args: List[Any]) => (dep: Set[IETerm]) => {
-			if (a.roles != null) {
-				foreachMkPI(a, a :: args, rPIdef2)(dep)
+		private[this] val rPIdef1 = (pi: IEPredPI, args: List[Any]) => {
+			val cands = pi.compt.mkpis
+			for (lrs <- listPartitions[SemRole](pi.compt.roles -- pi.headrs, cands.map(_.headrs))) {
+				val comp = lrs.map(x => cands.find(_.headrs == x) match {
+					case Some(y) => {
+						(y.head, y.compr)
+					}
+					case None => throw new Exception("rPIdef1 find error!")
+				}).toSet + ((pi.head, pi.compr))
+				forCPof(comp, List(pi.compt), rPIdef0)
 			}
 		}
-		forAnyTerm(rPIdef3)
+		private[this] val rPIdef2 = (x: IETerm) => {
+			if (x.roles != null) foreachMkPI(x, Nil, rPIdef1)
+		}
+		forAnyTerm(rPIdef2)
 		//////////////////////////////////////////////////
 		
+		// rule: PI(X x A \cap B) = X \cap PI(W x A \cap B)
+		private[this] val rPIWIN0 = (a: IETerm, rem: Set[IETerm], ll: Set[List[(IETerm, Set[(IETerm, SemRole)])]], rs: Set[SemRole]) => {
+			for (l <- oneFromEach[(IETerm, Set[(IETerm, SemRole)])](ll)) {
+				val (mm, nn) = l.unzip
+				val arglst = List[FuncArg](a, rem, nn, mm, rs)
+				val inpi = (tms: List[IETermRef]) => {
+					constructIN(rem ++ tms.map(_.to), arglst, (x: IETermRef, args: List[FuncArg]) => {
+						constructPI(x.to, rs, arglst, (x: IETermRef, args: List[FuncArg]) => {
+							claimIN(a, mm.toSet + x.to, true)
+						})
+					})
+				}
+				val cploop = (inpi /: nn)((func, comp) => (tms: List[IETermRef]) => {
+					constructCP(comp, arglst, (x: IETermRef, args: List[FuncArg]) => func(x :: tms))
+				})
+				cploop(Nil)
+			}
+		}
+		private[this] val rPIWIN1 = (bs: Set[IETerm], rs: Set[SemRole]) => {
+			var rem = Nil:List[IETerm]
+			val ll = (for (b <- bs) yield {
+				val tmp = for {
+					cp <- b.iscps.toList
+					if cp.comp.filter(_._1.isW).size <= 1 && cp.roleMap.contains(rs)
+					(t, r) = cp.roleMap(rs)
+					if !t.isW
+				} yield {
+					(t, cp.comp - ((t, r)) + ((getW(t.roles), r)))
+				}
+				if (tmp.isEmpty) {
+					rem = b :: rem
+				}
+				tmp
+			}) - Nil
+			(rem.toSet, ll)
+		}
+		private[this] val rPIWIN2 = (cp: IEPredCP, args: List[FuncArg]) => {
+			var tmp = Nil:List[(IETerm, Set[IETerm], Set[List[(IETerm, Set[(IETerm, SemRole)])]], Set[SemRole])]
+			for (in <- cp.head.mkins; if !in.aux; pi <- in.head.mkpis; if cp.roleMap.contains(pi.headrs)) {
+				val (t, r) = cp.roleMap(pi.headrs)
+				val (rem, prell) = rPIWIN1(in.comp - cp.head, pi.headrs)
+				tmp = (pi.head, rem, prell + List((t, cp.comp - ((t, r)) + ((getW(t.roles), r)))), pi.headrs) :: tmp
+			}
+			for ((a, rem, ll, rs) <- tmp) {
+				rPIWIN0(a, rem, ll, rs)
+			}
+		}
+		private[this] val rPIWIN3 = (x: IETerm) => {
+			if (x.roles != null) foreachIsCP(x, Nil, rPIWIN2)
+		}
+		forAnyTerm(rPIWIN3)
+		private[this] val rPIWIN4 = (in: IEPredIN, args: List[FuncArg]) => {
+			var tmp = Nil:List[(IETerm, Set[IETerm], Set[List[(IETerm, Set[(IETerm, SemRole)])]], Set[SemRole])]
+			for (pi <- in.head.mkpis) {
+				val (rem, ll) = rPIWIN1(in.comp, pi.headrs)
+				tmp = (pi.head, rem, ll, pi.headrs) :: tmp
+			}
+			for ((a, rem, ll, rs) <- tmp) {
+				rPIWIN0(a, rem, ll, rs)
+			}
+		}
+		private[this] val rPIWIN5 = (x: IETerm) => {
+			if (x.roles != null) foreachIsIN(x, Nil, rPIWIN4)
+		}
+		forAnyTerm(rPIWIN5)
+		private[this] val rPIWIN6 = (pi: IEPredPI, args: List[FuncArg]) => {
+			var tmp = Nil:List[(IETerm, Set[IETerm], Set[List[(IETerm, Set[(IETerm, SemRole)])]], Set[SemRole])]
+			for (in <- pi.compt.isins; if !in.aux) {
+				val (rem, ll) = rPIWIN1(in.comp, pi.headrs)
+				if (!ll.isEmpty) tmp = (pi.head, rem, ll, pi.headrs) :: tmp
+			}
+			for ((a, rem, ll, rs) <- tmp) {
+				rPIWIN0(a, rem, ll, rs)
+			}
+		}
+		private[this] val rPIWIN7 = (x: IETerm) => {
+			if (x.roles != null) foreachMkPI(x, Nil, rPIWIN6)
+		}
+		forAnyTerm(rPIWIN7)
+		/////////////////////////////////////////////////
+		
+		// rule: (A x B) \cap (C x D) = (A \cap C) x (B \cap D)
+		private[this] val rCPIN0 = (a: IETerm, ll: Set[List[IEPredCP]]) => {
+			for (l <- oneFromEach[IEPredCP](ll)) {
+				val tmp = for (rs <- l.head.roleMap.keySet.toList) yield {
+					(l.map(_.roleMap(rs)._1).toSet, if (rs.size == 1) rs.head else null)
+				}
+				val (tl, rl) = tmp.unzip
+				val arglst = List[FuncArg](a, tl, rl)
+				val cpdo = (ins: List[IETermRef]) => {
+					claimCP(a, (ins.map(_.to) zip rl).toSet)
+				}
+				val inloop = (cpdo /: tl)((func, comp) => (ins: List[IETermRef]) => {
+					constructIN(comp, arglst, (x: IETermRef, args: List[FuncArg]) => func(x :: ins))
+				})
+				inloop(Nil)
+			}
+		}
+		private[this] val rCPIN1 = (cp: IEPredCP, args: List[FuncArg]) => {
+			var tmp = Nil:List[(IETerm, Set[List[IEPredCP]])]
+			for (in <- cp.head.mkins; if !in.aux) {
+				val prell = for (x <- (in.comp - cp.head)) yield {
+					x.iscps.filter(_.roleMap.keySet == cp.roleMap.keySet).toList
+				}
+				if (!prell.contains(Nil)) {
+					tmp = (in.head, prell + List(cp)) :: tmp
+				}
+			}
+			for ((a, ll) <- tmp) {
+				rCPIN0(a, ll)
+			}
+		}
+		private[this] val rCPIN2 = (x: IETerm) => {
+			if (x.roles != null) foreachIsCP(x, Nil, rCPIN1)
+		}
+		forAnyTerm(rCPIN2)
+		private[this] val rCPIN3 = (in: IEPredIN, args: List[FuncArg]) => {
+			var tmp = Nil:List[(IETerm, Set[List[IEPredCP]])]
+			val rsss = in.comp.head.iscps.map(_.roleMap.keySet).toSet
+			for (rss <- rsss) {
+				val ll = for (x <- in.comp) yield {
+					x.iscps.filter(_.roleMap.keySet == rss).toList
+				}
+				if (!ll.contains(Nil)) {
+					tmp = (in.head, ll) :: tmp
+				}
+			}
+			for ((a, ll) <- tmp) {
+				rCPIN0(a, ll)
+			}
+		}
+		private[this] val rCPIN4 = (x: IETerm) => {
+			if (x.roles != null) foreachIsIN(x, Nil, rCPIN3)
+		}
+		forAnyTerm(rCPIN4)
+		/////////////////////////////////////////////////
+		
+		// rule: Complement
+		private[this] val rComp1 = (djt: IEPredDisjoint, args: List[FuncArg]) => args match {
+			case FuncArg(a:IETerm) :: FuncArg(h:IETerm) :: Nil => {
+				claimSubsume(djt.another(a), h)
+			}
+			case _ => throw new Exception("rComp1 error!")
+		}
+		private[this] val rComp2 = (sub: IEPredSubsume, args: List[FuncArg]) => args match {
+			case FuncArg(h:IETerm) :: Nil => {
+				claimSubsume(sub.subset, h)
+			}
+			case _ => throw new Exception("rComp2 error!")
+		}
+		private[this] val rComp3 = (djt: IEPredDisjoint, args: List[FuncArg]) => args match {
+			case FuncArg(tot:IETerm) :: FuncArg(a:IETerm) :: FuncArg(h:IETerm) :: Nil => {
+				ifSubsume(djt.another(a), tot, List(h), rComp2)
+			}
+			case _ => throw new Exception("rComp3 error!")
+		}
+		protected[this] def applyComp(h: IETerm, a: IETerm, tot: IETerm) {
+			if (tot == null) {
+				foreachDisjoint(a, List(a, h), rComp1)
+			} else {
+				foreachDisjoint(a, List(tot, a, h), rComp3)
+			}
+		}
+		/////////////////////////////////////////////////
+		
 		// rule: DI
-		private[this] val rDI0 = (args: List[Any]) => args match {
-			case (x:IETerm) :: (h:IETerm) :: (b:IETerm) :: (r:SemRole) :: Nil => {
-				claimSubsume(x, h)
+		private[this] val rDI0 = (sub: IEPredSubsume, args: List[FuncArg]) => args match {
+			case FuncArg(tc:Set[(IETerm, SemRole)]) :: FuncArg(h:IETerm) :: Nil => {
+				constructCP(tc, List(h), (x:IETermRef, args: List[FuncArg]) => {
+					claimSubsume(x.to, h)
+				})
 			}
 			case _ => throw new Exception("rDI0 error!")
 		}
-		private[this] val rDI1 = (x: IETerm, args: List[Any]) => conclude(x :: args, rDI0)_
-		private[this] val rDI2 = (args: List[Any]) => args match {
-			case (tc:Set[(IETerm, SemRole)]) :: (remain:List[Any]) => {
-				constructCP(tc, remain, rDI1)_
-			}
-			case _ => throw new Exception("rDI2 error!")
-		}
-		private[this] val rDI3 = (comp: Set[(IETerm, SemRole)], args: List[Any]) => (dep: Set[IETerm]) => args match {
-			case (h:IETerm) :: (b:IETerm) :: (r:SemRole) :: Nil => {
-				comp.find(_._2 == r) match {
+		private[this] val rDI1 = (cp: IEPredCP, args: List[FuncArg]) => args match {
+			case FuncArg(b:IETerm) :: FuncArg(r:SemRole) :: FuncArg(h:IETerm) :: Nil => {
+				cp.comp.find(_._2 == r) match {
 					case Some(x) => {
-						ifSubsume(b, x._1, (comp - x) :: args, rDI2)(dep ++ comp.map(_._1))
+						ifSubsume(b, x._1, List(cp.comp - x, h), rDI0)
 					}
 					case None => {}
 				}
 			}
-			case _ => throw new Exception("rDI3 error!")
+			case _ => throw new Exception("rDI1 error!")
 		}
-		private[this] val rDI4 = (x: IETerm, args: List[Any]) => foreachIsCP(x, args, rDI3)_
-		private[this] val rDI5 = (hab: List[IETerm], args: List[Any]) => (dep: Set[IETerm]) => hab match {
-			case h :: a :: b :: Nil => {
-				foreachSubset(a, h :: b :: args, rDI4)(dep ++ hab)
-			}
-			case _ => throw new Exception("rDI5 error!")
+		private[this] val rDI2 = (sub: IEPredSubsume, args: List[FuncArg]) => {
+			foreachIsCP(sub.subset, args, rDI1)
 		}
-		/**
-		 * Claim `h = DI(a, b, r)`.
-		 */
-		def claimDI(h: IETerm, a: IETerm, b: IETerm, r: SemRole) {
-			assert(b.roles == null)
-			assert(a.roles.contains(r))
-			assert(h.roles == (if (a.roles.size == 2) null else a.roles - r))
-			claimSubsume(h, getPI(a, a.roles - r))
-			val hr = if (h.roles == null) (a.roles - r).head else null
-			claimSubsume(getCP(Set((h, hr), (b, r))), a)
-			forSpecific(List(h, a, b), r :: Nil, rDI5)(Set.empty[IETerm])
+		protected[this] def applyDI(h: IETerm, a: IETerm, b: IETerm, r: SemRole) {
+			foreachSubset(a, List(b, r, h), rDI2)
 		}
-		private[this] var ditmpr = Nil:List[(IETermRef, IETermRef, IETermRef, SemRole)]
-		/**
-		 * Get the term `DI(a, b, r)`.
-		 */
-		def getDI(a: IETerm, b: IETerm, r: SemRole) = {
-			ditmpr.find(x => x._2.to == a && x._3.to == b && x._4 == r) match {
-				case Some(x) => x._1.to
-				case None => {
-					val hrs = if (a.roles.size == 2) null else a.roles - r
-					val ret = newTerm(hrs)
-					claimDI(ret, a, b, r)
-					ditmpr = (ret.ref, a.ref, b.ref, r) :: ditmpr
-					ret
-				}
-			}
-		}
-		//////////////////////////////////////////////////
-		
-		// rule: Complement
-		private[this] val rComp0 = (args: List[Any]) => args match {
-			case (x:IETerm) :: (h:IETerm) :: Nil => {
-				claimSubsume(x, h)
-			}
-			case _ => throw new Exception("rComp0 error!")
-		}
-		private[this] val rComp1 = (x: IETerm, args: List[Any]) => conclude(x :: args, rComp0)_
-		private[this] val rComp2 = (ha: List[IETerm], args: List[Any]) => (dep: Set[IETerm]) => ha match {
-			case h :: a :: Nil => {
-				foreachDisjoint(a, h :: args, rComp1)(dep ++ ha)
-			}
-			case _ => throw new Exception("rComp2 error!")
-		}
-		/////////////////
-		private[this] val rComp3 = (args: List[Any]) => conclude(args, rComp0)_
-		private[this] val rComp4 = (x: IETerm, args: List[Any]) => args match {
-			case (h:IETerm) :: (tot:IETerm) :: Nil => {
-				ifSubsume(x, tot, x :: h :: Nil, rComp3)_
-			}
-			case _ => throw new Exception("rComp4 error!")
-		}
-		private[this] val rComp5 = (hat: List[IETerm], args: List[Any]) => (dep: Set[IETerm]) => hat match {
-			case h :: a :: t :: Nil => {
-				foreachDisjoint(a, h :: t :: args, rComp4)(dep ++ hat)
-			}
-			case _ => throw new Exception("rComp5 error!")
-		}
-		/////////////////
-		/**
-		 * Claim `h = tot \ a`. If `tot == null` then `h` is set to the complement of `a`.
-		 */
-		def claimComp(h: IETerm, a: IETerm, tot: IETerm = null) {
-			assert(h.roles == a.roles)
-			assert(tot == null || tot.roles == h.roles)
-			claimDisjoint(h, a)
-			if (tot == null || tot.isW) {
-				forSpecific(List(h, a), Nil, rComp2)(Set.empty[IETerm])
-			} else {
-				claimSubsume(h, tot)
-				forSpecific(List(h, a, tot), Nil, rComp5)(Set.empty[IETerm])
-			}
-		}
-		private[this] var cmtmpr = Nil:List[(IETermRef, IETermRef, IETermRef)]
-		/**
-		 * Get the term `tot \ a`. If `tot == null` then get the complement of `a`.
-		 */
-		def getComp(a: IETerm, tot: IETerm = null) = {
-			cmtmpr.find(x => x._2.to == a && ((x._3 == null && tot == null) || (x._3 != null && x._3.to == tot))) match {
-				case Some(x) => x._1.to
-				case None => {
-					val ret = newTerm(a.roles)
-					claimComp(ret, a, tot)
-					cmtmpr = (ret.ref, a.ref, (if (tot == null) null else tot.ref)) :: cmtmpr
-					ret
-				}
-			}
-		}
-		//////////////////////////////////////////////////
-		
-		// rule: DU
-		private val rDU0 = (args: List[Any]) => args match {
-			case (h:IETerm) :: (a:IETerm) :: (b:IETerm) :: (r:SemRole) :: Nil => {
-				val pia = getPI(a, a.roles - r)
-				val hr = if (h.roles == null) (a.roles - r).head else null
-				val bw = getCP(Set((b, r), (getW(h.roles), hr)))
-				val hcompl = getPI(getIN(Set(bw, a)), a.roles - r)
-				val tot = getCP(Set((pia, hr), (getW(null), r)))
-				claimDI(h, getComp(a, tot), b, r)
-				claimComp(h, hcompl, pia)
-			}
-			case _ => throw new Exception("rDU0 error")
-		}
-		private val rDU1 = (hab: List[IETerm], args: List[Any]) => conclude(hab ::: args, rDU0)_
-		/**
-		 * Claim `h = DU(a, b, r)`.
-		 */
-		def claimDU(h: IETerm, a: IETerm, b: IETerm, r: SemRole) {
-			assert(b.roles == null)
-			assert(a.roles.contains(r))
-			assert(h.roles == (if (a.roles.size == 2) null else a.roles - r))
-			forSpecific(List(h, a, b), r :: Nil, rDU1)(Set.empty[IETerm])
-		}
-		private[this] var dutmpr = Nil:List[(IETermRef, IETermRef, IETermRef, SemRole)]
-		/**
-		 * Get the term `DU(a, b, r)`.
-		 */
-		def getDU(a: IETerm, b: IETerm, r: SemRole) = {
-			dutmpr.find(x => x._2.to == a && x._3.to == b && x._4 == r) match {
-				case Some(x) => x._1.to
-				case None => {
-					val hrs = if (a.roles.size == 2) null else a.roles - r
-					val ret = newTerm(hrs)
-					claimDU(ret, a, b, r)
-					dutmpr = (ret.ref, a.ref, b.ref, r) :: dutmpr
-					ret
-				}
-			}
-		}
-		//////////////////////////////////////////////////
+		/////////////////////////////////////////////////
 		
 		// rule: DE
-		private[this] val rDE0 = (args: List[Any]) => args match {
-			case (tmp:(IETerm, SemRole)) :: (tm:IETerm) :: (h:IETerm) :: (a:IETerm) :: (b:IETerm) :: (r:SemRole) :: Nil => {
-				claimSubsume(tmp._1, h)
+		private[this] val rDE0 = (sub: IEPredSubsume, args: List[FuncArg]) => args match {
+			case FuncArg(tmpt:IETerm) :: FuncArg(h:IETerm) :: Nil => {
+				claimSubsume(tmpt, h)
 			}
 			case _ => throw new Exception("rDE0 error!")
 		}
-		private[this] val rDE1 = (args: List[Any]) => conclude(args, rDE0)_
-		private[this] val rDE2 = (xl: List[IETerm], args: List[Any]) => args match {
-			case (tmp:(IETerm, SemRole)) :: (tm:IETerm) :: (h:IETerm) :: (a:IETerm) :: (b:IETerm) :: (r:SemRole) :: Nil => {
-				assert(xl.length == 1)
-				val x = xl.head
-				ifSubsume(x, tm, args, rDE1)_
+		private[this] val rDE1 = (cp: IEPredCP, args: List[FuncArg]) => args match {
+			case FuncArg(tmpt:IETerm) :: FuncArg(cph:IETerm) :: FuncArg(a:IETerm) :: FuncArg(h:IETerm) :: Nil => {
+				constructIN(Set(cp.head, a), List(tmpt, cph, h), (x: IETermRef, args: List[FuncArg]) => {
+					ifSubsume(x.to, cph, List(tmpt, h), rDE0)
+				})
+			}
+			case _ => throw new Exception("rDE1 error!")
+		}
+		private[this] val rDE2 = (sub: IEPredSubsume, args: List[FuncArg]) => args match {
+			case FuncArg(tmpt:IETerm) :: FuncArg(tmpr:SemRole) :: FuncArg(r:SemRole) :: FuncArg(h:IETerm) :: Nil => {
+				forCPof(Set((tmpt, tmpr), (getW(null), r)), List(tmpt, sub.subset, sub.superset, h), rDE1)
+			}
+			case FuncArg(tmpt:IETerm) :: FuncArg(null) :: FuncArg(r:SemRole) :: FuncArg(h:IETerm) :: Nil => {
+				forCPof(Set((tmpt, null), (getW(null), r)), List(tmpt, sub.subset, sub.superset, h), rDE1)
 			}
 			case _ => throw new Exception("rDE2 error!")
 		}
-		private[this] val rDE3 = (x: IETerm, args: List[Any]) => {
-			forSpecific(List(x), args, rDE2)_
-		}
-		private[this] val rDE4 = (x: IETerm, args: List[Any]) => args match {
-			case (tmp:(IETerm, SemRole)) :: (tm:IETerm) :: (h:IETerm) :: (a:IETerm) :: (b:IETerm) :: (r:SemRole) :: Nil => {
-				constructIN(Set(x, a), args, rDE3)_
-			}
-			case _ => throw new Exception("rDE4 error!")
-		}
-		private[this] val rDE5 = (args: List[Any]) => args match {
-			case (tmp:(IETerm, SemRole)) :: (tm:IETerm) :: (h:IETerm) :: (a:IETerm) :: (b:IETerm) :: (r:SemRole) :: Nil => {
-				forCPof(Set(tmp, (getW(null), r)), args, rDE4)_
-			}
-			case _ => throw new Exception("rDE5 error!")
-		}
-		private[this] val rDE6 = (tm: IETerm, cp: Set[(IETerm, SemRole)], args: List[Any]) => (dep: Set[IETerm]) => args match {
-			case (h:IETerm) :: (a:IETerm) :: (b:IETerm) :: (r:SemRole) :: Nil => {
-				if (cp.size == 2 && cp.contains((b, r)) && tm.roles == a.roles) {
-					val tmp = (cp - ((b, r))).head
-					ifSubsume(tm, a, tmp :: tm :: args, rDE5)(dep + tmp._1)
+		private[this] val rDE3 = (cp: IEPredCP, args: List[FuncArg]) => args match {
+			case FuncArg(a:IETerm) :: FuncArg(b:IETerm) :: FuncArg(r:SemRole) :: FuncArg(h:IETerm) :: Nil => {
+				if (cp.comp.size == 2 && cp.comp.contains((b, r)) && cp.head.roles == a.roles) {
+					val (tmpt, tmpr) = (cp.comp - ((b, r))).head
+					ifSubsume(cp.head, a, List(tmpt, tmpr, r, h), rDE2)
 				}
 			}
-			case _ => throw new Exception("rDE6 error!")
+			case _ => throw new Exception("rDE3 error!")
 		}
-		private[this] val rDE7 = (hab: List[IETerm], args: List[Any]) => (dep: Set[IETerm]) => hab match {
-			case h :: a :: b :: Nil => {
-				foreachMkCP(b, hab ::: args, rDE6)(dep ++ hab)
-			}
-			case _ => throw new Exception("rDE7 error!")
+		protected[this] def applyDE(h: IETerm, a: IETerm, b: IETerm, r: SemRole) {
+			foreachMkCP(b, List(a, b, r, h), rDE3)
 		}
-		/**
-		 * Claim `h = DE(a, b, r)`.
-		 */
-		def claimDE(h: IETerm, a: IETerm, b: IETerm, r: SemRole) {
-			assert(b.roles == null)
-			assert(a.roles.contains(r))
-			assert(h.roles == (if (a.roles.size == 2) null else a.roles - r))
-			claimSubsume(h, getPI(a, a.roles - r))
-			val hr = if (h.roles == null) (a.roles - r).head else null
-			claimIN(getCP(Set((h, hr), (b, r))), Set(getCP(Set((h, hr), (getW(null), r))), a))
-			forSpecific(List(h, a, b), r :: Nil, rDE7)(Set.empty[IETerm])
-		}
-		private[this] var detmpr = Nil:List[(IETermRef, IETermRef, IETermRef, SemRole)]
-		/**
-		 * Get the term `DE(a, b, r)`.
-		 */
-		def getDE(a: IETerm, b: IETerm, r: SemRole) = {
-			detmpr.find(x => x._2.to == a && x._3.to == b && x._4 == r) match {
-				case Some(x) => x._1.to
-				case None => {
-					val hrs = if (a.roles.size == 2) null else a.roles - r
-					val ret = newTerm(hrs)
-					claimDE(ret, a, b, r)
-					detmpr = (ret.ref, a.ref, b.ref, r) :: detmpr
-					ret
-				}
-			}
-		}
-		//////////////////////////////////////////////////
 		
-		// rule: SL
-		private[this] var sltmpr = Nil:List[(IETermRef, Slction, IETermRef)]
-		/**
-		 * Get selection.
-		 */
-		def getSL(a: IETerm, sel: Slction) = {
-			sltmpr.find(x => x._2 == sel && x._3.to == a) match {
-				case Some(x) => x._1.to
-				case None => {
-					val ret = newTerm(a.roles)
-					claimSubsume(ret, a)
-					sel.claimSL(ret, a, this, sltmpr)
-					sltmpr = (ret.ref, sel, a.ref) :: sltmpr
-					ret
-				}
-			}
-		}
-		//////////////////////////////////////////////////
 		
 	}
 }

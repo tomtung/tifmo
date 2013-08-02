@@ -1,95 +1,60 @@
 package tifmo
 
-import knowledge.SemRole.SemRole
 import inference.Slction
 import inference.IETerm
-import inference.IETermRef
-import inference.IEBasic
-import scala.collection.mutable
+import inference.IEngine
+import inference.FuncArg
+import inference.FAConversion
+import inference.IEPredNonEmpty
+import inference.IEPredSubsume
 
 package stree {
 	
-	private[stree] class SelNumRule(ie: IEBasic) {
+	class SelNum(private val nums: Set[String]) extends Slction with FAConversion {
 		
-		private[this] val pool = mutable.Map.empty[Set[SemRole], Set[(IETermRef, IETermRef)]]
-		private[this] def addPair(pih: IETerm, pia: IETerm) {
-			if (pool.contains(pih.roles)) {
-				val redir = for ((hr, ar) <- pool(pih.roles)) yield {
-					(hr.to.ref, ar.to.ref)
+		def applySL(h: IETerm, a: IETerm, ie: IEngine) {
+				ie.claimSubsume(h, a)
+				var task = Nil:List[() => Unit]
+				for ((xh, xa) <- ie.selBy(this); if xh.knownNE && xa.hasSuper(a)) {
+					task = (() => ie.claimSubsume(h, xh)) :: task
+					task = (() => ie.claimSubsume(xh, h)) :: task
 				}
-				pool(pih.roles) = redir + ((pih.ref, pia.ref))
+				task.foreach(_())
+				ie.ifNotEmpty(h, List(this, a, ie), SelNum.rSLNum1)
+		}
+		
+		override def equals(a: Any) = {
+			if (a.isInstanceOf[SelNum]) {
+				val that = a.asInstanceOf[SelNum]
+				!(nums intersect that.nums).isEmpty
 			} else {
-				pool(pih.roles) = Set((pih.ref, pia.ref))
+				false
 			}
 		}
-		
-		private[this] val rSL0 = (args: List[Any]) => args match {
-			case (sup:IETerm) :: (pih:IETerm) :: Nil => {
-				pool(sup.roles).find(_._2.to == sup) match {
-					case Some((stmr, tmr)) => {
-						ie.claimSubsume(stmr.to, pih)
-						ie.claimSubsume(pih, stmr.to)
-					}
-					case None => {}
-				}
-			}
-			case _ => throw new Exception("rSL0 error!")
-		}
-		private[this] val rSL1 = (sup: IETerm, args: List[Any]) => ie.conclude(sup :: args, rSL0)_
-		private[this] val rSL2 = (args: List[Any]) => args match {
-			case (pia:IETerm) :: (pih:IETerm) :: Nil => {
-				ie.foreachSuperset(pia, args.tail, rSL1)_
-			}
-			case _ => throw new Exception("rSL2 error!")
-		}
-		private[this] val rSL3 = (pial: List[IETerm], args: List[Any]) => (dep: Set[IETerm]) => args match {
-			case (pih:IETerm) :: Nil => {
-				assert(pial.length == 1)
-				val pia = pial.head
-				ie.ifNotEmpty(pih, pia :: args, rSL2)(dep + pia)
-			}
-			case _ => throw new Exception("rSL3 error!")
-		}
-		private[this] val rSL4 = (pia: IETerm, args: List[Any]) => args match {
-			case (pih:IETerm) :: Nil => {
-				addPair(pih, pia)
-				ie.forSpecific(List(pia), args, rSL3)_
-			}
-			case _ => throw new Exception("rSL4 error!")
-		}
-		private[this] val rSL5 = (pih: IETerm, r: SemRole, args: List[Any]) => (dep: Set[IETerm]) => args match {
-			case (a:IETerm) :: Nil => {
-				val hrs = if (r == null) pih.roles else Set(r)
-				ie.constructPI(a, hrs, pih :: Nil, rSL4)(dep + pih)
-			}
-			case _ => throw new Exception("rSL5 error!")
-		}
-		private[this] val rSL6 = (ah: List[IETerm], args: List[Any]) => (dep: Set[IETerm]) => ah match {
-			case (a:IETerm) :: (h:IETerm) :: Nil => {
-				ie.ifNotEmpty(h, ah, rSL2)(dep + a)
-				if (h.roles != null) {
-					ie.foreachMkPI(h, a :: args, rSL5)(dep + a)
-				}
-			}
-			case _ => throw new Exception("rSL6 error!")
-		}
-		private[stree] def claim(h: IETerm, a: IETerm) {
-			addPair(h, a)
-			ie.forSpecific(List(a, h), Nil, rSL6)(Set.empty[IETerm])
-		}
+		override def hashCode = "SelNum".hashCode
+		override def toString = "SelNum[" + nums.mkString("", ",", "") + "]"
 	}
 	
-	case class SelNum(num: String) extends Slction {
+	object SelNum extends FAConversion {
 		
-		@transient private[this] var rhelper = null:SelNumRule
-		private def ruleHelper = rhelper
-		
-		def claimSL(h: IETerm, a: IETerm, ie: IEBasic, sls: List[(IETermRef, Slction, IETermRef)]) {
-			rhelper = sls.find(_._2 == this) match {
-				case Some((hr, sl, tr)) => sl.asInstanceOf[SelNum].ruleHelper
-				case None => new SelNumRule(ie)
+		val rSLNum0 = (sub: IEPredSubsume, args: List[FuncArg]) => args match {
+			case FuncArg(slct:Slction) :: FuncArg(h:IETerm) :: FuncArg(ie:IEngine) :: Nil => {
+				val fd = ie.findSL(h.roles, Set((null:IETerm, sub.superset, slct)))
+				if (fd != null) {
+					ie.claimSubsume(fd, h)
+					ie.claimSubsume(h, fd)
+				}
 			}
-			ruleHelper.claim(h, a)
+			case _ => throw new Exception("rSLNum0 error!")
 		}
+		
+		val rSLNum1 = (ne: IEPredNonEmpty, args: List[FuncArg]) => args match {
+			case FuncArg(slct:Slction) :: FuncArg(a:IETerm) :: FuncArg(ie:IEngine) :: Nil => {
+				ie.foreachSuperset(a, List(slct, ne.term, ie), rSLNum0)
+			}
+			case _ => throw new Exception("rSLNum1 error!")
+		}
+		
 	}
+	
 }

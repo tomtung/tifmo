@@ -19,6 +19,7 @@ import stree.PreNode
 import stree.STree
 import stree.Qtfier
 import stree.SelNum
+import stree.SelSup
 
 import scala.collection.mutable
 import scala.collection.JavaConversions._
@@ -44,7 +45,6 @@ package proc {
 				val sidx = sentence.get(classOf[SentenceIndexAnnotation])
 				
 				val wa = (for (token <- sentence.get(classOf[TokensAnnotation])) yield {
-					
 					val idx = token.get(classOf[IndexAnnotation]) - 1
 					val surf = token.get(classOf[TextAnnotation])
 					val pos = token.get(classOf[PartOfSpeechAnnotation])
@@ -69,11 +69,11 @@ package proc {
 				wa
 			}).toArray
 			
-			val pnll = for (spl <- spll; (sp, i) <- spl.zipWithIndex) yield {
-				val tmp = annotate(sp)
+			val pnll = for (spl <- spll; (sp, i) <- spl.zipWithIndex; tmp = annotate(someof(whref(copulahead(sp)))); if !tmp.isEmpty) yield {
 				for (x <- tmp; cid = x.word.asInstanceOf[EnWord].cid; if cid != null && x.word.sign) {
 					x.coref = cid + "&" + i
 				}
+				if (i == 0) tmp.last.updateCoref = true
 				tmp
 			}
 			
@@ -84,18 +84,31 @@ package proc {
 		
 		private[this] def split(parse: SemanticGraph, wa: Array[EnWord]) = {
 			
+			def recurX(y: IndexedWord, pool: mutable.Set[SemanticGraphEdge]) {
+				for (e <- parse.edgeIterable) {
+					if (e.getGovernor == y) {
+						if (pool.add(e)) recurX(e.getDependent, pool)
+					}
+				}
+			}
+			
 			var checklst = {
-				val edges = parse.edgeIterable.toSet
 				var root = null:IndexedWord
 				try {
 					root = parse.getFirstRoot
 				} catch {
 					case e: Exception => {}
 				}
-				if (root == null || edges.isEmpty) {
+				if (root == null) {
 					Nil
 				} else {
-					List((edges, root))
+					val tmp = mutable.Set.empty[SemanticGraphEdge]
+					recurX(root, tmp)
+					if (tmp.isEmpty) {
+						Nil
+					} else {
+						List((tmp.toSet, root))
+					}
 				}
 			}
 			var retlst = Nil:List[Set[(EnWord, String, String, EnWord)]]
@@ -112,14 +125,14 @@ package proc {
 								}
 							}
 						}
-						def descendEdgeEq(y: IndexedWord) = {
-							val ret = mutable.Set.empty[SemanticGraphEdge]
-							recur(y, ret, x.getDependent == x.getGovernor)
-							ret.toSet
-						}
 						def descendEdge(y: IndexedWord) = {
 							val ret = mutable.Set.empty[SemanticGraphEdge]
 							recur(y, ret)
+							ret.toSet
+						}
+						def descendEdgeEq(y: IndexedWord) = {
+							val ret = mutable.Set.empty[SemanticGraphEdge]
+							recur(y, ret, x.getDependent == x.getGovernor)
 							ret.toSet
 						}
 						val depsub = descendEdgeEq(x.getDependent)
@@ -148,8 +161,133 @@ package proc {
 			retlst
 		}
 		
+		private[this] def copulahead(dep: Set[(EnWord, String, String, EnWord)]) = {
+			
+			var ret = dep
+			
+			for ((p, rel, spc, c) <- dep; if rel == "cop") {
+				
+				ret = ret - ((p, rel, spc, c)) + ((c, "dobj", spc, p))
+				
+				for ((pp, rrel, sspc, cc) <- dep; if cc == p) {
+					ret = ret - ((pp, rrel, sspc, cc)) + ((pp, rrel, sspc, c))
+				}
+				for ((pp, rrel, sspc, cc) <- dep; if (rrel == "nsubj" || rrel == "csubj") && pp == p) {
+					ret = ret - ((pp, rrel, sspc, cc)) + ((c, "dobj", (if (p.mypos == "J") "cop-J" else "cop"), cc))
+				}
+			}
+			
+			ret
+		}
+		
+		private[this] def whref(dep: Set[(EnWord, String, String, EnWord)]) = {
+			
+			var ret = dep
+			
+			def findPreviousNN(x: EnWord) = {
+				val sent = x.doc.waa(x.sidx)
+				if (x.idx >= 1) {
+					if (sent(x.idx - 1).pos == "IN") {
+						if (x.idx >= 2) {
+							if (sent(x.idx - 2).pos == ",") {
+								if (x.idx >= 3) {
+									if (sent(x.idx - 3).pos.matches("NN.*") || sent(x.idx - 3).pos == "PRB") {
+										sent(x.idx - 3)
+									} else {
+										null
+									}
+								} else {
+									null
+								}
+							} else {
+								if (sent(x.idx - 2).pos.matches("NN.*") || sent(x.idx - 2).pos == "PRB") {
+									sent(x.idx - 2)
+								} else {
+									null
+								}
+							}
+						} else {
+							null
+						}
+					} else {
+						if (sent(x.idx - 1).pos == ",") {
+							if (x.idx >= 2) {
+								if (sent(x.idx - 2).pos.matches("NN.*") || sent(x.idx - 2).pos == "PRB") {
+									sent(x.idx - 2)
+								} else {
+									null
+								}
+							} else {
+								null
+							}
+						} else {
+							if (sent(x.idx - 1).pos.matches("NN.*") || sent(x.idx - 1).pos == "PRB") {
+								sent(x.idx - 1)
+							} else {
+								null
+							}
+						}
+					}
+				} else {
+					null
+				}
+			}
+			
+			val sensi = Set("nsubj", "dobj", "prep", "nsubjpass")
+			for ((p, rel, spc, c) <- dep) {
+				if (c.pos.matches("W.+") && sensi.contains(rel)) {
+					
+					val ref = findPreviousNN(c)
+					if (ref != null && dep.exists(_._4 == ref)) {
+						
+						ret = ret - ((p, rel, spc, c))
+						ret = ret.filter(_._4 != p)
+						
+						ret = ret + ((ref, "R" + rel, spc, p))
+						
+					}
+				}
+			}
+			
+			ret
+		}
+		
+		private[this] def someof(dep: Set[(EnWord, String, String, EnWord)]) = {
+			
+			var ret = dep
+			
+			for ((p, rel, spc, c) <- dep; if rel == "prep" && spc == "of") {
+				if (p.lem == "some" || p.lem == "most") {
+					ret = ret - ((p, rel, spc, c))
+					for ((pp, rrel, sspc, cc) <- dep; if cc == p) {
+						ret = ret - ((pp, rrel, sspc, cc)) + ((pp, rrel, sspc, c))
+					}
+				}
+				if (p.lem == "all") {
+					ret = ret - ((p, rel, spc, c)) + ((c, "det", spc, p))
+					for ((pp, rrel, sspc, cc) <- dep; if cc == p) {
+						ret = ret - ((pp, rrel, sspc, cc)) + ((pp, rrel, sspc, c))
+					}
+				}
+				if (p.lem == "none") {
+					ret = ret - ((p, rel, spc, c)) + ((c, "det", spc, p))
+					for ((pp, rrel, sspc, cc) <- dep; if cc == p) {
+						ret = ret - ((pp, rrel, sspc, cc)) + ((pp, rrel, sspc, c))
+					}
+				}
+				if (p.lem.matches("-?[0-9\\.]+")) {
+					ret = ret - ((p, rel, spc, c)) + ((c, "num", spc, p))
+					for ((pp, rrel, sspc, cc) <- dep; if cc == p) {
+						ret = ret - ((pp, rrel, sspc, cc)) + ((pp, rrel, sspc, c))
+					}
+				}
+			}
+			
+			ret
+		}
+		
 		private[this] def annotate(dep: Set[(EnWord, String, String, EnWord)]) = {
-
+			
 			val pnpool = mutable.Map.empty[EnWord, PreNode]
 			def getNode(x: EnWord) = {
 				if (pnpool.contains(x)) {
@@ -157,7 +295,11 @@ package proc {
 				} else {
 					val ret = new PreNode
 					ret.word = x
-					if (x.ner == "NUMBER") ret.slction = new SelNum(x.lem)
+					if (x.mypos != "D" && x.lem.matches("-?[0-9\\.]+")) {
+						ret.sel = ret.sel + (new SelNum(Set(x.lem)))
+					} else if (x.pos == "JJS") {
+						ret.sel = ret.sel + (new SelSup(x.lemmas + x.lem))
+					}
 					pnpool(x) = ret
 					ret
 				}
@@ -176,6 +318,30 @@ package proc {
 					val (np, nc) = (getNode(p), getNode(c))
 					val nci = c.idx
 					rel match {
+						case "Rnsubj" => {
+							nc.outr = SemRole.SBJ
+							np.addChild(SemRole.ARG, nc, nci)
+						}
+						case "Rprep" => {
+							if (c.mypos == "N" && p.mypos == "N") {
+								if (spc == "as") {
+									nc.outr = SemRole.ARG
+								} else {
+									nc.outr = SemRole.POSS
+								}
+							} else {
+								nc.outr = SemRole.IOBJ
+							}
+							np.addChild(SemRole.ARG, nc, nci)
+						}
+						case "Rdobj" => {
+							nc.outr = SemRole.OBJ
+							np.addChild(SemRole.ARG, nc, nci)
+						}
+						case "Rnsubjpass" => {
+							nc.outr = SemRole.OBJ
+							np.addChild(SemRole.ARG, nc, nci)
+						}
 						case "abbrev" => {
 							nc.outr = SemRole.ARG
 							np.addChild(SemRole.ARG, nc, nci)
@@ -189,8 +355,13 @@ package proc {
 							np.addChild(SemRole.THG, nc, nci)
 						}
 						case "advmod" => {
-							nc.outr = SemRole.ARG
-							np.addChild(SemRole.THG, nc, nci)
+							if (c.lem == "most" && p.pos == "JJ") {
+								val nword = new EnWord(p.doc, p.sidx, p.idx, c.surf + " " + p.surf, "JJS", p.ner, p.lem, p.cid, p.sign)
+								np.word = nword
+							} else {
+								nc.outr = SemRole.ARG
+								np.addChild(SemRole.THG, nc, nci)
+							}
 						}
 						case "agent" => {
 							nc.outr = SemRole.ARG
@@ -214,8 +385,7 @@ package proc {
 						}
 						case "csubj" => {
 							nc.outr = SemRole.THG
-							val tmp = if (p.mypos == "V") SemRole.SBJ else SemRole.ARG
-							np.addChild(tmp, nc, nci)
+							np.addChild(SemRole.SBJ, nc, nci)
 						}
 						case "csubjpass" => {
 							nc.outr = SemRole.THG
@@ -232,12 +402,19 @@ package proc {
 						case "det" => {
 							if (p.lem == "all" || p.lem == "every" || p.lem == "each") {
 								np.qtfier = Qtfier.ALL
-							} else if (p.lem == "no") {
+							} else if (p.lem == "no" || p.lem == "none") {
 								np.qtfier = Qtfier.NO
 							}
 						}
 						case "dobj" => {
-							nc.outr = SemRole.ARG
+							if (spc == "cop-J") {
+								nc.outr = SemRole.POSS
+							} else if (spc == "cop") {
+								nc.outr = SemRole.ARG
+								if (c.ner == "O") nc.qtfier = Qtfier.ALL
+							} else {
+								nc.outr = SemRole.ARG
+							}
 							np.addChild(SemRole.OBJ, nc, nci)
 						}
 						case "infmod" => {
@@ -266,8 +443,7 @@ package proc {
 						}
 						case "nsubj" => {
 							nc.outr = SemRole.ARG
-							val tmp = if (p.mypos == "V") SemRole.SBJ else SemRole.ARG
-							np.addChild(tmp, nc, nci)
+							np.addChild(SemRole.SBJ, nc, nci)
 						}
 						case "nsubjpass" => {
 							nc.outr = SemRole.ARG
@@ -278,14 +454,13 @@ package proc {
 								nc.outr = SemRole.ARG
 								np.addChild(SemRole.TIME, nc, nci)
 							} else {
-								np.qtfier = Qtfier.EXACTLY
-								np.slction = new SelNum(c.lem)
+								//np.qtfier = Qtfier.EXACTLY
+								np.sel = np.sel + (new SelNum(Set(c.lem)))
 							}
 						}
 						case "number" => {
-							if (p.mypos == "N") {
-								np.qtfier = Qtfier.EXACTLY
-								np.slction = new SelNum(c.lem)
+							if (c.lem.matches("-?[0-9\\.]+")) {
+								np.sel = np.sel + (new SelNum(Set(c.lem)))
 							} else {
 								nc.outr = SemRole.ARG
 								np.addChild(SemRole.ARG, nc, nci)
@@ -296,7 +471,7 @@ package proc {
 							np.addChild(SemRole.THG, nc, nci)
 						}
 						case "partmod" => {
-							nc.outr = if (c.surf.length >= 3 && c.surf.substring(c.surf.length - 3, c.surf.length) == "ing") SemRole.SBJ else SemRole.OBJ
+							nc.outr = if (c.pos == "VBN") SemRole.OBJ else SemRole.SBJ
 							val tmp = if (p.mypos == "V") SemRole.SBJ else SemRole.ARG
 							np.addChild(tmp, nc, nci)
 						}
@@ -319,8 +494,12 @@ package proc {
 								// we should add more to recognize
 								 // relations like before, after, since, from, to, ...
 								np.addChild(SemRole.TIME, nc, nci)
-							} else if (c.mypos == "N" && p.mypos == "N" && spc == "as") {
-								np.addChild(SemRole.ARG, nc, nci)
+							} else if (c.mypos == "N" && p.mypos == "N") {
+								if (spc == "as") {
+									np.addChild(SemRole.ARG, nc, nci)
+								} else {
+									np.addChild(SemRole.POSS, nc, nci)
+								}
 							} else {
 								np.addChild(SemRole.IOBJ, nc, nci)
 							}
@@ -379,11 +558,33 @@ package proc {
 					cs.foreach(_.qtfier = null)
 				}
 				//////////////////////////////////////////
+				// delete "contradiction"s
+				val conpool = mutable.Set.empty[PreNode]
+				val iobjs = x.sortedChildren.filter(y => y._1 == SemRole.IOBJ && y._2.qtfier == null && y._2.outr == SemRole.ARG).toSet
+				for (ss <- iobjs.subsets(2)) {
+					val a = ss.head
+					val b = (ss - a).head
+					if (a._2.word.asInstanceOf[EnWord].antonymTo(b._2.word.asInstanceOf[EnWord])) {
+						conpool.add(a._2)
+						conpool.add(b._2)
+					}
+				}
+				conpool.foreach(x.deleteChild(SemRole.IOBJ, _))
+				///////////////////////////////////////////
 				for ((r, c) <- x.sortedChildren) {
 					recur(c)
 				}
 			}
-			if (recroot != null) recur(recroot)
+			if (recroot != null) {
+				if (!recroot.word.sign && !recroot.sortedChildren.isEmpty) {
+					val lastr = recroot.sortedChildren.last._1
+					if (!recroot.sortedChildren.exists(x => x._1 == lastr && x._2.qtfier != null)) {
+						recroot.word = recroot.word.asInstanceOf[EnWord].reverse
+						recroot.rootNeg = true
+					}
+				}
+				recur(recroot)
+			}
 			lnodes
 		}
 	}

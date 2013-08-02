@@ -40,17 +40,19 @@ for (p <- (f \ "pair")) {
 	val imgr = new InferMgr(hstree)
 	imgr.addPremise(tstree)
 	
-	val ws = hstree.streeNodeList.map(_.word.asInstanceOf[EnWord]).toSet ++ 
-		tstree.streeNodeList.map(_.word.asInstanceOf[EnWord])
+	val tws = tstree.streeNodeList.map(_.word.asInstanceOf[EnWord]).toSet
+	val ws = hstree.streeNodeList.map(_.word.asInstanceOf[EnWord]).toSet ++ tws
 	
 	addknowEnglish(imgr, ws)
 	
-	val tr = imgr.trace(new EnConfiFunc, 0.1, 9)
+	val tr = imgr.trace(new EnConfiFunc(tws), 0.1, 9)
 	
 	tr.foreach(println(_))
 	
 	oos.writeObject((tstree, hstree, tr))
+	oos.reset()
 }
+ois.close()
 oos.close()
 
 sys.exit(0)

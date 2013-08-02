@@ -13,7 +13,9 @@ package stree {
 		val coref: String,
 		val outRole: SemRole,
 		val qtfier: Qtfier,
-		val slction: Slction,
+		val sel: Set[Slction],
+		val rootNeg: Boolean,
+		val updateCoref: Boolean,
 		val children: List[(SemRole, STreeNode)]
 	) extends Serializable {
 		val weight: Int = ((if (word.isStopwd) 0 else 1) /: children)(_ + _._2.weight)
@@ -48,18 +50,18 @@ package stree {
 		}).toMap
 		
 		def execute(a: Term, r: SemRole) = {
-			if (gathered(r) == null || gathered(r).halfexecPI == null) {
+			if (gathered(r) == null || gathered(r).halfItem == null) {
 				PO(a, r)
 			} else {
 				gathered(r).qtfier match {
 					case Qtfier.ALL => {
-						DI(a, gathered(r).halfexecPI, r)
+						DI(a, gathered(r).halfItem, r)
 					}
 					case Qtfier.EXACTLY => {
-						DE(a, gathered(r).halfexecPI, r)
+						DE(a, gathered(r).halfItem, r)
 					}
 					case Qtfier.NO => {
-						DU(a, gathered(r).halfexecPI, r)
+						DU(a, gathered(r).halfItem, r)
 					}
 				}
 			}
@@ -67,43 +69,39 @@ package stree {
 		
 		@transient private[this] var aprx = null:IR
 		def approx = aprx
-		def approximation(anaph: Set[PI]) {
+		def approximation(anaph: Set[IR]) {
 			val core = WORD(word)
-			val presats = (for ((r, c) <- children; if c.qtfier == null) yield ((r, c.halfexecPI))).toSet
+			val presats = (for ((r, c) <- children; if c.qtfier == null) yield ((r, c.halfItem))).toSet
 			val sats = if (outRole != null) {
-				presats ++ anaph.map((outRole, _))
-			} else if (!execorder.isEmpty) {
-				presats ++ anaph.map((execorder.last, _))
+				presats ++ anaph.map(x => (outRole, PI(x, outRole)))
 			} else {
 				presats
 			}
 			aprx = IR(core, sats)
 		}
 		
-		@transient private[this] var slct = null:Term
-		def select = slct
-		def selection() {
-			slct = if (slction == null) approx else SL(approx, slction)
-		}
-		
 		@transient private[this] var hfex = null:Term
 		def halfexec = hfex
-		@transient private[this] var hfexPI = null:PI
-		def halfexecPI = hfexPI
+		@transient private[this] var hfit = null:Item
+		def halfItem = hfit
 		@transient private[this] var addRoles = null:List[SemRole]
 		def halfExecution(roles: Set[SemRole]) {
-			if (roles != null) {
-				assert(execorder.forall(roles.contains(_)))
-				addRoles = (roles -- execorder).toList
-			}
-			val tmp = (select /: addRoles)((a, r) => {
+			assert(execorder.forall(roles.contains(_)))
+			addRoles = (roles -- execorder).toList
+			val tmp = ((approx:Term) /: addRoles)((a, r) => {
 				PO(a, r)
 			})
 			val toexec = execorder.takeWhile(_ != outRole)
 			hfex = (tmp /: toexec)((a, r) => {
 				execute(a, r)
 			})
-			if (outRole != null) hfexPI = new PI(hfex, outRole)
+			if (outRole != null) {
+				hfit = if (sel.isEmpty) {
+					PI(hfex, outRole)
+				} else {
+					SL(PI(hfex, outRole), sel)
+				}
+			}
 		}
 		
 		
@@ -122,34 +120,22 @@ package stree {
 			if (parent == null || qtfier != null) {
 				null
 			} else {
-				new PI(parent.refine, refRole)
+				PI(parent.refine, refRole)
 			}
 		}
 		
 		@transient private[this] var rfne = null:IR
 		def refine = rfne
-		def refinement(anaph: Set[PI]) = {
-			val or = if (outRole != null) {
-				outRole
-			} else if (!execorder.isEmpty) {
-				execorder.last
+		def refinement() {
+			
+			val core = WORD(word)
+			val presats = (for ((r, c) <- children; if r != outRole && c.qtfier == null) yield ((r, c.halfItem))).toSet
+			val sats = if (refPI != null) {
+				presats + ((outRole, refPI))
 			} else {
-				null
+				presats
 			}
-			if (or != null) {
-				val tmp = if (refPI == null) approx.sats else approx.sats + ((or, refPI))
-				val nsats = tmp ++ anaph.map((or, _))
-				
-				rfne = IR(approx.core, nsats)
-				
-				approximation(anaph)
-				selection()
-				halfExecution(null)
-				
-				new PI(refine, or)
-			} else {
-				null
-			}
+			rfne = IR(core, sats)
 		}
 		
 		@transient private[this] var flex = null:Term
@@ -158,7 +144,7 @@ package stree {
 		def nontrivial = ntrvl
 		@transient private[this] var atst = null:List[AtomSt]
 		def atomst = atst
-		def fullExecution() = {
+		def fullExecution() {
 			
 			val halfdash = if (parent == null || qtfier != null) {
 				halfexec
@@ -172,7 +158,7 @@ package stree {
 				execute(a, r)
 			})
 			
-			ntrvl = (parent == null || toexec.exists(r => gathered(r) != null && gathered(r).halfexecPI != null))
+			ntrvl = (parent == null || toexec.exists(r => gathered(r) != null))
 			
 			atst = fullexec match {
 				case PO(tm, r) => {
@@ -180,19 +166,19 @@ package stree {
 					def recur(x: Term) {
 						x match {
 							case PO(tm, r) => {
-								ret = NonEmpty(new PI(tm, r)) :: ret
+								ret = NonEmpty(PI(tm, r)) :: ret
 								recur(tm)
 							}
 							case DI(tm, arg, r) => {
-								ret = NonEmpty(new PI(tm, r)) :: ret
+								ret = NonEmpty(PI(tm, r)) :: ret
 								recur(tm)
 							}
 							case DU(tm, arg, r) => {
-								ret = NonEmpty(new PI(tm, r)) :: ret
+								ret = NonEmpty(PI(tm, r)) :: ret
 								recur(tm)
 							}
 							case DE(tm, arg, r) => {
-								ret = NonEmpty(new PI(tm, r)) :: ret
+								ret = NonEmpty(PI(tm, r)) :: ret
 								recur(tm)
 							}
 							case _ => {}
@@ -202,18 +188,53 @@ package stree {
 					ret
 				}
 				case DI(tm, arg, r) => {
-					Subsume(arg, new PI(tm, r)) :: Nil
+					Subsume(arg, PI(tm, r)) :: Nil
 				}
 				case DU(tm, arg, r) => {
-					Disjoint(arg, new PI(tm, r)) :: Nil
+					Disjoint(arg, PI(tm, r)) :: Nil
 				}
 				case DE(tm, arg, r) => {
-					Subsume(arg, new PI(tm, r)) :: Subsume(new PI(tm, r), arg) :: Nil
+					Subsume(arg, PI(tm, r)) :: Subsume(PI(tm, r), arg) :: Nil
 				}
 				case _ => Nil
 			}
 		}
 		
-		override def toString = (if (slction == null) "" else slction.toString) + "(" + word + (if (coref == null) "" else "@" + coref) + ")" + outRole + " <- " + (if (qtfier == null) "--" else qtfier.toString) + " -- " + refRole + "(" + (if (parent == null) "ROOT" else parent.word + (if (parent.coref == null) "" else "@" + parent.coref)) + ")"
+		def rootNegation(roles: Set[SemRole]) {
+			
+			val core = WORD(word)
+			val sats = (for ((r, c) <- children; if c.qtfier == null) yield ((r, c.halfItem))).toSet
+			aprx = IR(core, sats)
+			
+			assert(execorder.forall(roles.contains(_)))
+			addRoles = (roles -- execorder).toList
+			
+			val tmp = ((approx:Term) /: addRoles)((a, r) => {
+				PO(a, r)
+			})
+			flex = (tmp /: execorder)((a, r) => {
+				execute(a, r)
+			})
+			
+			atst = fullexec match {
+				case PO(tm, r) => {
+					var ret = Nil:List[AtomSt]
+					def recur(x: Term) {
+						x match {
+							case PO(tm, r) => {
+								ret = Disjoint(PI(tm, r), PI(tm, r)) :: ret
+								recur(tm)
+							}
+							case _ => {}
+						}
+					}
+					recur(fullexec)
+					ret
+				}
+				case _ => throw new Exception("wrong root negation")
+			}
+		}
+		
+		override def toString = sel.mkString("", ",", "") + "(" + word + (if (coref == null) "" else "@" + coref) + ")" + outRole + " <- " + (if (qtfier == null) "--" else qtfier.toString) + " -- " + refRole + "(" + (if (parent == null) "ROOT" else parent.word + (if (parent.coref == null) "" else "@" + parent.coref)) + ")"
 	}
 }

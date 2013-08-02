@@ -1,6 +1,5 @@
 package tifmo
 
-import scala.collection.mutable
 
 package mylib {
 	/**

@@ -1,31 +1,85 @@
 
 import tifmo.knowledge.SemRole
 import tifmo.knowledge.SemRole.SemRole
+import tifmo.knowledge.WordInfo
 import tifmo.inference.IETerm
 import tifmo.inference.IEBasic
 
-object ie extends IEBasic {
-	val rANY0 = (args: List[Any]) => args match {
-		case (x:IETerm) :: Nil => {
-			println("new term! " + x)
-		}
-		case _ => throw new Exception("weird.")
-	}
-	val rANY1 = (x: IETerm, args: List[Any]) => conclude(x :: args, rANY0)_
-	forAnyTerm(rANY1)
+class SimpleWord(val lex: String) extends WordInfo {
+	val sign = true
+	val isStopwd = false
 }
+
+val ie = new IEBasic
 
 ie.newConstant("aSO", Set(SemRole.SBJ, SemRole.OBJ))
 ie.newConstant("bOA", Set(SemRole.OBJ, SemRole.ARG))
 ie.newConstant("c", null)
-val aSO = ie.getConstant("aSO").to
-val bOA = ie.getConstant("bOA").to
-val c = ie.getConstant("c").to
+ie.newConstant("d", null)
+ie.newConstant("e", null)
+
+val aSO = ie.getConstant(new SimpleWord("aSO"))
+val bOA = ie.getConstant(new SimpleWord("bOA"))
+val c = ie.getConstant(new SimpleWord("c"))
+val d = ie.getConstant(new SimpleWord("d"))
+val e = ie.getConstant(new SimpleWord("e"))
 println("aSO: " + aSO)
 println("bOA: " + bOA)
 println("c: " + c)
+println("d: " + d)
+println("e: " + e)
 println("")
 
+ie.claimSubsume(c, d)
+ie.claimSubsume(d, e)
+println(c.superSets)
+
+val aSOdA = ie.getCP(Set((aSO, null), (d, SemRole.ARG)))
+val wSOeA = ie.getCP(Set((ie.getW(aSO.roles), null), (e, SemRole.ARG)))
+println("aSOdA: " + aSOdA)
+println("wSOeA: " + wSOeA)
+
+println("aSOdA.superSets: " + aSOdA.superSets)
+ie.explore()
+println("aSOdA.superSets: " + aSOdA.superSets)
+
+val wSbOA = ie.getCP(Set((ie.getW(null), SemRole.SBJ), (bOA, null)))
+val aSOdA_wSbOA = ie.getIN(Set(aSOdA, wSbOA))
+val wSOeA_wSbOA = ie.getIN(Set(wSOeA, wSbOA))
+
+println("wSbOA: " + wSbOA)
+println("aSOdA_wSbOA: " + aSOdA_wSbOA)
+println("wSOeA_wSbOA: " + wSOeA_wSbOA)
+
+println("aSOdA_wSbOA.superSets: " + aSOdA_wSbOA.superSets)
+ie.explore()
+println("aSOdA_wSbOA.superSets: " + aSOdA_wSbOA.superSets)
+
+val O_aSOdA_wSbOA = ie.getPI(aSOdA_wSbOA, Set(SemRole.OBJ))
+val O_wSOeA_wSbOA = ie.getPI(wSOeA_wSbOA, Set(SemRole.OBJ))
+
+println("O_aSOdA_wSbOA: " + O_aSOdA_wSbOA)
+println("O_wSOeA_wSbOA: " + O_wSOeA_wSbOA)
+
+println("O_aSOdA_wSbOA.superSets: " + O_aSOdA_wSbOA.superSets)
+ie.explore()
+println("O_aSOdA_wSbOA.superSets: " + O_aSOdA_wSbOA.ref.to.superSets)
+
+val S_aSOdA_wSbOA = ie.getPI(aSOdA_wSbOA, Set(SemRole.SBJ))
+val S_wSOeA_wSbOA = ie.getPI(wSOeA_wSbOA, Set(SemRole.SBJ))
+
+println("S_aSOdA_wSbOA: " + S_aSOdA_wSbOA)
+println("S_wSOeA_wSbOA: " + S_wSOeA_wSbOA)
+
+println("S_aSOdA_wSbOA.superSets: " + S_aSOdA_wSbOA.superSets)
+ie.explore()
+println("S_aSOdA_wSbOA.superSets: " + S_aSOdA_wSbOA.ref.to.superSets)
+
+
+
+
+
+/*
 val aSOcA = ie.getCP(Set((aSO, null), (c, SemRole.ARG)))
 val wSbOA = ie.getCP(Set((ie.getW(null), SemRole.SBJ), (bOA, null)))
 val aSOcA_wSbOA = ie.getIN(Set(aSOcA, wSbOA))
@@ -40,13 +94,13 @@ val aSOcAwT = ie.getCP(Set((aSOcA, null), (ie.getW(null), SemRole.THG)))
 val cAwT = ie.getCP(Set((c, SemRole.ARG), (ie.getW(null), SemRole.THG)))
 println("aSOcAwT: " + aSOcAwT)
 println("cAwT: " + cAwT)
-println(aSOcAwT.asCP.mkString("\naSOcAwT.asCP:\n", "\n", "\n"))
+//println(aSOcAwT.iscps.mkString("\naSOcAwT.asCP:\n", "\n", "\n"))
 
 val SO_aSOcA_wSbOA = ie.getPI(aSOcA_wSbOA, Set(SemRole.SBJ, SemRole.OBJ))
 val S_aSOcA_wSbOA = ie.getPI(aSOcA_wSbOA, Set(SemRole.SBJ))
 println("SO_aSOcA_wSbOA: " + SO_aSOcA_wSbOA)
 println("S_aSOcA_wSbOA: " + S_aSOcA_wSbOA)
-println(S_aSOcA_wSbOA.asPI.mkString("\nS_aSOcA_wSbOA.asPI:\n", "\n", "\n"))
+//println(S_aSOcA_wSbOA.ispis.mkString("\nS_aSOcA_wSbOA.asPI:\n", "\n", "\n"))
 
 val A_bOA = ie.getPI(bOA, Set(SemRole.ARG))
 println("A_bOA: " + A_bOA)
@@ -184,3 +238,4 @@ ie.claimSubsume(S_aSO, c)
 ie.explore()
 
 println("SO_aSOcA_wSbOA.asIN: " + SO_aSOcA_wSbOA.ref.to.asIN)
+*/

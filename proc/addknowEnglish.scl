@@ -56,12 +56,14 @@ package proc {
 				}
 			}
 			
+			/*
 			for (ss <- aws.subsets(2)) {
 				val a = ss.head
 				val b = (ss - a).head
 				a.morphosem(b).foreach(imgr.addSchema(_))
 				b.morphosem(a).foreach(imgr.addSchema(_))
 			}
+			*/
 		}
 	}
 }

@@ -1,0 +1,52 @@
+package tifmo
+
+import java.io.InputStreamReader
+import java.io.BufferedReader
+import java.io.OutputStreamWriter
+import java.io.BufferedWriter
+
+package proc {
+	
+	object linearClassifier {
+
+		private[this] val psvm = (new ProcessBuilder("./extern/svm")).start()
+		private[this] val svmIN = new BufferedReader(new InputStreamReader(psvm.getInputStream, "UTF-8"))
+		private[this] val svmOUT = new BufferedWriter(new OutputStreamWriter(psvm.getOutputStream, "UTF-8"))
+		
+		def train(c: Double, nonneg: Boolean, samples: Seq[Array[Double]]) = {
+			
+			svmOUT.write(c.toString)
+			svmOUT.newLine()
+			svmOUT.write((samples.head.length - 1).toString)
+			svmOUT.newLine()
+			svmOUT.write(if (nonneg) "1" else "0")
+			svmOUT.newLine()
+			for (samp <- samples) {
+				val str = samp.mkString("", " ", "")
+				svmOUT.write(str)
+				svmOUT.newLine()
+			}
+			svmOUT.write("0")
+			svmOUT.newLine()
+			svmOUT.flush()
+			
+			val model = new Array[Double](samples.head.length)
+			for (i <- 0 until model.length) {
+				model(i) = svmIN.readLine().toDouble
+			}
+			
+			model
+		}
+		
+		def predict(model: Array[Double], test: Seq[Array[Double]]) = {
+			var correct = 0
+			val scores = for (tmp <- test) yield {
+				val scr = (model(0) /: (1 until tmp.length))((x, i) => x + model(i) * tmp(i))
+				if ((scr > 0.0) == (tmp(0) > 0.0)) correct += 1
+				scr
+			}
+			(correct.toDouble / test.length, correct, scores)
+		}
+	}
+	
+}

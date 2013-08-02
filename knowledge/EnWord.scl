@@ -2,7 +2,9 @@ package tifmo
 
 import knowledge.SemRole.SemRole
 import resource.EnStopWords
+import resource.EnDownward
 import resource.EnWordNet
+import resource.EnWordNet.SemEntry
 import resource.EnWordNet.WordNetPointer._
 import resource.EnPolarity
 import stree.STree
@@ -46,18 +48,13 @@ package knowledge {
 		
 		val lex = lem + "/" + mypos
 		
-		private[this] def getYear(x: String) = {
-			if (x.charAt(0) == '-') x.substring(0, 5) else x.substring(0, 4)
-		}
-		private[this] def compYear(x: String, y: String) = {
+		private[this] def compDate(x: String, y: String) = {
 			x.length == y.length && (0 until x.length).forall(i => y.charAt(i) == 'X' || x.charAt(i) == y.charAt(i))
 		}
-		val isStopwd = if (ner == "DATE" || ner == "TIME") {
-			if (lem.matches("-?[0-9X][0-9X][0-9X][0-9X].*")) {
-				getYear(lem) == "XXXX"
-			} else {
-				EnStopWords.isStopWord(surf.toLowerCase)
-			}
+		val isStopwd = if (pos == "JJS") {
+			true
+		} else if (ner != "O") {
+			false
 		} else {
 			EnStopWords.isStopWord(lem)
 		}
@@ -72,12 +69,12 @@ package knowledge {
 			}
 		}
 		
-		@transient lazy val syns = {
+		@transient lazy val syns = if (ner != "O" || EnStopWords.isStopWord(lem)) Set.empty[SemEntry] else {
 			val tmp = EnWordNet.synsets(lem, mypos)
 			if (mypos == "R") tmp ++ EnWordNet.lexical(tmp, DERIVED_FROM_ADJ) else tmp
 		}
 		
-		@transient lazy val lemmas = EnWordNet.getLemmas(syns)
+		@transient lazy val lemmas = EnWordNet.getLemmas(syns) + lem.toLowerCase
 		
 		@transient lazy val ants = EnWordNet.lexical(syns, ANTONYM)
 		
@@ -123,16 +120,12 @@ package knowledge {
 		
 		def synonymTo(that: EnWord, roughly: Boolean = false) = {
 			if (mypos == "D") {
-				that.mypos == "D" && (roughly || sign == that.sign) && (lem == that.lem || {
-					lem.matches("-?[0-9X][0-9X][0-9X][0-9X].*") && 
-					that.lem.matches("-?[0-9X][0-9X][0-9X][0-9X].*") && 
-					getYear(lem) == getYear(that.lem)
-				})
+				that.mypos == "D" && (roughly || sign == that.sign) && lem == that.lem
 			} else {
 				if (roughly) {
-					lex == that.lex || longestCommSeq.rate(lem, that.lem) > 0.9 || !(syns intersect that.syns).isEmpty || !(syns intersect that.ants).isEmpty || !(ants intersect that.syns).isEmpty
+					lex == that.lex || longestCommSeq.rate(lem.toLowerCase, that.lem.toLowerCase) > 0.9 || !(syns intersect that.syns).isEmpty || !(syns intersect that.ants).isEmpty || !(ants intersect that.syns).isEmpty || !(deriv_rels intersect that.syns).isEmpty || !(that.deriv_rels intersect syns).isEmpty
 				} else if (sign == that.sign) {
-					lex == that.lex || (mypos == that.mypos && longestCommSeq.rate(lem, that.lem) > 0.9) || !(syns intersect that.syns).isEmpty
+					lex == that.lex || (mypos == that.mypos && longestCommSeq.rate(lem.toLowerCase, that.lem.toLowerCase) > 0.9) || !(syns intersect that.syns).isEmpty
 				} else {
 					!(syns intersect that.ants).isEmpty || !(ants intersect that.syns).isEmpty
 				}
@@ -141,11 +134,10 @@ package knowledge {
 		
 		def hyponymOf(that: EnWord) = sign == that.sign && {
 			if (mypos == "D") {
-				that.mypos == "D" && lem.matches("-?[0-9X][0-9X][0-9X][0-9X].*") && 
-					that.lem.matches("-?[0-9X][0-9X][0-9X][0-9X].*") && {
-						if (sign) compYear(getYear(lem), getYear(that.lem)) else compYear(getYear(that.lem), getYear(lem))
+				that.mypos == "D" && {
+						if (sign) compDate(lem, that.lem) else compDate(that.lem, lem)
 					}
-			} else {
+			} else mypos == "N" && that.mypos == "N" && {
 				if (sign) {
 					/*
 					!(hypers intersect that.hypos).isEmpty || 
@@ -176,70 +168,178 @@ package knowledge {
 			}
 		}
 		
-		private[this] def samePolarity(x: EnWord, y: EnWord) = {
-			if (x.sign == y.sign) {
-				x.lemmas.exists(a => y.lemmas.exists(b => EnPolarity.samePole(a, b)))
+		def samePolarity(y: EnWord) = {
+			if (sign == y.sign) {
+				//lemmas.exists(a => y.lemmas.exists(b => EnPolarity.samePole(a, b)))
+				!(syns intersect y.syns).isEmpty || !(deriv_rels intersect y.syns).isEmpty || !(y.deriv_rels intersect syns).isEmpty || EnPolarity.samePole(lem, y.lem)
 			} else {
-				x.lemmas.exists(a => y.lemmas.exists(b => EnPolarity.diffPole(a, b)))
+				//lemmas.exists(a => y.lemmas.exists(b => EnPolarity.diffPole(a, b)))
+				 !(syns intersect y.ants).isEmpty || !(ants intersect y.syns).isEmpty || EnPolarity.diffPole(lem, y.lem)
 			}
 		}
+		
+		def hasPolarity = {
+			//lemmas.exists(a => EnPolarity.positiv.contains(a) || EnPolarity.negativ.contains(a))
+			EnPolarity.positiv.contains(lem) || EnPolarity.negativ.contains(lem)
+		}
+		
+		def isNegWord = {
+			if (mypos == "V") EnDownward.isNegWord(lem, "V") else lemmas.exists(EnDownward.isNegWord(_, mypos))
+		}
+		
 		def morphosem(that: EnWord) = {
 			
 			var ret = Nil:List[Schema]
-			
+			/*
 			def attrSchemas(adj: EnWord, noun: EnWord) = {
-				def mkSch1(r1: SemRole, r2: SemRole, xpos: String, r3: SemRole, r4: SemRole) {
+				def func1(r1: SemRole, r2: SemRole) {
 					val ynode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.synonymTo(adj) || samePolarity(xword, adj)
-						}, Set.empty[(SemRole, MNode)])
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(adj) || xword.samePolarity(adj)
+					}, Set.empty[(SemRole, MNode)])
 					val nnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.synonymTo(noun) && x.intoR == r1
-						}, Set((r2, ynode)))
-					val jnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.synonymTo(adj) && x.intoR == SemRole.ARG
-						}, Set.empty[(SemRole, MNode)])
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(noun) && x.intoR == r1
+					}, Set((r2, ynode)))
 					val xnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.mypos == xpos && x.intoR == r3 && nnode.currentMatch.veryRoughMatch(x)
-						}, Set((r4, jnode)))
-					ret = new Schema(nnode, xnode, Set((nnode, r1, xnode, r3))) :: ret
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "N" && x.intoR == SemRole.ARG
+					}, Set((SemRole.ARG, nnode)))
+					//////////
+					val jnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(adj) && x.intoR == SemRole.ARG
+					}, Set.empty[(SemRole, MNode)])
+					val xxnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "N" && x.intoR == SemRole.ARG && 
+							xnode.currentMatch.term.word.isInstanceOf[EnWord] && {
+							val tmp = xnode.currentMatch.term.word.asInstanceOf[EnWord]
+							xword.synonymTo(tmp) || tmp.hyponymOf(xword)
+						}
+					}, Set((SemRole.POSS, jnode)))
+					///////////
+					ret = new Schema(xnode, xxnode, Set.empty) :: ret
 				}
-				def mkSch2(r1: SemRole, r2: SemRole, xpos: String, r3: SemRole, r4: SemRole) {
+				def func2(r1: SemRole, r2: SemRole) {
 					val jnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.synonymTo(adj) && x.intoR == SemRole.ARG
-						}, Set.empty[(SemRole, MNode)])
-					val xnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.mypos == xpos && x.intoR == r3
-						}, Set((r4, jnode)))
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(adj) && x.intoR == SemRole.ARG
+					}, Set.empty[(SemRole, MNode)])
+					val xxnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "N" && x.intoR == SemRole.ARG
+					}, Set((SemRole.POSS, jnode)))
+					///////////
 					val ynode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.synonymTo(adj) || samePolarity(xword, adj)
-						}, Set.empty[(SemRole, MNode)])
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(adj) || xword.samePolarity(adj)
+					}, Set.empty[(SemRole, MNode)])
 					val nnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.synonymTo(noun) && x.intoR == r1 && x.veryRoughMatch(xnode.currentMatch)
-						}, Set((r2, ynode)))
-					ret = new Schema(xnode, nnode, Set((xnode, r3, nnode, r1))) :: ret
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(noun) && x.intoR == r1
+					}, Set((r2, ynode)))
+					val xnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "N" && x.intoR == SemRole.ARG && 
+							xxnode.currentMatch.term.word.isInstanceOf[EnWord] && {
+							val tmp = xxnode.currentMatch.term.word.asInstanceOf[EnWord]
+							xword.synonymTo(tmp) || tmp.hyponymOf(xword)
+						}
+					}, Set((SemRole.ARG, nnode)))
+					//////////
+					ret = new Schema(xxnode, xnode, Set.empty) :: ret
 				}
-				mkSch1(SemRole.IOBJ, SemRole.POSS, "N", SemRole.ARG, SemRole.POSS)
-				mkSch2(SemRole.IOBJ, SemRole.POSS, "N", SemRole.ARG, SemRole.POSS)
-				mkSch1(SemRole.ARG, SemRole.POSS, "N", SemRole.ARG, SemRole.POSS)
-				mkSch2(SemRole.ARG, SemRole.POSS, "N", SemRole.ARG, SemRole.POSS)
-				mkSch1(SemRole.IOBJ, SemRole.ARG, "N", SemRole.ARG, SemRole.POSS)
-				mkSch2(SemRole.IOBJ, SemRole.ARG, "N", SemRole.ARG, SemRole.POSS)
-				mkSch1(SemRole.IOBJ, SemRole.POSS, "V", SemRole.OBJ, SemRole.THG)
-				mkSch2(SemRole.IOBJ, SemRole.POSS, "V", SemRole.OBJ, SemRole.THG)
-				mkSch1(SemRole.ARG, SemRole.POSS, "V", SemRole.OBJ, SemRole.THG)
-				mkSch2(SemRole.ARG, SemRole.POSS, "V", SemRole.OBJ, SemRole.THG)
-				mkSch1(SemRole.IOBJ, SemRole.ARG, "V", SemRole.OBJ, SemRole.THG)
-				mkSch2(SemRole.IOBJ, SemRole.ARG, "V", SemRole.OBJ, SemRole.THG)
+				def func3(r1: SemRole, r2: SemRole, r3: SemRole) {
+					val ynode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(adj) || xword.samePolarity(adj)
+					}, Set.empty[(SemRole, MNode)])
+					val nnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(noun) && x.intoR == r1
+					}, Set((r2, ynode)))
+					val xnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "N" && x.intoR == SemRole.ARG
+					}, Set((SemRole.ARG, nnode)))
+					//////////
+					val rnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(adj) && x.intoR == SemRole.ARG
+					}, Set.empty[(SemRole, MNode)])
+					val znode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "V" && x.intoR == r3
+					}, Set((SemRole.THG, rnode)))
+					val xxnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "N" && x.intoR == SemRole.ARG && 
+							xnode.currentMatch.term.word.isInstanceOf[EnWord] && {
+							val tmp = xnode.currentMatch.term.word.asInstanceOf[EnWord]
+							xword.synonymTo(tmp) || tmp.hyponymOf(xword)
+						}
+					}, Set((SemRole.ARG, znode)))
+					///////////
+					ret = new Schema(xnode, xxnode, Set.empty) :: ret
+				}
+				def func4(r1: SemRole, r2: SemRole, r3: SemRole) {
+					val rnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(adj) && x.intoR == SemRole.ARG
+					}, Set.empty[(SemRole, MNode)])
+					val znode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "V" && x.intoR == r3
+					}, Set((SemRole.THG, rnode)))
+					val xxnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "N" && x.intoR == SemRole.ARG
+					}, Set((SemRole.ARG, znode)))
+					///////////
+					val ynode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(adj) || xword.samePolarity(adj)
+					}, Set.empty[(SemRole, MNode)])
+					val nnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(noun) && x.intoR == r1
+					}, Set((r2, ynode)))
+					val xnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "N" && x.intoR == SemRole.ARG && 
+							xxnode.currentMatch.term.word.isInstanceOf[EnWord] && {
+							val tmp = xxnode.currentMatch.term.word.asInstanceOf[EnWord]
+							xword.synonymTo(tmp) || tmp.hyponymOf(xword)
+						}
+					}, Set((SemRole.ARG, nnode)))
+					//////////
+					ret = new Schema(xxnode, xnode, Set.empty) :: ret
+				}
+				
+				func1(SemRole.POSS, SemRole.POSS)
+				func2(SemRole.POSS, SemRole.POSS)
+				func1(SemRole.POSS, SemRole.ARG)
+				func2(SemRole.POSS, SemRole.ARG)
+				func1(SemRole.ARG, SemRole.POSS)
+				func2(SemRole.ARG, SemRole.POSS)
+				
+				func3(SemRole.POSS, SemRole.POSS, SemRole.SBJ)
+				func4(SemRole.POSS, SemRole.POSS, SemRole.SBJ)
+				func3(SemRole.POSS, SemRole.ARG, SemRole.SBJ)
+				func4(SemRole.POSS, SemRole.ARG, SemRole.SBJ)
+				func3(SemRole.ARG, SemRole.POSS, SemRole.SBJ)
+				func4(SemRole.ARG, SemRole.POSS, SemRole.SBJ)
+				
+				func3(SemRole.POSS, SemRole.POSS, SemRole.OBJ)
+				func4(SemRole.POSS, SemRole.POSS, SemRole.OBJ)
+				func3(SemRole.POSS, SemRole.ARG, SemRole.OBJ)
+				func4(SemRole.POSS, SemRole.ARG, SemRole.OBJ)
+				func3(SemRole.ARG, SemRole.POSS, SemRole.OBJ)
+				func4(SemRole.ARG, SemRole.POSS, SemRole.OBJ)
+				
 			}
-			
+			*/
 			def vnrelSchemas(verb: EnWord, noun: EnWord) = {
 				def func1() {
 					val vnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
@@ -254,7 +354,7 @@ package knowledge {
 							val xword = x.term.word.asInstanceOf[EnWord]
 							xword.mypos == "V" && x.intoR == SemRole.SBJ
 						}, Set((SemRole.OBJ, nnode)))
-					ret = new Schema(vnode, xnode, Set((vnode, SemRole.SBJ, xnode, SemRole.SBJ), (vnode, SemRole.THG, nnode, SemRole.POSS))) :: ret
+					ret = new Schema(vnode, xnode, Set((vnode, SemRole.THG, nnode, SemRole.POSS))) :: ret
 				}
 				def func2() {
 					val vnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
@@ -269,130 +369,288 @@ package knowledge {
 							val xword = x.term.word.asInstanceOf[EnWord]
 							xword.mypos == "V" && x.intoR == SemRole.SBJ
 						}, Set((SemRole.OBJ, nnode)))
-					ret = new Schema(xnode, vnode, Set((xnode, SemRole.SBJ, vnode, SemRole.SBJ), (nnode, SemRole.POSS, vnode, SemRole.THG))) :: ret
+					ret = new Schema(xnode, vnode, Set((nnode, SemRole.POSS, vnode, SemRole.THG))) :: ret
 				}
 				def func3() {
+					val xnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+							val xword = x.term.word.asInstanceOf[EnWord]
+							xword.mypos == "N" && x.intoR == SemRole.ARG
+						}, Set.empty[(SemRole, MNode)])
 					val vnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
 							val xword = x.term.word.asInstanceOf[EnWord]
 							x.intoR == SemRole.SBJ && xword.synonymTo(verb)
+						}, Set((SemRole.OBJ, xnode)))
+					val xxnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+							val xword = x.term.word.asInstanceOf[EnWord]
+							xword.mypos == "N" && x.intoR == SemRole.ARG && 
+								xnode.currentMatch.term.word.isInstanceOf[EnWord] && {
+								val tmp = xnode.currentMatch.term.word.asInstanceOf[EnWord]
+								xword.synonymTo(tmp) || tmp.hyponymOf(xword)
+							}
 						}, Set.empty[(SemRole, MNode)])
 					val nnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
 							val xword = x.term.word.asInstanceOf[EnWord]
 							x.intoR == SemRole.ARG && xword.synonymTo(noun)
-						}, Set.empty[(SemRole, MNode)])
-					ret = new Schema(vnode, nnode, Set((vnode, SemRole.SBJ, nnode, SemRole.ARG), (vnode, SemRole.THG, nnode, SemRole.POSS), (vnode, SemRole.OBJ, nnode, SemRole.IOBJ))) :: ret
+						}, Set((SemRole.POSS, xxnode)))
+					ret = new Schema(vnode, nnode, Set((vnode, SemRole.THG, nnode, SemRole.POSS))) :: ret
 				}
 				def func4() {
-					val vnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+					val xxnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
 							val xword = x.term.word.asInstanceOf[EnWord]
-							x.intoR == SemRole.SBJ && xword.synonymTo(verb)
+							xword.mypos == "N" && x.intoR == SemRole.ARG
 						}, Set.empty[(SemRole, MNode)])
 					val nnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
 							val xword = x.term.word.asInstanceOf[EnWord]
 							x.intoR == SemRole.ARG && xword.synonymTo(noun)
+						}, Set((SemRole.POSS, xxnode)))
+					val xnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+							val xword = x.term.word.asInstanceOf[EnWord]
+							xword.mypos == "N" && x.intoR == SemRole.ARG && 
+								xxnode.currentMatch.term.word.isInstanceOf[EnWord] && {
+								val tmp = xxnode.currentMatch.term.word.asInstanceOf[EnWord]
+								xword.synonymTo(tmp) || tmp.hyponymOf(xword)
+							}
 						}, Set.empty[(SemRole, MNode)])
-					ret = new Schema(nnode, vnode, Set((nnode, SemRole.ARG, vnode, SemRole.SBJ), (nnode, SemRole.POSS, vnode, SemRole.THG), (nnode, SemRole.IOBJ, vnode, SemRole.OBJ))) :: ret
+					val vnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+							val xword = x.term.word.asInstanceOf[EnWord]
+							x.intoR == SemRole.SBJ && xword.synonymTo(verb)
+						}, Set((SemRole.OBJ, xnode)))
+					ret = new Schema(nnode, vnode, Set((nnode, SemRole.POSS, vnode, SemRole.THG))) :: ret
 				}
+				
+				def func5() {
+					val vnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+							val xword = x.term.word.asInstanceOf[EnWord]
+							x.intoR == SemRole.OBJ && xword.synonymTo(verb)
+						}, Set.empty)
+					val xnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+							val xword = x.term.word.asInstanceOf[EnWord]
+							xword.mypos == "N" && x.intoR == SemRole.ARG
+						}, Set((SemRole.ARG, vnode)))
+					
+					val nnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+							val xword = x.term.word.asInstanceOf[EnWord]
+							x.intoR == SemRole.POSS && xword.synonymTo(noun)
+						}, Set.empty)
+					val xxnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+							val xword = x.term.word.asInstanceOf[EnWord]
+							xword.mypos == "N" && x.intoR == SemRole.ARG && 
+								xnode.currentMatch.term.word.isInstanceOf[EnWord] && {
+								val tmp = xnode.currentMatch.term.word.asInstanceOf[EnWord]
+								xword.synonymTo(tmp) || tmp.hyponymOf(xword)
+							}
+						}, Set((SemRole.ARG, nnode)))
+					ret = new Schema(xnode, xxnode, Set((vnode, SemRole.THG, nnode, SemRole.POSS), (vnode, SemRole.SBJ, nnode, SemRole.ARG))) :: ret
+				}
+				
+				def func6() {
+					val nnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+							val xword = x.term.word.asInstanceOf[EnWord]
+							x.intoR == SemRole.POSS && xword.synonymTo(noun)
+						}, Set.empty)
+					
+					val xxnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+							val xword = x.term.word.asInstanceOf[EnWord]
+							xword.mypos == "N" && x.intoR == SemRole.ARG
+						}, Set((SemRole.ARG, nnode)))
+					val vnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+							val xword = x.term.word.asInstanceOf[EnWord]
+							x.intoR == SemRole.OBJ && xword.synonymTo(verb)
+						}, Set.empty)
+					val xnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+							val xword = x.term.word.asInstanceOf[EnWord]
+							xword.mypos == "N" && x.intoR == SemRole.ARG && 
+								xxnode.currentMatch.term.word.isInstanceOf[EnWord] && {
+								val tmp = xxnode.currentMatch.term.word.asInstanceOf[EnWord]
+								xword.synonymTo(tmp) || tmp.hyponymOf(xword)
+							}
+						}, Set((SemRole.ARG, vnode)))
+					ret = new Schema(xxnode, xnode, Set((nnode, SemRole.POSS, vnode, SemRole.THG), (nnode, SemRole.ARG, vnode, SemRole.SBJ))) :: ret
+				}
+				
 				func1()
 				func2()
-				func3()
-				func4()
+				//func3()
+				//func4()
+				func5()
+				func6()
 			}
 			
 			def pertSchemas(adj: EnWord, noun: EnWord) = {
-				def mkSch1(r2: SemRole, xpos: String, r3: SemRole, r4: SemRole) {
+				
+				def func1() {
 					val jnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.synonymTo(adj) && x.intoR == SemRole.ARG
-						}, Set.empty[(SemRole, MNode)])
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(adj) && x.intoR == SemRole.ARG
+					}, Set.empty[(SemRole, MNode)])
 					val ynode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.mypos == "N" && x.intoR == SemRole.ARG
-						}, Set((r2, jnode)))
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "N" && x.intoR == SemRole.ARG
+					}, Set((SemRole.POSS, jnode)))
+					/////////////
 					val nnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.synonymTo(noun) && x.intoR == SemRole.ARG
-						}, Set.empty[(SemRole, MNode)])
-					val xnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.mypos == xpos && x.intoR == r3 && x.veryRoughMatch(ynode.currentMatch)
-						}, Set((r4, nnode)))
-					ret = new Schema(ynode, xnode, Set((ynode, SemRole.ARG, xnode, r3))) :: ret
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(noun) && x.intoR == SemRole.ARG
+					}, Set.empty[(SemRole, MNode)])
+					/////////////
+					ret = new Schema(ynode, nnode, Set.empty) :: ret
+					ret = new Schema(nnode, ynode, Set.empty) :: ret
 				}
-				def mkSch2(r2: SemRole, xpos: String, r3: SemRole, r4: SemRole) {
-					val nnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.synonymTo(noun) && x.intoR == SemRole.ARG
-						}, Set.empty[(SemRole, MNode)])
-					val xnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.mypos == xpos && x.intoR == r3
-						}, Set((r4, nnode)))
+				def func2(xpos: String, r1: SemRole) {
 					val jnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.synonymTo(adj) && x.intoR == SemRole.ARG
-						}, Set.empty[(SemRole, MNode)])
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(adj) && x.intoR == SemRole.ARG
+					}, Set.empty[(SemRole, MNode)])
 					val ynode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.mypos == "N" && x.intoR == SemRole.ARG && xnode.currentMatch.veryRoughMatch(x)
-						}, Set((r2, jnode)))
-					ret = new Schema(xnode, ynode, Set((xnode, r3, ynode, SemRole.ARG))) :: ret
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "N" && x.intoR == SemRole.ARG
+					}, Set((SemRole.POSS, jnode)))
+					/////////////
+					val nnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(noun) && x.intoR == SemRole.ARG
+					}, Set.empty[(SemRole, MNode)])
+					val xnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == xpos && x.intoR == r1
+					}, Set((SemRole.POSS, nnode)))
+					/////////////
+					ret = new Schema(ynode, xnode, Set.empty) :: ret
+					ret = new Schema(xnode, ynode, Set.empty) :: ret
 				}
-				mkSch1(SemRole.POSS, "N", SemRole.POSS, SemRole.IOBJ)
-				mkSch2(SemRole.POSS, "N", SemRole.POSS, SemRole.IOBJ)
-				mkSch1(SemRole.POSS, "N", SemRole.ARG, SemRole.IOBJ)
-				mkSch2(SemRole.POSS, "N", SemRole.ARG, SemRole.IOBJ)
-				mkSch1(SemRole.POSS, "J", SemRole.ARG, SemRole.IOBJ)
-				mkSch2(SemRole.POSS, "J", SemRole.ARG, SemRole.IOBJ)
-				mkSch1(SemRole.POSS, "V", SemRole.SBJ, SemRole.IOBJ)
-				mkSch2(SemRole.POSS, "V", SemRole.SBJ, SemRole.IOBJ)
-				mkSch1(SemRole.POSS, "V", SemRole.OBJ, SemRole.IOBJ)
-				mkSch2(SemRole.POSS, "V", SemRole.OBJ, SemRole.IOBJ)
-				mkSch1(SemRole.ARG, "V", SemRole.SBJ, SemRole.OBJ)
-				mkSch2(SemRole.ARG, "V", SemRole.SBJ, SemRole.OBJ)
+				
+				func1()
+				func2("N", SemRole.ARG)
+				func2("V", SemRole.SBJ)
+				func2("V", SemRole.OBJ)
 			}
 			
 			def vjrelSchemas(verb: EnWord, adj: EnWord) = {
-				def mkSch1(xpos: String, r3: SemRole, r4: SemRole) {
+				
+				def func1() {
 					val vnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.synonymTo(verb) && x.intoR == SemRole.SBJ
-						}, Set.empty[(SemRole, MNode)])
-					val jnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.synonymTo(adj) && x.intoR == SemRole.ARG
-						}, Set.empty[(SemRole, MNode)])
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(verb) && x.intoR == SemRole.SBJ
+					}, Set.empty[(SemRole, MNode)])
 					val xnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.mypos == xpos && x.intoR == r3 && vnode.currentMatch.veryRoughMatch(x)
-						}, Set((r4, jnode)))
-					ret = new Schema(vnode, xnode, Set((vnode, SemRole.SBJ, xnode, r3))) :: ret
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "N" && x.intoR == SemRole.ARG
+					}, Set((SemRole.ARG, vnode)))
+					///////////////////
+					val jnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(adj) && x.intoR == SemRole.ARG
+					}, Set.empty[(SemRole, MNode)])
+					val xxnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "N" && x.intoR == SemRole.ARG && 
+							xnode.currentMatch.term.word.isInstanceOf[EnWord] && {
+							val tmp = xnode.currentMatch.term.word.asInstanceOf[EnWord]
+							xword.synonymTo(tmp) || tmp.hyponymOf(xword)
+						}
+					}, Set((SemRole.POSS, jnode)))
+					///////////
+					ret = new Schema(xnode, xxnode, Set.empty) :: ret
 				}
-				def mkSch2(xpos: String, r3: SemRole, r4: SemRole) {
+				def func2() {
 					val jnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.synonymTo(adj) && x.intoR == SemRole.ARG
-						}, Set.empty[(SemRole, MNode)])
-					val xnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.mypos == xpos && x.intoR == r3
-						}, Set((r4, jnode)))
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(adj) && x.intoR == SemRole.ARG
+					}, Set.empty[(SemRole, MNode)])
+					val xxnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "N" && x.intoR == SemRole.ARG
+					}, Set((SemRole.POSS, jnode)))
+					///////////
 					val vnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
-							val xword = x.term.word.asInstanceOf[EnWord]
-							xword.synonymTo(verb) && x.intoR == SemRole.SBJ && x.veryRoughMatch(xnode.currentMatch)
-						}, Set.empty[(SemRole, MNode)])
-					ret = new Schema(xnode, vnode, Set((xnode, r3, vnode, SemRole.SBJ))) :: ret
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(verb) && x.intoR == SemRole.SBJ
+					}, Set.empty[(SemRole, MNode)])
+					val xnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "N" && x.intoR == SemRole.ARG && 
+							xxnode.currentMatch.term.word.isInstanceOf[EnWord] && {
+							val tmp = xxnode.currentMatch.term.word.asInstanceOf[EnWord]
+							xword.synonymTo(tmp) || tmp.hyponymOf(xword)
+						}
+					}, Set((SemRole.ARG, vnode)))
+					///////////////////
+					ret = new Schema(xxnode, xnode, Set.empty) :: ret
 				}
-				mkSch1("N", SemRole.ARG, SemRole.POSS)
-				mkSch2("N", SemRole.ARG, SemRole.POSS)
-				mkSch1("V", SemRole.SBJ, SemRole.THG)
-				mkSch2("V", SemRole.SBJ, SemRole.THG)
+				def func3(r3: SemRole) {
+					val vnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(verb) && x.intoR == SemRole.SBJ
+					}, Set.empty[(SemRole, MNode)])
+					val xnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "N" && x.intoR == SemRole.ARG
+					}, Set((SemRole.ARG, vnode)))
+					///////////////////
+					val rnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(adj) && x.intoR == SemRole.ARG
+					}, Set.empty[(SemRole, MNode)])
+					val znode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "V" && x.intoR == r3
+					}, Set((SemRole.THG, rnode)))
+					val xxnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "N" && x.intoR == SemRole.ARG && 
+							xnode.currentMatch.term.word.isInstanceOf[EnWord] && {
+							val tmp = xnode.currentMatch.term.word.asInstanceOf[EnWord]
+							xword.synonymTo(tmp) || tmp.hyponymOf(xword)
+						}
+					}, Set((SemRole.ARG, znode)))
+					///////////
+					ret = new Schema(xnode, xxnode, Set.empty) :: ret
+				}
+				def func4(r3: SemRole) {
+					val rnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(adj) && x.intoR == SemRole.ARG
+					}, Set.empty[(SemRole, MNode)])
+					val znode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "V" && x.intoR == r3
+					}, Set((SemRole.THG, rnode)))
+					val xxnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "N" && x.intoR == SemRole.ARG
+					}, Set((SemRole.ARG, znode)))
+					///////////
+					val vnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.synonymTo(verb) && x.intoR == SemRole.SBJ
+					}, Set.empty[(SemRole, MNode)])
+					val xnode = new MNode((x:PI) => x.term.word.isInstanceOf[EnWord] && {
+						val xword = x.term.word.asInstanceOf[EnWord]
+						xword.mypos == "N" && x.intoR == SemRole.ARG && 
+							xxnode.currentMatch.term.word.isInstanceOf[EnWord] && {
+							val tmp = xxnode.currentMatch.term.word.asInstanceOf[EnWord]
+							xword.synonymTo(tmp) || tmp.hyponymOf(xword)
+						}
+					}, Set((SemRole.ARG, vnode)))
+					///////////////////
+					ret = new Schema(xxnode, xnode, Set.empty) :: ret
+				}
+				
+				func1()
+				func2()
+				
+				func3(SemRole.SBJ)
+				func4(SemRole.SBJ)
+				
+				func3(SemRole.OBJ)
+				func4(SemRole.OBJ)
 			}
-			
+			/*
 			if (Set("J", "R").contains(mypos) && that.mypos == "N" && !(attrs intersect that.syns).isEmpty) {
 				println("Attribute: " + this + " ~ " + that)
 				attrSchemas(this, that)
 			}
+			*/
 			if (mypos == "V" && that.mypos == "N" && !(deriv_rels intersect that.syns).isEmpty) {
 				println("Derivationally related: " + this + " ~ " + that)
 				vnrelSchemas(this, that)

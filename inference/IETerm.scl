@@ -1,6 +1,5 @@
 package tifmo
 
-import mylib.listCoverings
 import knowledge.SemRole.SemRole
 import scala.collection.mutable
 
@@ -49,110 +48,107 @@ package inference {
 		
 		///////////////////////////////////////////////
 		
-		private[inference] var kne = null:IEPredNonEmpty
-		private[inference] val neTriggers = mutable.Set.empty[TriggerNE]
+		def compare(that: IETerm) = id - that.id
+		override def toString = "#" + id + (if (roles != null) roles.mkString("[", ",", "]") else "")
+		
+		///////////////////////////////////////////////
+		
+		private[inference] var kne = mutable.Set.empty[IEPredNonEmpty]
+		private[inference] val assub = mutable.Set.empty[IEPredSubsume]
+		private[inference] val assuper = mutable.Set.empty[IEPredSubsume]
+		private[inference] val djts = mutable.Set.empty[IEPredDisjoint]
+		private[inference] val iscps = mutable.Set.empty[IEPredCP]
+		private[inference] val mkcps = mutable.Set.empty[IEPredCP]
+		private[inference] val ispis = mutable.Set.empty[IEPredPI]
+		private[inference] val mkpis = mutable.Set.empty[IEPredPI]
+		 val isins = mutable.Set.empty[IEPredIN]
+		private[inference] val mkins = mutable.Set.empty[IEPredIN]
+		
+		private[inference] val iscomp = mutable.Set.empty[IEPredComp]
+		private[inference] val mkcomp = mutable.Set.empty[IEPredComp]
+		private[inference] val isdi = mutable.Set.empty[IEPredDI]
+		private[inference] val mkdi = mutable.Set.empty[IEPredDI]
+		private[inference] val isdu = mutable.Set.empty[IEPredDU]
+		private[inference] val mkdu = mutable.Set.empty[IEPredDU]
+		private[inference] val isde = mutable.Set.empty[IEPredDE]
+		private[inference] val mkde = mutable.Set.empty[IEPredDE]
+		private[inference] val issl = mutable.Set.empty[IEPredSL]
+		private[inference] val mksl = mutable.Set.empty[IEPredSL]
+		
+		///////////////////////////////////////////////
+		
+		private[inference] val neTriggers = mutable.Set.empty[Trigger[IEPredNonEmpty]]
+		private[inference] val subTriggers = mutable.Set.empty[Trigger[IEPredSubsume]]
+		private[inference] val superTriggers = mutable.Set.empty[Trigger[IEPredSubsume]]
+		private[inference] val djtTriggers = mutable.Set.empty[Trigger[IEPredDisjoint]]
+		private[inference] val iscpTriggers = mutable.Set.empty[Trigger[IEPredCP]]
+		private[inference] val mkcpTriggers = mutable.Set.empty[Trigger[IEPredCP]]
+		private[inference] val ispiTriggers = mutable.Set.empty[Trigger[IEPredPI]]
+		private[inference] val mkpiTriggers = mutable.Set.empty[Trigger[IEPredPI]]
+		private[inference] val isinTriggers = mutable.Set.empty[Trigger[IEPredIN]]
+		private[inference] val disposers = mutable.Set.empty[() => Unit]
+		
+		///////////////////////////////////////////////
+		
+		private[inference] val schedcache = mutable.Set.empty[IEPred]
+		
+		///////////////////////////////////////////////
+		
 		/**
 		 * Returns if the term is known to be non-empty.
 		 */
-		def knownNE = (kne != null)
+		def knownNE = (!kne.isEmpty)
 		
-		private[inference] val assub = mutable.Set.empty[IEPredSubsume]
-		private[inference] val subTriggers = mutable.Set.empty[TriggerSub]
 		/**
 		 * Returns all currently known supersets of this term (including itself).
 		 */
 		def superSets = assub.map(_.superset).toSet
+		
 		/**
 		 * Returns the number of supersets of this term.
 		 */
 		def superSize = assub.size
+		
 		/**
 		 * Returns if `that` is known to be a superset of this term.
 		 */
 		def hasSuper(that: IETerm) = assub.contains(new IEPredSubsume(this, that))
 		
-		private[inference] val assuper = mutable.Set.empty[IEPredSubsume]
-		private[inference] val superTriggers = mutable.Set.empty[TriggerSuper]
 		/**
 		 * Returns all currently known subsets of this term (including itself).
 		 */
 		def subSets = assuper.map(_.subset).toSet
+		
 		/**
 		 * Returns the number of subsets of this term.
 		 */
 		def subSize = assuper.size
+		
 		/**
 		 * Returns if `that` is known to be a subset of this term.
 		 */
 		def hasSub(that: IETerm) = assuper.contains(new IEPredSubsume(that, this))
 		
-		private[inference] val djts = mutable.Set.empty[IEPredDisjoint]
-		private[inference] val djtTriggers = mutable.Set.empty[TriggerDjt]
 		/**
 		 * Returns all sets which are currently known to be disjoint to this term.
 		 */
 		def disjointSets = djts.map(_.another(this)).toSet
+		
 		/**
 		 * Returns if `that` is known to be disjoint to this term.
 		 */
 		def disjointTo(that: IETerm) = djts.contains(new IEPredDisjoint(this, that))
 		
-		private[inference] val iscps = mutable.Set.empty[IEPredCP]
-		private[inference] val iscpTriggers = mutable.Set.empty[TriggerIsCP]
-		private[inference] val mkcps = mutable.Set.empty[IEPredCP]
-		private[inference] val mkcpTriggers = mutable.Set.empty[TriggerMkCP]
-		/**
-		 * Each element in `asCP` is a set of terms, of which the Cartesian product 
-		 * is this term.
-		 */
-		def asCP = iscps.map(_.comp).toSet
 		/**
 		 * Returns if this term is known to be a Cartesian product of the terms in `comp`.
 		 */
 		def hasCP(comp: Set[(IETerm, SemRole)]) = iscps.contains(new IEPredCP(this, comp))
 		
-		private[inference] val ispis = mutable.Set.empty[IEPredPI]
-		private[inference] val ispiTriggers = mutable.Set.empty[TriggerIsPI]
-		private[inference] val mkpis = mutable.Set.empty[IEPredPI]
-		private[inference] val mkpiTriggers = mutable.Set.empty[TriggerMkPI]
-		/**
-		 * Each element in `asPI` is a term, whose projection is this term.
-		 */
-		def asPI = ispis.map(x => (x.compt, x.compr)).toSet
 		/**
 		 * Returns if this term is known to be a projection of `term` into dimension `r`.
 		 */
 		def hasPI(term: IETerm, r: SemRole) = ispis.contains(new IEPredPI(this, term, r))
 		
-		private[inference] val isins = mutable.Set.empty[IEPredIN]
-		private[inference] val isinTriggers = mutable.Set.empty[TriggerIsIN]
-		private[inference] val mkins = mutable.Set.empty[IEPredIN]
-		private[this] def calcIN(tocovs: Set[(Set[IETerm], Set[Set[IETerm]])]) = {
-			val wholeCache = mutable.Map.empty[IETerm, Set[IETerm]]
-			def whole(x: IETerm) = {
-				if (wholeCache.contains(x)) {
-					wholeCache(x)
-				} else {
-					val ret = x.superSets.filter(_.isins.isEmpty)
-					wholeCache(x) = ret
-					ret
-				}
-			}
-			val ret = mutable.Set.empty[Set[IETerm]]
-			for ((comp, rest) <- tocovs) {
-				val cands = superSets.filter(x => comp.exists(_.hasSub(x))).map(x => (whole(x), x)).toMap
-				ret ++= listCoverings[IETerm](comp, rest, cands.keySet).map(_.map(cands(_)).toSet)
-			}
-			ret.toSet
-		}
-		/**
-		 * Each element in `asIN` is a set of terms, of which the intersection 
-		 * is this term.
-		 */
-		def asIN = {
-			val tocovs = isins.map(x => (x.comp, Set.empty[Set[IETerm]])).toSet
-			calcIN(tocovs).filter(_.size >= 2)
-		}
 		/**
 		 * Returns if this term is known to be an intersection of the terms in `comp`.
 		 */
@@ -163,576 +159,48 @@ package inference {
 			}
 		}
 		
-		private[inference] val specifics = mutable.Set.empty[SpecificFunc]
-		private[inference] val disposers = mutable.Set.empty[() => Unit]
+		/**
+		 * Returns if this term is known to be a complement of the term `a`.
+		 */
+		def hasComp(a: IETerm, tot: IETerm = null) = iscomp.contains(new IEPredComp(this, a, tot))
 		
-		////////////////////////////////////////////////////////////////
+		/**
+		 * Returns if this term is known to be `DI(a, b, r)`.
+		 */
+		def hasDI(a: IETerm, b: IETerm, r: SemRole) = isdi.contains(new IEPredDI(this, a, b, r))
 		
-		def compare(that: IETerm) = id - that.id
-		override def toString = "#" + id + (if (roles != null) roles.mkString("[", ",", "]") else "")
+		/**
+		 * Returns if this term is known to be `DU(a, b, r)`.
+		 */
+		def hasDU(a: IETerm, b: IETerm, r: SemRole) = isdu.contains(new IEPredDU(this, a, b, r))
+		
+		/**
+		 * Returns if this term is known to be `DE(a, b, r)`.
+		 */
+		def hasDE(a: IETerm, b: IETerm, r: SemRole) = isde.contains(new IEPredDE(this, a, b, r))
+		
+		/**
+		 * Returns if we have `IEPreSL(this, a, slct)`.
+		 */
+		def aSL(a: IETerm, slct: Slction) = issl.contains(new IEPredSL(this, a, slct))
+		
+		/**
+		 * Returns if we have `IEPreSL(h, this, slct)`.
+		 */
+		def hSL(h: IETerm, slct: Slction) = mksl.contains(new IEPredSL(h, this, slct))
+		
+		/**
+		 * Returns all `IEPreSL(this, *, *)`.
+		 */
+		def isSL = issl.toSet
+		
+		/**
+		 * Returns all `IEPreSL(*, this, *)`.
+		 */
+		def mkSL = mksl.toSet
+		
+		///////////////////////////////////////////////
+		
 	}
 	
-	
-	private[inference] class IEPredNonEmpty(val term: IETerm) {
-		private[inference] def apply() = {
-			if (term.kne != null) {
-				assert(term.kne == this)
-				false
-			} else {
-				term.kne = this
-				true
-			}
-		}
-		private[inference] def dispose() {
-			term.kne = null
-		}
-		override def equals(a: Any) = {
-			if (a.isInstanceOf[IEPredNonEmpty]) {
-				val that = a.asInstanceOf[IEPredNonEmpty]
-				term == that.term
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = term.hashCode
-	}
-	
-	private[inference] class IEPredSubsume(val subset: IETerm, val superset: IETerm) {
-		private[inference] def apply() = {
-			val ret1 = subset.assub.add(this)
-			val ret2 = superset.assuper.add(this)
-			assert(ret1 == ret2)
-			ret1
-		}
-		private[inference] def dispose() {
-			subset.assub.remove(this)
-			superset.assuper.remove(this)
-		}
-		override def equals(a: Any) = {
-			if (a.isInstanceOf[IEPredSubsume]) {
-				val that = a.asInstanceOf[IEPredSubsume]
-				subset == that.subset && superset == that.superset
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = ((subset, superset)).hashCode
-	}
-	
-	private[inference] class IEPredDisjoint(a: IETerm, b: IETerm) {
-		val pair = Set(a, b)
-		def contains(x: IETerm) = pair.contains(x)
-		def another(x: IETerm) = {
-			assert(pair.contains(x))
-			if (pair.size == 1) x else (pair - x).head
-		}
-		private[inference] def apply() = {
-			val ret1 = a.djts.add(this)
-			val ret2 = b.djts.add(this)
-			assert(a == b || ret1 == ret2)
-			ret1
-		}
-		private[inference] def dispose() {
-			a.djts.remove(this)
-			b.djts.remove(this)
-		}
-		override def equals(a: Any) = {
-			if (a.isInstanceOf[IEPredDisjoint]) {
-				val that = a.asInstanceOf[IEPredDisjoint]
-				pair == that.pair
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = pair.hashCode
-	}
-	
-	private[inference] class IEPredCP(val head: IETerm, val comp: Set[(IETerm, SemRole)]) {
-		val roleMap = comp.map(x => {
-			val rs = if (x._2 == null) x._1.roles else Set(x._2)
-			(rs, x._1)
-		}).toMap
-		
-		private[inference] def apply() = {
-			val ret = head.iscps.add(this)
-			comp.map(_._1).foreach(x => {
-				val tmp = x.mkcps.add(this)
-				assert(tmp == ret)
-			})
-			ret
-		}
-		private[inference] def dispose() {
-			head.iscps.remove(this)
-			comp.foreach(_._1.mkcps.remove(this))
-		}
-		override def equals(a: Any) = {
-			if (a.isInstanceOf[IEPredCP]) {
-				val that = a.asInstanceOf[IEPredCP]
-				head == that.head && comp == that.comp
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = ((head, comp)).hashCode
-	}
-	
-	private[inference] class IEPredPI(val head: IETerm, val compt: IETerm, val compr: SemRole) {
-		val headrs = if (compr == null) head.roles else Set(compr)
-		
-		private[inference] def apply() = {
-			val ret = head.ispis.add(this)
-			val tmp = compt.mkpis.add(this)
-			assert(tmp == ret)
-			ret
-		}
-		private[inference] def dispose() {
-			head.ispis.remove(this)
-			compt.mkpis.remove(this)
-		}
-		override def equals(a: Any) = {
-			if (a.isInstanceOf[IEPredPI]) {
-				val that = a.asInstanceOf[IEPredPI]
-				head == that.head && compt == that.compt && compr == that.compr
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = ((head, compt, compr)).hashCode
-	}
-	
-	private[inference] class IEPredIN(val head: IETerm, val comp: Set[IETerm], val aux: Boolean) {
-		private[inference] def apply() = {
-			val ret = head.isins.add(this)
-			comp.foreach(x => {
-				val tmp = x.mkins.add(this)
-				assert(tmp == ret)
-			})
-			ret
-		}
-		private[inference] def dispose() {
-			head.isins.remove(this)
-			comp.foreach(_.mkins.remove(this))
-		}
-		override def equals(a: Any) = {
-			if (a.isInstanceOf[IEPredIN]) {
-				val that = a.asInstanceOf[IEPredIN]
-				head == that.head && comp == that.comp && aux == that.aux
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = ((head, comp, aux)).hashCode
-	}
-	
-	
-	private[inference] class SpecificFunc(
-			protected val terms: List[IETerm], 
-			protected val args: List[Any], 
-			protected val f: (List[IETerm], List[Any]) => Set[IETerm] => Unit, 
-			protected val dep: Set[IETerm]) {
-		
-		private[this] val flags = terms.toSet[IETerm].map(_.specifics.add(this))
-		assert(flags.size == 1)
-		private[inference] val isNew = flags.head
-		
-		private[this] val depx = dep ++ terms
-		protected val dis: () => Unit = () => {
-			terms.foreach(_.specifics.remove(this))
-			depx.foreach(_.disposers.remove(dis))
-		}
-		if (isNew) {
-			depx.foreach(_.disposers.add(dis))
-		}
-		
-		private[inference] def change(eqs: Set[IETerm], a: IETerm) = {
-			if (dep.forall(y => y.ref.to == y)) {
-				val tmp = terms.map(y => if (eqs.contains(y)) a else y)
-				new SpecificFunc(tmp, args, f, dep)
-			} else {
-				null
-			}
-		}
-		private[inference] def fire() {
-			f(terms, args)(dep)
-		}
-		
-		override def equals(a: Any) = {
-			if (a.isInstanceOf[SpecificFunc]) {
-				val that = a.asInstanceOf[SpecificFunc]
-				terms == that.terms && args == that.args && f == that.f && dep == that.dep
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = ((terms, args, f, dep)).hashCode
-	}
-	
-	private[inference] class TriggerNE(
-			protected val term: IETerm, 
-			protected val args: List[Any], 
-			protected val f: (List[Any]) => Set[IETerm] => Unit, 
-			protected val dep: Set[IETerm]) {
-		
-		private[inference] val isNew = term.neTriggers.add(this)
-		
-		protected val dis: () => Unit = () => {
-			term.neTriggers.remove(this)
-			dep.foreach(_.disposers.remove(dis))
-		}
-		if (isNew) {
-			dep.foreach(_.disposers.add(dis))
-		}
-		
-		private[inference] def fire() {
-			dis()
-			f(args)(dep)
-		}
-		
-		override def equals(a: Any) = {
-			if (a.isInstanceOf[TriggerNE]) {
-				val that = a.asInstanceOf[TriggerNE]
-				term == that.term && args == that.args && f == that.f && dep == that.dep
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = ((term, args, f, dep)).hashCode
-	}
-	
-	private[inference] class TriggerSub(
-			protected val term: IETerm, 
-			protected val args: List[Any], 
-			protected val f: (IETerm, List[Any]) => Set[IETerm] => Unit, 
-			protected val dep: Set[IETerm]) {
-		
-		private[inference] val isNew = term.subTriggers.add(this)
-		
-		protected val dis: () => Unit = () => {
-			term.subTriggers.remove(this)
-			dep.foreach(_.disposers.remove(dis))
-		}
-		if (isNew) {
-			dep.foreach(_.disposers.add(dis))
-		}
-		
-		private[inference] def fire(x: IETerm) {
-			f(x, args)(dep)
-		}
-		
-		override def equals(a: Any) = {
-			if (a.isInstanceOf[TriggerSub]) {
-				val that = a.asInstanceOf[TriggerSub]
-				term == that.term && args == that.args && f == that.f && dep == that.dep
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = ((term, args, f, dep)).hashCode
-	}
-	
-	private[inference] class TriggerSubIf(a: IETerm, protected val b: IETerm, 
-			aargs: List[Any], protected val ff: (List[Any]) => Set[IETerm] => Unit, 
-			ddep: Set[IETerm]) extends TriggerSub(a, aargs, null, ddep) {
-		
-		override private[inference] def fire(x: IETerm) {
-			if (x == b) {
-				dis()
-				ff(args)(dep)
-			}
-		}
-		
-		override def equals(any: Any) = {
-			if (any.isInstanceOf[TriggerSubIf]) {
-				val that = any.asInstanceOf[TriggerSubIf]
-				term == that.term && b == that.b && args == that.args && ff == that.ff && dep == that.dep
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = ((term, b, args, ff, dep)).hashCode
-	}
-	
-	private[inference] class TriggerSuper(
-			protected val term: IETerm, 
-			protected val args: List[Any], 
-			protected val f: (IETerm, List[Any]) => Set[IETerm] => Unit, 
-			protected val dep: Set[IETerm]) {
-		
-		private[inference] val isNew = term.superTriggers.add(this)
-		
-		protected val dis: () => Unit = () => {
-			term.superTriggers.remove(this)
-			dep.foreach(_.disposers.remove(dis))
-		}
-		if (isNew) {
-			dep.foreach(_.disposers.add(dis))
-		}
-		
-		private[inference] def fire(x: IETerm) {
-			f(x, args)(dep)
-		}
-		
-		override def equals(a: Any) = {
-			if (a.isInstanceOf[TriggerSuper]) {
-				val that = a.asInstanceOf[TriggerSuper]
-				term == that.term && args == that.args && f == that.f && dep == that.dep
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = ((term, args, f, dep)).hashCode
-	}
-	
-	private[inference] class TriggerDjt(
-			protected val term: IETerm, 
-			protected val args: List[Any], 
-			protected val f: (IETerm, List[Any]) => Set[IETerm] => Unit, 
-			protected val dep: Set[IETerm]) {
-		
-		private[inference] val isNew = term.djtTriggers.add(this)
-		
-		protected val dis: () => Unit = () => {
-			term.djtTriggers.remove(this)
-			dep.foreach(_.disposers.remove(dis))
-		}
-		if (isNew) {
-			dep.foreach(_.disposers.add(dis))
-		}
-		
-		private[inference] def fire(x: IETerm) {
-			f(x, args)(dep)
-		}
-		
-		override def equals(a: Any) = {
-			if (a.isInstanceOf[TriggerDjt]) {
-				val that = a.asInstanceOf[TriggerDjt]
-				term == that.term && args == that.args && f == that.f && dep == that.dep
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = ((term, args, f, dep)).hashCode
-	}
-	
-	private[inference] class TriggerDjtIf(a: IETerm, protected val b: IETerm, 
-			aargs: List[Any], protected val ff: (List[Any]) => Set[IETerm] => Unit, 
-			ddep: Set[IETerm]) extends TriggerDjt(a, aargs, null, ddep) {
-		
-		override private[inference] def fire(x: IETerm) {
-			if (x == b) {
-				dis()
-				ff(args)(dep)
-			}
-		}
-		
-		override def equals(any: Any) = {
-			if (any.isInstanceOf[TriggerDjtIf]) {
-				val that = any.asInstanceOf[TriggerDjtIf]
-				term == that.term && b == that.b && args == that.args && ff == that.ff && dep == that.dep
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = ((term, b, args, ff, dep)).hashCode
-	}
-	
-	private[inference] class TriggerIsCP(
-			protected val term: IETerm, 
-			protected val args: List[Any], 
-			protected val f: (Set[(IETerm, SemRole)], List[Any]) => Set[IETerm] => Unit, 
-			protected val dep: Set[IETerm]) {
-		
-		private[inference] val isNew = term.iscpTriggers.add(this)
-		
-		protected val dis: () => Unit = () => {
-			term.iscpTriggers.remove(this)
-			dep.foreach(_.disposers.remove(dis))
-		}
-		if (isNew) {
-			dep.foreach(_.disposers.add(dis))
-		}
-		
-		private[inference] def fire(x: Set[(IETerm, SemRole)]) {
-			f(x, args)(dep)
-		}
-		
-		override def equals(a: Any) = {
-			if (a.isInstanceOf[TriggerIsCP]) {
-				val that = a.asInstanceOf[TriggerIsCP]
-				term == that.term && args == that.args && f == that.f && dep == that.dep
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = ((term, args, f, dep)).hashCode
-	}
-	
-	private[inference] class TriggerMkCP(
-			protected val term: IETerm, 
-			protected val args: List[Any], 
-			protected val f: (IETerm, Set[(IETerm, SemRole)], List[Any]) => Set[IETerm] => Unit, 
-			protected val dep: Set[IETerm]) {
-		
-		private[inference] val isNew = term.mkcpTriggers.add(this)
-		
-		protected val dis: () => Unit = () => {
-			term.mkcpTriggers.remove(this)
-			dep.foreach(_.disposers.remove(dis))
-		}
-		if (isNew) {
-			dep.foreach(_.disposers.add(dis))
-		}
-		
-		private[inference] def fire(x: IETerm, y: Set[(IETerm, SemRole)]) {
-			f(x, y, args)(dep)
-		}
-		
-		override def equals(a: Any) = {
-			if (a.isInstanceOf[TriggerMkCP]) {
-				val that = a.asInstanceOf[TriggerMkCP]
-				term == that.term && args == that.args && f == that.f && dep == that.dep
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = ((term, args, f, dep)).hashCode
-	}
-	
-	private[inference] class TriggerMkCPIf(protected val comp: Set[(IETerm, SemRole)], 
-			aargs: List[Any], protected val ff: (IETerm, List[Any]) => Set[IETerm] => Unit, 
-			ddep: Set[IETerm]) extends TriggerMkCP(comp.map(_._1).min, aargs, null, ddep) {
-		
-		override private[inference] def fire(x: IETerm, y: Set[(IETerm, SemRole)]) {
-			if (y == comp) {
-				dis()
-				ff(x, args)(dep)
-			}
-		}
-		
-		override def equals(any: Any) = {
-			if (any.isInstanceOf[TriggerMkCPIf]) {
-				val that = any.asInstanceOf[TriggerMkCPIf]
-				comp == that.comp && args == that.args && ff == that.ff && dep == that.dep
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = ((comp, args, ff, dep)).hashCode
-	}
-	
-	private[inference] class TriggerIsPI(
-			protected val term: IETerm, 
-			protected val args: List[Any], 
-			protected val f: (IETerm, SemRole, List[Any]) => Set[IETerm] => Unit, 
-			protected val dep: Set[IETerm]) {
-		
-		private[inference] val isNew = term.ispiTriggers.add(this)
-		
-		protected val dis: () => Unit = () => {
-			term.ispiTriggers.remove(this)
-			dep.foreach(_.disposers.remove(dis))
-		}
-		if (isNew) {
-			dep.foreach(_.disposers.add(dis))
-		}
-		
-		private[inference] def fire(x: IETerm, r: SemRole) {
-			f(x, r, args)(dep)
-		}
-		
-		override def equals(a: Any) = {
-			if (a.isInstanceOf[TriggerIsPI]) {
-				val that = a.asInstanceOf[TriggerIsPI]
-				term == that.term && args == that.args && f == that.f && dep == that.dep
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = ((term, args, f, dep)).hashCode
-	}
-	
-	private[inference] class TriggerMkPI(
-			protected val term: IETerm, 
-			protected val args: List[Any], 
-			protected val f: (IETerm, SemRole, List[Any]) => Set[IETerm] => Unit, 
-			protected val dep: Set[IETerm]) {
-		
-		private[inference] val isNew = term.mkpiTriggers.add(this)
-		
-		protected val dis: () => Unit = () => {
-			term.mkpiTriggers.remove(this)
-			dep.foreach(_.disposers.remove(dis))
-		}
-		if (isNew) {
-			dep.foreach(_.disposers.add(dis))
-		}
-		
-		private[inference] def fire(x: IETerm, r: SemRole) {
-			f(x, r, args)(dep)
-		}
-		
-		override def equals(a: Any) = {
-			if (a.isInstanceOf[TriggerMkPI]) {
-				val that = a.asInstanceOf[TriggerMkPI]
-				term == that.term && args == that.args && f == that.f && dep == that.dep
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = ((term, args, f, dep)).hashCode
-	}
-	
-	private[inference] class TriggerMkPIIf(compt: IETerm, protected val headrs: Set[SemRole], 
-			aargs: List[Any], protected val ff: (IETerm, List[Any]) => Set[IETerm] => Unit, 
-			ddep: Set[IETerm]) extends TriggerMkPI(compt, aargs, null, ddep) {
-		
-		override private[inference] def fire(x: IETerm, r: SemRole) {
-			val hrs = if (r == null) x.roles else Set(r)
-			if (hrs == headrs) {
-				dis()
-				ff(x, args)(dep)
-			}
-		}
-		
-		override def equals(any: Any) = {
-			if (any.isInstanceOf[TriggerMkPIIf]) {
-				val that = any.asInstanceOf[TriggerMkPIIf]
-				term == that.term && headrs == that.headrs && args == that.args && ff == that.ff && dep == that.dep
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = ((term, headrs, args, ff, dep)).hashCode
-	}
-	
-	private[inference] class TriggerIsIN(
-			protected val term: IETerm, 
-			protected val args: List[Any], 
-			protected val f: (Set[IETerm], List[Any]) => Set[IETerm] => Unit, 
-			protected val dep: Set[IETerm]) {
-		
-		private[inference] val isNew = term.isinTriggers.add(this)
-		
-		protected val dis: () => Unit = () => {
-			term.isinTriggers.remove(this)
-			dep.foreach(_.disposers.remove(dis))
-		}
-		if (isNew) {
-			dep.foreach(_.disposers.add(dis))
-		}
-		
-		private[inference] def fire(x: Set[IETerm]) {
-			f(x, args)(dep)
-		}
-		
-		override def equals(a: Any) = {
-			if (a.isInstanceOf[TriggerIsIN]) {
-				val that = a.asInstanceOf[TriggerIsIN]
-				term == that.term && args == that.args && f == that.f && dep == that.dep
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = ((term, args, f, dep)).hashCode
-	}
 }

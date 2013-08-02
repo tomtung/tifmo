@@ -19,60 +19,63 @@ package stree {
 		}
 		def longer = lger
 		
+		//def roughMatchOne(pi: PI) = src.exists(_.roughMatch(pi))
+		def collidWord = src.init.exists(x => x.term.word == src.last.term.word) //&& x.intoR == src.last.intoR)
+		
 		override def toString = src.map(_.term.word).mkString("", " | ", "")
 	}
 	
-	class PI(val term: Term, val intoR: SemRole) extends Serializable {
+	sealed abstract class Item extends Serializable {
+		def term: Term
+		def intoR: SemRole
+		
+		@transient protected[this] var itmr = null:IETermRef
+		def ietmref = itmr
+		
+		def setup(ie: IEBasic, ne: Boolean): Unit
+		def clear(): Unit
+	}
+	
+	case class SL(item: Item, sel: Set[Slction]) extends Item {
+		assert(item != null)
+		assert(!sel.isEmpty)
+		
+		def term = item.term
+		def intoR = item.intoR
+		
+		def setup(ie: IEBasic, ne: Boolean) {
+			if (ietmref == null) {
+				item.setup(ie, ne)
+				itmr = ie.getSL(item.ietmref.to.roles, sel.map((null:IETerm, item.ietmref.to, _))).ref
+			}
+			if (ne) ie.claimNonEmpty(ietmref.to)
+		}
+		def clear() {
+			itmr = null
+			item.clear()
+		}
+	}
+	
+	case class PI(term: Term, intoR: SemRole) extends Item {
 		assert(term != null)
 		assert(intoR != null)
 		
-		@transient private[this] var pcst = null:IETermRef
-		private def piconst = pcst
-		@transient private[this] var itmr = null:IETermRef
-		def ietmref = itmr
-		def roughMatch(that: PI) = {
-			that.piconst != null && ietmref.to.hasSuper(that.piconst.to)
-		}
 		def veryRoughMatch(that: PI) = {
 			(ietmref.to.superSets intersect that.ietmref.to.superSets).exists(!_.isW)
 		}
+		
+		@transient private[this] var pcst = null:IETermRef
+		def roughMatch(that: PI) = pcst.to.hasSub(that.ietmref.to)
+		
 		def setup(ie: IEBasic, ne: Boolean) {
 			if (ietmref == null) {
+				val cst = ie.getConstant(term.word)
+				pcst = if (cst.roles == null) cst.ref else ie.getPI(cst, Set(intoR)).ref
 				term.setup(ie, ne)
 				itmr = if (term.ietmref.to.roles == null) {
 					term.ietmref
 				} else {
 					ie.getPI(term.ietmref.to, Set(intoR)).ref
-				}
-				def constpi(w: WordInfo, r: SemRole) = {
-					val pre = ie.getConstant(w)
-					if (pre.roles == null) pre else ie.getPI(pre, Set(r))
-				}
-				pcst = if (term.word.isStopwd) {
-					val inpool = mutable.Set.empty[IETerm]
-					def recur(x: Term, r: SemRole) {
-						x match {
-							case WORD(word) => {}
-							case IR(core, sats) => {
-								for ((rr, pi) <- sats; if rr == r) {
-									if (pi.term.word.isStopwd) {
-										recur(pi.term, pi.intoR)
-									} else {
-										inpool.add(constpi(pi.term.word, pi.intoR))
-									}
-								}
-								recur(core, r)
-							}
-							case PO(tm, rr) => { recur(tm, r) }
-							case DI(tm, arg, rr) => recur(tm, r)
-							case DU(tm, arg, rr) => recur(tm, r)
-							case DE(tm, arg, rr) => recur(tm, r)
-							case SL(tm, sel) => recur(tm, r)
-						}
-					}
-					if (inpool.isEmpty) null else ie.getIN(inpool.toSet).ref
-				} else {
-					constpi(term.word, intoR).ref
 				}
 				if (ie.getCount - ie.getLastCount > 50) {
 					ie.explore()
@@ -81,21 +84,22 @@ package stree {
 			if (ne) ie.claimNonEmpty(ietmref.to)
 		}
 		def clear() {
-			pcst = null
 			itmr = null
 		}
 		
 		@transient lazy val paths: List[Path] = {
 			
 			def construct(x: Term): (Term, List[List[(Term, Path)]]) = x match {
+				case WORD(word) => (x, Nil)
 				case IR(core, sats) => {
 					val (a, l) = construct(core)
-					val retl = (for ((r, pi) <- sats.toList) yield {
+					val retl = (for ((r, itm) <- sats.toList; if itm.isInstanceOf[PI]) yield {
+						val pi = itm.asInstanceOf[PI]
 						for (p <- pi.paths; if p.src.length <= 5) yield {
 							(IR(a, Set((r, p.acc))), p)
 						}
-					}) ::: l.map(_.map(y => (IR(y._1, Set.empty[(SemRole, PI)]), y._2)))
-					(IR(a, Set.empty[(SemRole, PI)]), retl)
+					}) ::: l.map(_.map(y => (IR(y._1, Set.empty[(SemRole, Item)]), y._2)))
+					(IR(a, Set.empty[(SemRole, Item)]), retl)
 				}
 				case PO(tm, r) => {
 					val (a, l) = construct(tm)
@@ -103,16 +107,22 @@ package stree {
 				}
 				case DI(tm, arg, r) => {
 					val (a, l) = construct(tm)
-					(DI(a, arg, r), l.map(_.map(y => (DI(y._1, arg, r), y._2))))
+					(PO(a, r), l.map(_.map(y => (PO(y._1, r), y._2))))
 				}
-				case _ => (x, Nil)
+				case DU(tm, arg, r) => {
+					val (a, l) = construct(tm)
+					(PO(a, r), l.map(_.map(y => (PO(y._1, r), y._2))))
+				}
+				case DE(tm, arg, r) => {
+					val (a, l) = construct(tm)
+					(PO(a, r), l.map(_.map(y => (PO(y._1, r), y._2))))
+				}
 			}
 			
 			val (a, l) = construct(term)
-			val start = new Path(new PI(a, intoR), List(this))
+			val start = new Path(PI(a, intoR), List(this))
 			val pll = l.map(_.map(y => {
-				val acc = new PI(y._1, intoR)
-				(new Path(acc, this :: y._2.src), y._2)
+				(new Path(PI(y._1, intoR), this :: y._2.src), y._2)
 			}))
 			for (pl <- pll; (hgp, p) <- pl) {
 				hgp.longer = p.longer.filter(_.src.length <= 5).map(x => pl.find(_._2 == x) match {
@@ -121,24 +131,12 @@ package stree {
 				})
 			}
 			start.longer = pll.map(_.head._1)
-			val ret = start :: pll.flatMap(_.map(_._1))
-			
-			System.err.println("generated paths: " + ret.length)
-			
-			ret
+			start :: pll.flatMap(_.map(_._1))
 		}
 		
-		override def equals(a: Any) = {
-			if (a.isInstanceOf[PI]) {
-				val that = a.asInstanceOf[PI]
-				term == that.term && intoR == that.intoR
-			} else {
-				false
-			}
-		}
-		override lazy val hashCode = (("PI", term, intoR)).hashCode
-		override def toString = "PI[" + intoR + "](" + term + ")"
+		@transient override lazy val hashCode = ("PI", term, intoR).hashCode
 	}
+	
 	
 	sealed abstract class Term extends Serializable {
 		def word: WordInfo
@@ -159,7 +157,7 @@ package stree {
 		}
 	}
 	
-	case class IR(core: Term, sats: Set[(SemRole, PI)]) extends Term {
+	case class IR(core: Term, sats: Set[(SemRole, Item)]) extends Term {
 		assert(core != null)
 		assert(sats.forall(x => x._1 != null && x._2 != null))
 		
@@ -198,7 +196,7 @@ package stree {
 		}
 	}
 	
-	case class DI(term: Term, arg: PI, r: SemRole) extends Term {
+	case class DI(term: Term, arg: Item, r: SemRole) extends Term {
 		assert(term != null)
 		assert(arg != null)
 		assert(r != null)
@@ -214,7 +212,7 @@ package stree {
 		}
 	}
 	
-	case class DU(term: Term, arg: PI, r: SemRole) extends Term {
+	case class DU(term: Term, arg: Item, r: SemRole) extends Term {
 		assert(term != null)
 		assert(arg != null)
 		assert(r != null)
@@ -230,7 +228,7 @@ package stree {
 		}
 	}
 	
-	case class DE(term: Term, arg: PI, r: SemRole) extends Term {
+	case class DE(term: Term, arg: Item, r: SemRole) extends Term {
 		assert(term != null)
 		assert(arg != null)
 		assert(r != null)
@@ -241,20 +239,6 @@ package stree {
 				term.setup(ie, ne)
 				arg.setup(ie, ne)
 				itmr = ie.getDE(term.ietmref.to, arg.ietmref.to, r).ref
-			}
-			if (ne) ie.claimNonEmpty(ietmref.to)
-		}
-	}
-	
-	case class SL(term: Term, sel: Slction) extends Term {
-		assert(term != null)
-		assert(sel != null)
-		
-		def word = term.word
-		def setup(ie: IEBasic, ne: Boolean) {
-			if (ietmref == null) {
-				term.setup(ie, ne)
-				itmr = ie.getSL(term.ietmref.to, sel).ref
 			}
 			if (ne) ie.claimNonEmpty(ietmref.to)
 		}

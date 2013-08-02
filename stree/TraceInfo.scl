@@ -25,7 +25,7 @@ package stree {
 				"Proved ppart: " + ppartBefore + "/" + pweight + "\n" +
 				(if (contraAfter) "HAS CONTRADICTION" else "") + "\n"
 			} else {
-				"Alignments: " + aligns.head.score + 
+				"Alignments: " + aligns.head.confidence + " " + aligns.head.category + 
 				aligns.map(_.toString).toSet.mkString("\n", "\n", "\n----------\n") + 
 				"Proved props from " + propsBefore + "/" + propnum + " to " + propsAfter + "/" + propnum + "\n" + 
 				"Proved rpart from " + rpartBefore + "/" + rweight + " to " + rpartAfter + "/" + rweight + "\n" + 

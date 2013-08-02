@@ -31,7 +31,6 @@ package stree {
 						recurDemand(tm, rs + r, setLexRoles)
 						recurDemand(arg.term, Set(arg.intoR), setLexRoles)
 					}
-					case SL(tm, sel) => recurDemand(tm, rs, setLexRoles)
 				}
 			}
 		}
@@ -72,15 +71,12 @@ package stree {
 						arg.clear()
 						recurClear(arg.term)
 					}
-					case SL(tm, sel) => {
-						recurClear(tm)
-					}
 				}
 			}
 		}
 	}
 	
-	case class NonEmpty(a: PI) extends AtomSt {
+	case class NonEmpty(a: Item) extends AtomSt {
 		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit) {
 			demandCache.clear()
 			recurDemand(a.term, Set(a.intoR), setLexRoles)
@@ -102,7 +98,7 @@ package stree {
 		}
 	}
 	
-	case class Subsume(a: PI, b: PI) extends AtomSt {
+	case class Subsume(a: Item, b: Item) extends AtomSt {
 		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit) {
 			demandCache.clear()
 			recurDemand(a.term, Set(a.intoR), setLexRoles)
@@ -129,7 +125,7 @@ package stree {
 		}
 	}
 	
-	case class Disjoint(a: PI, b: PI) extends AtomSt {
+	case class Disjoint(a: Item, b: Item) extends AtomSt {
 		def demandRoles(setLexRoles: (String, Set[SemRole]) => Unit) {
 			demandCache.clear()
 			recurDemand(a.term, Set(a.intoR), setLexRoles)

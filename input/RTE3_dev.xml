@@ -422,7 +422,7 @@
 	</pair>
 	<pair id="106" entailment="YES" task="IE" length="short" >
 		<t>Mercedes-Benz USA (MBUSA), headquartered in Montvale, New Jersey, is responsible for the sales, marketing and service of all Mercedes-Benz and Maybach products in the United States.</t>
-		<h>MBUSA is based in New Yersey.</h>
+		<h>MBUSA is based in New Jersey.</h>
 	</pair>
 	<pair id="107" entailment="YES" task="IE" length="short" >
 		<t>Since joining the Key to the Cure campaign three years ago, Mercedes-Benz has donated over $2 million toward finding new detection methods, treatments and cures for women's cancers.</t>

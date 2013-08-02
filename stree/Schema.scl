@@ -7,10 +7,10 @@ package stree {
 	
 	class MNode(valid: PI => Boolean, val children: Set[(SemRole, MNode)]) {
 		
-		private[this] val mc = mutable.Set.empty[(SemRole, PI)]
+		private[this] val mc = mutable.Set.empty[(SemRole, Item)]
 		private def matched = mc.toSet
 		
-		private[this] val nc = mutable.Set.empty[(SemRole, PI)]
+		private[this] val nc = mutable.Set.empty[(SemRole, Item)]
 		private def nonmatch = nc.toSet
 		
 		private[this] var res = null:PI
@@ -30,13 +30,16 @@ package stree {
 					y match {
 						case WORD(word) => WORD(word)
 						case IR(core, sats) => {
-							val msats = sats.flatMap(z => {
-								val tmp = for ((r, m) <- children; if r == z._1 && m.matching(z._2)) yield {
+							val msats = sats.flatMap(z => if (z._2.isInstanceOf[PI]) {
+								val tmp = for ((r, m) <- children; if r == z._1 && m.matching(z._2.asInstanceOf[PI])) yield {
 									tocheck.remove((r, m))
-									(r, m.result)
+									(r, (m.result:Item))
 								}
 								if (tmp.isEmpty) nc.add(z) else mc.add(z)
 								tmp
+							} else {
+								nc.add(z)
+								Set.empty[(SemRole, Item)]
 							})
 							IR(construct(core), msats)
 						}
@@ -44,15 +47,14 @@ package stree {
 						case DI(tm, arg, r) => PO(construct(tm), r)
 						case DU(tm, arg, r) => PO(construct(tm), r)
 						case DE(tm, arg, r) => PO(construct(tm), r)
-						case SL(tm, sel) => construct(tm)
 					}
 				}
-				res = new PI(construct(x.term), x.intoR)
+				res = PI(construct(x.term), x.intoR)
 				tocheck.isEmpty
 			}
 		}
 		
-		private[stree] def matching(x: PI, bind: Set[(MNode, SemRole, MNode, SemRole)], ctx: Set[MNode]): Boolean = {
+		private[stree] def matching(x: PI, bind: Set[(MNode, SemRole, MNode, SemRole)]): Boolean = {
 			mc.clear()
 			nc.clear()
 			res = null
@@ -62,23 +64,16 @@ package stree {
 					y match {
 						case WORD(word) => WORD(word)
 						case IR(core, sats) => {
-							val msats = sats.flatMap(z => {
-								val tmp = for ((r, m) <- children; if r == z._1 && m.matching(z._2, bind, ctx)) yield {
+							val msats = sats.filter(_._2.isInstanceOf[PI]).flatMap(z => {
+								val tmp = for ((r, m) <- children; if r == z._1 && m.matching(z._2.asInstanceOf[PI], bind)) yield {
 									tocheck.remove((r, m))
-									(r, m.result)
+									(r, (m.result:Item))
 								}
 								if (tmp.isEmpty) {
 									val bfil = bind.filter(w => w._3 == this && w._4 == z._1)
-									if (bfil.isEmpty) {
-										val reserved = bind.map(w => (w._1, w._2))
-										for (m <- ctx; (r, pi) <- m.nonmatch; if !reserved.contains((m, r)) && pi.roughMatch(z._2)) yield {
-											(z._1, pi)
-										}
-									} else {
-										bfil.flatMap(w => {
-											(w._1.matched.filter(_._1 == w._2) ++ w._1.nonmatch.filter(_._1 == w._2)).map(v => (z._1, v._2))
-										})
-									}
+									bfil.flatMap(w => {
+										w._1.nonmatch.filter(_._1 == w._2).map(v => (z._1, v._2))
+									})
 								} else {
 									tmp
 								}
@@ -89,10 +84,9 @@ package stree {
 						case DI(tm, arg, r) => PO(construct(tm), r)
 						case DU(tm, arg, r) => PO(construct(tm), r)
 						case DE(tm, arg, r) => PO(construct(tm), r)
-						case SL(tm, sel) => construct(tm)
 					}
 				}
-				res = new PI(construct(x.term), x.intoR)
+				res = PI(construct(x.term), x.intoR)
 				tocheck.isEmpty
 			}
 		}
@@ -100,27 +94,17 @@ package stree {
 	}
 	
 	class Schema(lm: MNode, um: MNode, bind: Set[(MNode, SemRole, MNode, SemRole)]) {
-		
+		/*
 		def prePair(x: PI, y: PI) = {
 			if (lm.matching(x) && um.matching(y)) {
 				Some((lm.result, um.result))
 			} else {
 				None
 			}
-		}
-		
-		private[this] val lctx = {
-			val ret = mutable.Set.empty[MNode]
-			def extract(x: MNode) {
-				ret.add(x)
-				x.children.foreach(y => extract(y._2))
-			}
-			extract(lm)
-			ret.toSet
-		}
+		}*/
 		
 		def fullPair(x: PI, y: PI) = {
-			if (lm.matching(x) && um.matching(y, bind, lctx)) {
+			if (lm.matching(x) && um.matching(y, bind)) {
 				Some((x, um.result))
 			} else {
 				None

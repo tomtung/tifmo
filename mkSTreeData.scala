@@ -31,6 +31,7 @@ for (p <- (f \ "pair")) {
 	println(hstree)
 	
 	oos.writeObject((tstree, hstree))
+	oos.reset()
 }
 
 oos.close()
