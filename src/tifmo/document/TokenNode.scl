@@ -1,0 +1,244 @@
+package tifmo
+
+import inference.SemRole
+import inference.NoRole
+import inference.IEWord
+
+import scala.collection.mutable
+import scala.util.Sorting
+
+package stree {
+	
+	import Qtfier.Qtfier
+	
+	/**
+	 * Convenient interface for making DCS trees.
+	 * 
+	 * For every sentence you just create a tree which consists of [[tifmo.stree.PreNode]]s 
+	 * (each [[tifmo.stree.PreNode]] approximately corresponds to a token containing content word), 
+	 * for a [[tifmo.stree.PreNode]] you can set and modify its properties as will, and 
+	 * finally you call `makeSentence` on the root node to make a [[tifmo.stree.Sentence]] object.
+	 * This will generate the [[tifmo.stree.STreeNode]]s and all the stuff automatically for you.
+	 * To make a document, just gather a list of [[tifmo.stree.Sentence]]s and call `new Document`.
+	 */
+	class PreNode {
+		
+		/**
+		 * The surface string.
+		 */
+		var surf = null:String
+		
+		/**
+		 * The id of the token. This id will be used to sort the children of each node.
+		 */
+		var id = 0.0
+		
+		/**
+		 * The coreference id (id of the mention cluster). If not a mention set it to `null`.
+		 */
+		var corefid = null:String
+		
+		/**
+		 * The word content.
+		 */
+		var word = null:IEWord
+		
+		/**
+		 * The sign (set to `false` iff it is negated).
+		 */
+		var sign = true
+		
+		/**
+		 * The output semantic role.
+		 */
+		var outRole = null:SemRole
+		
+		/**
+		 * The universal quantifier. If none set it to `null`.
+		 */
+		var qtfier = null:Qtfier
+		
+		/**
+		 * Whether the node is in conjunction with its parent.
+		 */
+		var conj = false
+		
+		///////////////////////////////////////////////////////
+		private var prt = null:PreNode
+		private val cs = mutable.Set.empty[(SemRole, PreNode)]
+		
+		/**
+		 * Get parent node.
+		 */
+		def parent = prt
+		
+		/**
+		 * Get children.
+		 */
+		def children = cs.toSet
+		
+		/**
+		 * Cut this node from its parent.
+		 */
+		def cut() {
+			if (prt != null) {
+				prt.cs.retain(_._2 != this)
+			}
+			prt = null
+		}
+		
+		/**
+		 * Add a child.
+		 */
+		def addChild(r: SemRole, n: PreNode) {
+			cs.add((r, n))
+			if (n.prt != null) {
+				n.prt.cs.retain(_._2 != n)
+			}
+			n.prt = this
+		}
+		
+		private val sl = mutable.Set.empty[(SemRole, List[Slction])]
+		/**
+		 * Add a selection.
+		 */
+		def addSlction(r: SemRole, sel: Slction) {
+			sl.add((r, List(sel)))
+		}
+		
+		/**
+		 * Make the sentence.
+		 */
+		def makeSentence = {
+			
+			qtfier = null
+			outRole = NoRole
+			conj = false
+			for ((r, n) <- cs; if n.conj) {
+				n.qtfier = null
+			}
+			
+			val rootNeg = if (!sign) {
+				val scs = Sorting.stableSort[(SemRole, PreNode), Double](cs.toList, -_._2.id)
+				var qtns = Nil:List[Iterable[PreNode]]
+				var hadr = Set.empty[SemRole]
+				for ((r, n) <- scs; if !hadr.contains(r)) {
+					if (n.qtfier != null) {
+						hadr = hadr + r
+						qtns = (for ((rr, nn) <- cs; if rr == r && nn.qtfier != null) yield nn) :: qtns
+					}
+				}
+				if (qtns.isEmpty) {
+					sign = true
+					true
+				} else if (qtns.exists(_.size >= 2)) {
+					false
+				} else {
+					var tmp = false
+					for (x <- qtns.reverse; if !tmp) {
+						val qt = x.head.qtfier
+						qt match {
+							case Qtfier.ALL => {
+								x.head.qtfier = null
+							}
+							case Qtfier.NO => {
+								x.head.qtfier = null
+								tmp = true
+							}
+						}
+					}
+					sign = tmp
+					false
+				}
+			} else {
+				false
+			}
+			
+			val tkmap = mutable.Map.empty[Double, Token]
+			def mkToken(x: PreNode) {
+				val tk = new Token(x.surf, x.corefid, x.word, x.sign)
+				if (tkmap.contains(x.id)) throw new Exception("conflict id!!!")
+				tkmap(x.id) = tk
+				for ((r, n) <- x.cs) {
+					mkToken(n)
+				}
+			}
+			mkToken(this)
+			
+			
+			class TmpNode(
+				private val tkid: Double, 
+				private val outRole: SemRole, 
+				private val qtfier: Qtfier, 
+				private val sels: Set[(SemRole, List[Slction])], 
+				private val children: Set[(SemRole, TmpNode)], 
+				private val conj: Boolean
+			) {
+				
+				def copy: TmpNode = {
+					new TmpNode(tkid, outRole, qtfier, sels, (for ((rr, nn) <- children) yield ((rr, nn.copy))), conj)
+				}
+				
+				def splitA(n: TmpNode, c: (SemRole, TmpNode)): TmpNode = {
+					if (n == this) {
+						new TmpNode(tkid, outRole, qtfier, sels, (for ((rr, nn) <- children - c) yield ((rr, nn.copy))), conj)
+					} else {
+						new TmpNode(tkid, outRole, qtfier, sels, (for ((rr, nn) <- children) yield ((rr, nn.splitA(n, c)))), conj)
+					}
+				}
+				
+				def splitB(n: TmpNode, c: (SemRole, TmpNode)): TmpNode = {
+					if (n == this) {
+						val cn = c._2
+						new TmpNode(cn.tkid, outRole, cn.qtfier, cn.sels, (for ((rr, nn) <- cn.children) yield ((rr, nn.copy))), conj)
+					} else {
+						new TmpNode(tkid, outRole, qtfier, sels, (for ((rr, nn) <- children) yield ((rr, nn.splitB(n, c)))), conj)
+					}
+				}
+				
+				def checkConj: (TmpNode, (SemRole, TmpNode)) = children.find(_._2.conj) match {
+					case Some(x) => (this, x)
+					case None => {
+						var ret = null:(TmpNode, (SemRole, TmpNode))
+						for ((r, n) <- children; if ret == null) {
+							ret = n.checkConj
+						}
+						ret
+					}
+				}
+				
+				def mkSTreeNode: STreeNode = {
+					val sc = Sorting.stableSort[(SemRole, TmpNode), Double](children.toList, _._2.tkid).toList
+					val cldrn = for ((r, n) <- sc) yield ((r, n.mkSTreeNode))
+					new STreeNode(tkmap(tkid), outRole, qtfier, sels, cldrn)
+				}
+			}
+			
+			val init = {
+				def mkTmpNode(x: PreNode): TmpNode = {
+					val xcs = for ((r, c) <- x.children) yield ((r, mkTmpNode(c)))
+					new TmpNode(x.id, x.outRole, x.qtfier, x.sl.toSet, xcs, x.conj)
+				}
+				mkTmpNode(this)
+			}
+			
+			var res = Nil:List[TmpNode]
+			var tocheck = List(init)
+			while (!tocheck.isEmpty) {
+				val n = tocheck.head
+				tocheck = tocheck.tail
+				val tmp = n.checkConj
+				if (tmp == null) {
+					res = n :: res
+				} else {
+					tocheck = n.splitA(tmp._1, tmp._2) :: n.splitB(tmp._1, tmp._2) :: tocheck
+				}
+			}
+			
+			val tks = Sorting.stableSort[(Double, Token), Double](tkmap.toList, _._1).unzip._2.toList
+			new Sentence(tks, res.map(_.mkSTreeNode).filter(!_.children.isEmpty).toSet, rootNeg)
+		}
+		
+	}
+	
+}
