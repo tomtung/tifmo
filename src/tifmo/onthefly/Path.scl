@@ -6,14 +6,24 @@ import dcstree.DCSTreeEdgeNormal
 import dcstree.Ref
 
 package onthefly {
-	
+	/**
+	 * Path in a DCS tree. 
+	 */
 	class Path(
+		/**
+		 * The germ from which this path begins.
+		 */
 		val start: Ref, 
 		private[onthefly] val asc: Seq[(DCSTreeNode, DCSTreeEdgeNormal)], 
 		private[onthefly] val dec: Seq[(DCSTreeEdgeNormal, DCSTreeNode)], 
+		/**
+		 * `soft == false` if and only if the end point of this path is a leaf.
+		 */
 		val soft: Boolean
 	) extends Serializable {
-		
+		/**
+		 * Representing the path in a `role(node)role-...-role(node)` manner. 
+		 */
 		val rnrs = {
 			var tmpnode = start.node
 			var tmprole = start.role
