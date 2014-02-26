@@ -75,7 +75,18 @@ package dcstree {
 	
 	case class DeclarativeSubsume(sub: DCSTreeNode, sup: DCSTreeNode) extends Declarative {
 		
-		def toStatements = Set(StatementSubsume(sub.approx, sup.approx):Statement)
+		private[this] def tmppi(x: Denotation, rs: Set[SemRole]) = {
+			if (rs == x.roles) x else DenotationPI(x, rs)
+		}
+		
+		def toStatements = {
+			val crs = sub.approx.roles intersect sup.approx.roles
+			if (crs.isEmpty) {
+				Set.empty[Statement]
+			} else {
+				Set(StatementSubsume(tmppi(sub.approx, crs), tmppi(sup.approx, crs)):Statement)
+			}
+		}
 	}
 }
 

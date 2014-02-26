@@ -68,7 +68,9 @@ package inference {
 				case DenotationW(rs) => getW(Dimension(rs)._1).holder
 				case DenotationWordSign(rs, wd, sgn) => getWordSign(rs, wd, sgn)
 				case DenotationIN(x) => getIN(x.map(recur(_)))
-				case DenotationCP(x) => getCP(x.map(y => (recur(y._1), y._2)))
+				case DenotationCP(x) => {
+					if (x.size <= 1) recur(x.head._1) else getCP(x.map(y => (recur(y._1), y._2)))
+				}
 				case DenotationPI(x, rs) => getPI(recur(x), rs)
 				case DenotationDI(qt, x, y, r) => qt match {
 					case QuantifierALL => getFunc(FuncDIall, Seq(null, recur(x), recur(y)), r)
@@ -169,14 +171,14 @@ package inference {
 			val guards = mutable.Set.empty[Guard[_ <: IEPred]]
 			for (tm <- alltms) {
 				
-				tm.kne.foreach(x => preds += x.dumpMe(tmmap))
-				tm.assub.foreach(x => preds += x.dumpMe(tmmap))
-				tm.djts.foreach(x => preds += x.dumpMe(tmmap))
-				tm.iscps.foreach(x => preds += x.dumpMe(tmmap))
-				tm.ispis.foreach(x => preds += x.dumpMe(tmmap))
-				tm.isins.foreach(x => preds += x.dumpMe(tmmap))
-				tm.funcs.foreach(x => preds += x.dumpMe(tmmap))
-				tm.asarl.foreach(x => preds += x.dumpMe(tmmap))
+				tm.kne.foreach(preds += _)
+				tm.assub.foreach(preds += _)
+				tm.djts.foreach(preds += _)
+				tm.iscps.foreach(preds += _)
+				tm.ispis.foreach(preds += _)
+				tm.isins.foreach(preds += _)
+				tm.funcs.foreach(preds += _)
+				tm.asarl.foreach(preds += _)
 				
 				tm.neTriggers.foreach(x => guards += x.guard.dumpMe(tmmap))
 				tm.subTriggers.foreach(x => guards += x.guard.dumpMe(tmmap))
@@ -194,10 +196,11 @@ package inference {
 			
 			val stpreds = preds.toArray
 			Sorting.quickSort[IEPred](stpreds)
+			stpreds.foreach(_.debug_trace.assertValid())
 			
 			new IEDump(
 				allws.map(tmmap(_)), 
-				stpreds.toList, 
+				stpreds.toList.map(_.dumpMe(tmmap)), 
 				guards.toList, 
 				wdtm.mapValues(x => tmmap(x.index)).toMap, 
 				wdrs.toMap, 
