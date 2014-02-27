@@ -50,6 +50,12 @@ package inference {
 		}
 		implicit def convertRL(x: Relation) = new RArgRL(x)
 		
+		class RArgStr(x: String) extends RuleArg(x) {
+			private[inference] val terms = Set.empty[TermIndex]
+			private[inference] def dumpMe(tmmap: Map[TermIndex, TermIndex]) = new RArgStr(x)
+		}
+		implicit def convertStr(x: String) = new RArgStr(x)
+		
 	}
 	
 }

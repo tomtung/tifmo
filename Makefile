@@ -29,6 +29,7 @@ CORE=\
 	tifmo/onthefly/Path.class \
 	tifmo/onthefly/PathAlignment.class \
 	tifmo/onthefly/alignPaths.class \
+	tifmo/extension/RelPartialOrder.class \
 	
 
 core: $(CORE)

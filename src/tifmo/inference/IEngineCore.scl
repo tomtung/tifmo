@@ -297,9 +297,9 @@ package inference {
 		 */
 		def claimPI(h: TermIndex, t: TermIndex, r: SemRole, debug_trace: Debug_RuleTrace = Debug_SimpleRuleTrace("default", getNewPredID())) {
 			assert{
-				val hrs = h.dim.relabel(null)
-				val trs = t.dim.relabel(r)
-				trs.subsetOf(hrs) && trs != hrs
+				val hrs = h.dim.relabel(r)
+				val trs = t.dim.relabel(null)
+				hrs.subsetOf(trs) && trs != hrs
 			}
 			
 			if (applyPI(h, t, r, debug_trace)) {
