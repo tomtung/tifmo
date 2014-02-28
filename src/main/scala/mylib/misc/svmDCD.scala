@@ -1,4 +1,4 @@
-package misc
+package mylib.misc
 
 import scala.util.Random.shuffle
 
@@ -103,7 +103,7 @@ object svmDCD extends ((Int, Int, Array[Array[Double]], Array[Double], Array[Set
 		
 		def loop() {
 			flag = false
-			for (j <- shuffle((0 until l))) descent_a(j)
+			for (j <- shuffle((0 until l).toIndexedSeq)) descent_a(j)
 			if (flag) loop()
 		}
 		loop()

@@ -1,4 +1,4 @@
-package res.en
+package mylib.res.en
 	
 object EnStopWords {
 	

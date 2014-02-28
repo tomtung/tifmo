@@ -1,18 +1,19 @@
-package misc
+package mylib.misc
 
 
-object longestCommSeq {
+object longestCommString {
 	
 	def length[T](a: Seq[T], b: Seq[T]) = {
 		val tab = Array.ofDim[Int](a.length + 1, b.length + 1)
-		for (i <- 0 until a.length; j <- 0 until b.length) {
-			if (a(i) == b(j)) {
-				tab(i + 1)(j + 1) = tab(i)(j) + 1
-			} else {
-				tab(i + 1)(j + 1) = tab(i)(j + 1) max tab(i + 1)(j)
+		var max = 0
+		for (i <- 1 to a.length; j <- 1 to b.length) {
+			if (a(i - 1) == b(j - 1)) {
+				val tmp = tab(i - 1)(j - 1) + 1
+				tab(i)(j) = tmp
+				if (tmp > max) max = tmp
 			}
 		}
-		tab(a.length)(b.length)
+		max
 	}
 	
 	def rateAve[T](a: Seq[T], b: Seq[T]) = {

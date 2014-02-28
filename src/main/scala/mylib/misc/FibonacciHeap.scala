@@ -1,4 +1,4 @@
-package misc {
+package mylib.misc {
 
 	class FibonacciHeap[T >: Null <: AnyRef] {
 		
