@@ -44,21 +44,27 @@ CORE=\
 CORENLP_VERSION=stanford-corenlp-full-2014-01-04
 CLASSPATH_EN=lib/*:lib/en/*:lib/en/$(CORENLP_VERSION)/*
 TARGET_EN=\
+	lib/en/$(CORENLP_VERSION) \
 	mylib/res/en/EnStopWords.class \
 	tifmo/main/en/EnWord.class \
+	resources/en/dict \
 	mylib/res/en/EnWordNet.class \
 	tifmo/main/en/normalize.class \
 	tifmo/main/en/ARG.class \
 	tifmo/main/en/parse.class \
 	mylib/misc/longestCommSeq.class \
 	tifmo/main/en/EnResources.class \
-	mylib/res/en/EnTurian10.class \
-	mylib/res/en/EnMikolov13.class \
 	tifmo/main/en/EnSimilarity.class \
+	resources/en/WordVectors/Turian10.cdb \
+	mylib/res/en/EnTurian10.class \
+	tifmo/main/en/EnSimilarityTurian10.class \
+	resources/en/WordVectors/Mikolov13.cdb \
+	mylib/res/en/EnMikolov13.class \
+	tifmo/main/en/EnSimilarityMikolov13.class \
 	
 
 
-all: $(CORE) init_en $(TARGET_EN)
+all: $(CORE) $(TARGET_EN)
 
 
 tifmo/dcstree/DCSTreeNode.class: src/tifmo/dcstree/DCSTreeNode.scl src/tifmo/dcstree/Ref.scl src/tifmo/dcstree/Context.scl
@@ -71,25 +77,19 @@ tifmo/document/Document.class: src/tifmo/document/Document.scl src/tifmo/documen
 	$(SCALAC) $^
 
 
-init_en:
-	if [ ! -d lib/en/$(CORENLP_VERSION) ] ; \
-	then \
-		unzip lib/en/$(CORENLP_VERSION).zip -d lib/en ; \
-	fi; \
-	if [ ! -d resources/en/dict ] ; \
-	then \
-		tar xvfz resources/en/wn3.1.dict.tar.gz -C resources/en ; \
-	fi; \
-	if [ ! -f resources/en/WordVectors/Turian10.cdb ] ; \
-	then \
-		gunzip -c resources/en/WordVectors/Turian10-embeddings-scaled.EMBEDDING_SIZE=50.txt.gz > resources/en/WordVectors/Turian10.txt ; \
-		$(SCALA) -classpath "lib/*" lib/en/WordVectors/mkCdb.scala resources/en/WordVectors/Turian10.txt resources/en/WordVectors/Turian10.cdb 50 ; \
-	fi; \
-	if [ ! -f resources/en/WordVectors/Mikolov13.cdb ] ; \
-	then \
-		bunzip2 -c resources/en/WordVectors/Mikolov13-GoogleNews-vectors-negative300.txt.bz2 > resources/en/WordVectors/Mikolov13.txt ; \
-		$(SCALA) -classpath "lib/*" lib/en/WordVectors/mkCdb.scala resources/en/WordVectors/Mikolov13.txt resources/en/WordVectors/Mikolov13.cdb 300 ; \
-	fi; \
+lib/en/$(CORENLP_VERSION):
+	unzip lib/en/$(CORENLP_VERSION).zip -d lib/en
+
+resources/en/dict:
+	tar xvfz resources/en/wn3.1.dict.tar.gz -C resources/en
+
+resources/en/WordVectors/Turian10.cdb:
+	gunzip -c resources/en/WordVectors/Turian10-embeddings-scaled.EMBEDDING_SIZE=50.txt.gz > resources/en/WordVectors/Turian10.txt
+	$(SCALA) -classpath "lib/*" lib/en/WordVectors/mkCdb.scala resources/en/WordVectors/Turian10.txt resources/en/WordVectors/Turian10.cdb 50
+
+resources/en/WordVectors/Mikolov13.cdb:
+	bunzip2 -c resources/en/WordVectors/Mikolov13-GoogleNews-vectors-negative300.txt.bz2 > resources/en/WordVectors/Mikolov13.txt
+	$(SCALA) -classpath "lib/*" lib/en/WordVectors/mkCdb.scala resources/en/WordVectors/Mikolov13.txt resources/en/WordVectors/Mikolov13.cdb 300
 
 mylib/res/en/%.class: src/mylib/res/en/%.scl
 	$(SCALAC) -classpath $(CLASSPATH_EN) $<
@@ -123,4 +123,4 @@ fracasDemo:
 
 #################################
 
-.PHONY: init_en clean scaladoc fracasDemo
+.PHONY: clean scaladoc fracasDemo
