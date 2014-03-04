@@ -68,7 +68,7 @@ package onthefly {
 					new DCSTreeNode(
 						prechild ++ xqt, 
 						cp.rseq, 
-						cp.word, 
+						cp.token, 
 						cp.sign, 
 						cp.selection, 
 						cp.outRole, 
@@ -111,7 +111,7 @@ package onthefly {
 				val rt = new DCSTreeNode(
 					topc1 ++ topc2 ++ topqt, 
 					topref.node.rseq, 
-					topref.node.word, 
+					topref.node.token, 
 					topref.node.sign, 
 					topref.node.selection, 
 					topref.node.outRole, 

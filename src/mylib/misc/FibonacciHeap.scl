@@ -1,3 +1,6 @@
+package mylib
+
+
 package misc {
 
 	class FibonacciHeap[T >: Null <: AnyRef] {

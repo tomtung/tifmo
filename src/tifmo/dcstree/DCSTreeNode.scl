@@ -7,11 +7,11 @@ package dcstree {
 	class DCSTreeNode(
 		val children: Set[(DCSTreeEdge, DCSTreeNode)], 
 		val rseq: Seq[SemRole], 
-		val word: WordBase,
+		val token: TokenBase,
 		val sign: Boolean, 
 		val selection: Selection, 
 		val outRole: SemRole, 
-		val context: Set[Context]
+		val context: Set[Context] = Set.empty[Context]
 	) extends Serializable {
 		
 		private[this] var aprx = null:Denotation
@@ -45,6 +45,15 @@ package dcstree {
 			}
 		}
 		
+		private[this] def makePI(x: Denotation, r: SemRole) = {
+			if (x.roles.size == 1) {
+				assert(x.roles.head == r)
+				x
+			} else {
+				DenotationPI(x, Set(r))
+			}
+		}
+		
 		private[this] def makeINCPW(c: Denotation, s: Set[(SemRole, Denotation)]) = {
 			if (s.isEmpty) {
 				c
@@ -52,24 +61,20 @@ package dcstree {
 				val rs = s.map(_._1)
 				assert(rs.subsetOf(c.roles))
 				val side = for (r <- rs) yield {
-					val fil = s.filter(_._1 == r).map(_._2)
-					val tmp = if (fil.size <= 1) fil.head else DenotationIN(fil)
-					(tmp, r)
+					val fil = s.filter(_._1 == r).map(x => DenotationRelabel(x._2, x._1):Denotation)
+					if (fil.size <= 1) fil.head else DenotationIN(fil)
 				}
 				val rest = c.roles -- rs
-				val cp = if (rest.isEmpty) {
-					side
-				} else {
-					side + ((DenotationW(rest), (if (rest.size == 1) rest.head else null)))
-				}
-				DenotationIN(Set(c, DenotationCP(cp)))
+				val precp = if (rest.isEmpty) side else side + DenotationW(rest)
+				val cp = if (precp.size == 1) precp.head else DenotationCP(precp)
+				DenotationIN(Set(c, cp))
 			}
 		}
 		
 		def upward() {
 			if (otpt == null) {
 				val rs = rseq.toSet
-				val c = if (word.isStopWord) DenotationW(rs) else DenotationWordSign(rs, word, sign)
+				val c = if (token.getWord.isStopWord) DenotationW(rs) else DenotationWordSign(rs, token.getWord, sign)
 				val s1 = for ((DCSTreeEdgeNormal(r), n) <- children) yield {
 					n.upward()
 					(r, n.output)
@@ -80,13 +85,13 @@ package dcstree {
 				val pre = makeINCPW(c, s1 ++ s2)
 				aprx = if (selection == null) pre else DenotationSelection(selection, pre)
 				hfcl = (approx /: rseq.takeWhile(_ != outRole))((d, r) => {
-					gm(r) = DenotationPI(d, Set(r))
+					gm(r) = makePI(d, r)
 					for ((edge @ DCSTreeEdgeNormal(rr), n) <- children; if rr == r) {
 						n.downward((this, edge))
 					}
 					calcr(d, r)
 				})
-				otpt = DenotationPI(halfcalc, Set(outRole))
+				otpt = makePI(halfcalc, outRole)
 			}
 		}
 		
@@ -104,7 +109,7 @@ package dcstree {
 				assert(parent == p)
 				assert(posinega)
 			} else {
-				assert(p._1.children.contains((p._2, this)))
+				assert(p == null || p._1.children.contains((p._2, this)))
 				prt = p
 				downFlag = true
 				val tmp1 = if (p == null) Set(output) else Set(p._1.germ(p._2.inRole))
@@ -126,7 +131,7 @@ package dcstree {
 					makeINCPW(halfcalc, Set((outRole, germ(outRole))))
 				}
 				(calcr(halfdash, outRole) /: rseq.dropWhile(_ != outRole).tail)((d, r) => {
-					gm(r) = DenotationPI(d, Set(r))
+					gm(r) = makePI(d, r)
 					for ((edge @ DCSTreeEdgeNormal(rr), n) <- children; if rr == r) {
 						n.downward((this, edge))
 					}
@@ -140,7 +145,7 @@ package dcstree {
 				assert(parent == p)
 				assert(!posinega)
 			} else {
-				assert(p._1.children.contains((p._2, this)))
+				assert(p == null || p._1.children.contains((p._2, this)))
 				prt = p
 				posinega = false
 				downFlag = true
@@ -155,7 +160,7 @@ package dcstree {
 				}
 				calcr(halfdash, outRole)
 				(DenotationPI(halfdash, halfdash.roles - outRole) /: rseq.dropWhile(_ != outRole).tail)((d, r) => {
-					gm(r) = DenotationPI(d, Set(r))
+					gm(r) = makePI(d, r)
 					for ((edge @ DCSTreeEdgeNormal(rr), n) <- children; if rr == r) {
 						n.downwardNega((this, edge))
 					}
@@ -199,7 +204,7 @@ package dcstree {
 		def copy: DCSTreeNode = new DCSTreeNode(
 			children.map(x => (x._1, x._2.copy)), 
 			rseq, 
-			word, 
+			token, 
 			sign, 
 			selection, 
 			outRole, 

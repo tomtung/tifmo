@@ -1,3 +1,4 @@
+SCALA=scala
 SCALAC=scalac
 SCALADOC=scaladoc
 
@@ -5,6 +6,7 @@ CORE=\
 	tifmo/dcstree/SemRole.class \
 	tifmo/dcstree/Quantifier.class \
 	tifmo/dcstree/WordBase.class \
+	tifmo/dcstree/TokenBase.class \
 	tifmo/dcstree/Executor.class \
 	tifmo/dcstree/Selection.class \
 	tifmo/dcstree/Relation.class \
@@ -29,29 +31,96 @@ CORE=\
 	tifmo/onthefly/Path.class \
 	tifmo/onthefly/PathAlignment.class \
 	tifmo/onthefly/alignPaths.class \
+	tifmo/extension/SelCoref.class \
+	tifmo/extension/SelNum.class \
 	tifmo/extension/RelPartialOrder.class \
+	tifmo/extension/SelSup.class \
+	tifmo/document/Document.class \
+	tifmo/document/tentRootNeg.class \
+	tifmo/document/tentRoles.class \
+	tifmo/document/tentRoleOrder.class \
 	
 
-core: $(CORE)
+CORENLP_VERSION=stanford-corenlp-full-2014-01-04
+CLASSPATH_EN=lib/*:lib/en/*:lib/en/$(CORENLP_VERSION)/*
+TARGET_EN=\
+	mylib/res/en/EnStopWords.class \
+	tifmo/main/en/EnWord.class \
+	mylib/res/en/EnWordNet.class \
+	tifmo/main/en/normalize.class \
+	tifmo/main/en/ARG.class \
+	tifmo/main/en/parse.class \
+	mylib/misc/longestCommSeq.class \
+	tifmo/main/en/EnResources.class \
+	mylib/res/en/EnTurian10.class \
+	mylib/res/en/EnMikolov13.class \
+	tifmo/main/en/EnSimilarity.class \
+	
 
-tifmo/%.class: src/tifmo/%.scl
-	$(SCALAC) $<
-	
-mylib/misc/%.class: src/mylib/misc/%.scl
-	$(SCALAC) $<
-	
+
+all: $(CORE) init_en $(TARGET_EN)
+
+
 tifmo/dcstree/DCSTreeNode.class: src/tifmo/dcstree/DCSTreeNode.scl src/tifmo/dcstree/Ref.scl src/tifmo/dcstree/Context.scl
 	$(SCALAC) $^
 	
 tifmo/inference/IEngineCore.class: src/tifmo/inference/IEngineCore.scl src/tifmo/inference/Term.scl src/tifmo/inference/Finder.scl src/tifmo/inference/Debug_RuleTrace.scl src/tifmo/inference/IEPred.scl src/tifmo/inference/IEFunction.scl src/tifmo/inference/RuleArg.scl src/tifmo/inference/Trigger.scl src/tifmo/inference/RulesQuick.scl src/tifmo/inference/RulesLight.scl src/tifmo/inference/RulesHeavy.scl
 	$(SCALAC) $^
 
+tifmo/document/Document.class: src/tifmo/document/Document.scl src/tifmo/document/Token.scl src/tifmo/document/TokenNode.scl
+	$(SCALAC) $^
+
+
+init_en:
+	if [ ! -d lib/en/$(CORENLP_VERSION) ] ; \
+	then \
+		unzip lib/en/$(CORENLP_VERSION).zip -d lib/en ; \
+	fi; \
+	if [ ! -d resources/en/dict ] ; \
+	then \
+		tar xvfz resources/en/wn3.1.dict.tar.gz -C resources/en ; \
+	fi; \
+	if [ ! -f resources/en/WordVectors/Turian10.cdb ] ; \
+	then \
+		gunzip -c resources/en/WordVectors/Turian10-embeddings-scaled.EMBEDDING_SIZE=50.txt.gz > resources/en/WordVectors/Turian10.txt ; \
+		$(SCALA) -classpath "lib/*" lib/en/WordVectors/mkCdb.scala resources/en/WordVectors/Turian10.txt resources/en/WordVectors/Turian10.cdb 50 ; \
+	fi; \
+	if [ ! -f resources/en/WordVectors/Mikolov13.cdb ] ; \
+	then \
+		bunzip2 -c resources/en/WordVectors/Mikolov13-GoogleNews-vectors-negative300.txt.bz2 > resources/en/WordVectors/Mikolov13.txt ; \
+		$(SCALA) -classpath "lib/*" lib/en/WordVectors/mkCdb.scala resources/en/WordVectors/Mikolov13.txt resources/en/WordVectors/Mikolov13.cdb 300 ; \
+	fi; \
+
+mylib/res/en/%.class: src/mylib/res/en/%.scl
+	$(SCALAC) -classpath $(CLASSPATH_EN) $<
+
+tifmo/main/en/%.class: src/tifmo/main/en/%.scl
+	$(SCALAC) -classpath $(CLASSPATH_EN) $<
+
+tifmo/main/en/ARG.class: src/tifmo/main/en/roles.scl
+	$(SCALAC) $<
+
+
+mylib/misc/%.class: src/mylib/misc/%.scl
+	$(SCALAC) $<
+
+tifmo/%.class: src/tifmo/%.scl
+	$(SCALAC) $<
+
+
 #################################
 
 clean:
-	rm -rf tifmo mylib scaladoc
+	rm -rf mylib tifmo scaladoc lib/en/$(CORENLP_VERSION) resources/en/dict resources/en/WordVectors/Turian10.cdb resources/en/WordVectors/Turian10.txt resources/en/WordVectors/Mikolov13.cdb resources/en/WordVectors/Mikolov13.txt
 
 scaladoc:
-	$(SCALADOC) -d scaladoc src/tifmo/dcstree/*.scl src/tifmo/inference/*.scl src/tifmo/onthefly/*.scl
+	$(SCALADOC) -d scaladoc src/tifmo/dcstree/*.scl src/tifmo/inference/*.scl src/tifmo/onthefly/*.scl src/tifmo/extension/*.scl src/tifmo/document/*.scl
 
-.PHONY: clean scaladoc
+#################################
+
+fracasDemo:
+	JAVA_OPTS='-Xmx2g' $(SCALA) -classpath $(CLASSPATH_EN) DemoFraCaS.scala input/fracas.xml
+
+#################################
+
+.PHONY: init_en clean scaladoc fracasDemo

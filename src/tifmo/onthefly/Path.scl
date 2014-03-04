@@ -49,7 +49,7 @@ package onthefly {
 				if (x._1 != x._3) flag = false
 				ret
 			})
-			tmp.map(_._2.word).toSet
+			tmp.map(_._2.token.getWord).toSet
 		}
 		
 	}

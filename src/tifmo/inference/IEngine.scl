@@ -7,6 +7,7 @@ import dcstree.QuantifierNO
 import dcstree.Denotation
 import dcstree.DenotationW
 import dcstree.DenotationWordSign
+import dcstree.DenotationRelabel
 import dcstree.DenotationIN
 import dcstree.DenotationCP
 import dcstree.DenotationPI
@@ -69,9 +70,8 @@ package inference {
 				case DenotationW(rs) => getW(Dimension(rs)._1).holder
 				case DenotationWordSign(rs, wd, sgn) => getWordSign(rs, wd, sgn)
 				case DenotationIN(x) => getIN(x.map(recur(_)))
-				case DenotationCP(x) => {
-					if (x.size <= 1) recur(x.head._1) else getCP(x.map(y => (recur(y._1), y._2)))
-				}
+				case DenotationRelabel(x, r) => recur(x)
+				case DenotationCP(x) => getCP(x.map(y => (recur(y), (if (y.roles.size == 1) y.roles.head else null))))
 				case DenotationPI(x, rs) => getPI(recur(x), rs)
 				case DenotationDI(qt, x, y, r) => qt match {
 					case QuantifierALL => getFunc(FuncDIall, Seq(null, recur(x), recur(y)), r)

@@ -1,4 +1,4 @@
-package res.ja;
+package mylib.res.ja;
 
 import fuku.eb4j.Book;
 import fuku.eb4j.SubBook;

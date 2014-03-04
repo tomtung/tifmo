@@ -1,4 +1,4 @@
-package res.ja;
+package mylib.res.ja;
 
 public class JaGoiEntry implements java.io.Serializable {
 	

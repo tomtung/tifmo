@@ -1,4 +1,4 @@
-package res.ja;
+package mylib.res.ja;
 
 import java.io.FileInputStream;
 import java.io.ObjectInputStream;

@@ -1,4 +1,4 @@
-package res.ja;
+package mylib.res.ja;
 
 import com.strangegizmo.cdb.Cdb;
 import java.io.IOException;
