@@ -1,7 +1,22 @@
+#!/bin/sh
+SCALA=scala
+CORENLP_VERSION=stanford-corenlp-full-2014-01-04
+
+JAVA_OPTS=-Xmx2g
+export JAVA_OPTS
+
+CLASSPATH_EN=lib/*:lib/en/*:lib/en/$CORENLP_VERSION/*
+
+exec $SCALA -classpath $CLASSPATH_EN "$0" "$@"
+!#
+
+if (args.length != 1) {
+	println("USAGE: DemoFraCaS.sh fracas_xml")
+	sys.exit()
+}
 
 import tifmo.inference.IEngine
 import tifmo.main.en.parse
-
 
 val fracas_xml = args(0)
 

@@ -139,6 +139,7 @@ package inference {
 				val crs = wdrs(sub) intersect wdrs(sup)
 				if (!crs.isEmpty) {
 					claimSubsume(getWordSign(crs, sub, true).index, getWordSign(crs, sup, true).index, Debug_SimpleRuleTrace("word subsume", getNewPredID()))
+					explore()
 				}
 			}
 		}
@@ -151,6 +152,7 @@ package inference {
 				val crs = wdrs(a) intersect wdrs(b)
 				if (!crs.isEmpty) {
 					claimDisjoint(getWordSign(crs, a, true).index, getWordSign(crs, b, true).index, Debug_SimpleRuleTrace("word disjoint", getNewPredID()))
+					explore()
 				}
 			}
 		}

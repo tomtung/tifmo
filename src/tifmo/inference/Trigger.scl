@@ -167,8 +167,7 @@ package inference {
 		}
 		private[inference] def trig(ie: IEngineCore, pred: IEPredDisjoint, tg: Trigger[IEPredDisjoint]) {
 			if (triggerRole(tg) == 0) {
-				assert(pred.a == cur(0))
-				if (pred.b == cur(1)) ie.newHeavy[IEPredDisjoint](pred, f, args)
+				if (pred.a == cur(0) && pred.b == cur(1)) ie.newHeavy[IEPredDisjoint](pred, f, args)
 			}
 		}
 		private[inference] def dumpMe(tmmap: Map[TermIndex, TermIndex]) = {

@@ -118,9 +118,4 @@ scaladoc:
 
 #################################
 
-fracasDemo:
-	JAVA_OPTS='-Xmx2g' $(SCALA) -classpath $(CLASSPATH_EN) DemoFraCaS.scala input/fracas.xml
-
-#################################
-
-.PHONY: clean scaladoc fracasDemo
+.PHONY: clean scaladoc

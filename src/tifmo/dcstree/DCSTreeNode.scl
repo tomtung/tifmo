@@ -120,7 +120,7 @@ package dcstree {
 				gm(outRole) = if (tmp.size == 1) {
 					tmp.head
 				} else {
-					DenotationIN(tmp)
+					DenotationIN(tmp.map(DenotationRelabel(_, outRole)))
 				}
 				for ((edge @ DCSTreeEdgeNormal(rr), n) <- children; if rr == outRole) {
 					n.downward((this, edge))
