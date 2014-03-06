@@ -18,7 +18,7 @@ package document {
 				
 				val sortc = x.children.filter(!_._2.conj).toArray
 				object order extends math.Ordering[(SemRole, TokenNode)] {
-					def compare(a: (SemRole, TokenNode), b: (SemRole, TokenNode)) = -a._2.compare(b._2)
+					def compare(a: (SemRole, TokenNode), b: (SemRole, TokenNode)) = b._2.token.id - a._2.token.id
 				}
 				Sorting.quickSort(sortc)(order)
 				
@@ -26,7 +26,7 @@ package document {
 				val beforeOutRoleQuantifier = {
 					val pn = if (x.parent == null) x else x.parent
 					for {
-						(r, n) <- sortc.takeWhile(y => y._2 > pn && y._1 != x.outRole)
+						(r, n) <- sortc.takeWhile(y => y._2.token.id > pn.token.id && y._1 != x.outRole)
 						if n.quantifier != null && rolescache.add(r)
 					} yield r
 				}

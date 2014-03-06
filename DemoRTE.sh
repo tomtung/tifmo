@@ -34,10 +34,11 @@ val rte_xml = args(0)
 
 val f = xml.XML.loadFile(rte_xml)
 
-var counter = 0
 for (p <- (f \ "pair")) {
 	
 	val id = (p \ "@id").text
+	
+	val task = (p \ "@task").text
 	
 	val gold_label = if (
 		(p \ "@value").text == "TRUE" 
@@ -84,7 +85,7 @@ for (p <- (f \ "pair")) {
 	
 	if (hypo.flatMap(_.toStatements).forall(ie.checkStatement(_))) {
 		
-		println(id + "," + counter + "," + gold_label + ",Y")
+		println(id + "," + task + "," + gold_label + ",Y")
 		
 	} else {
 		
@@ -125,15 +126,13 @@ for (p <- (f \ "pair")) {
 		
 		if (hypo.flatMap(_.toStatements).forall(ie.checkStatement(_))) {
 			
-			println(id + "," + counter + "," + gold_label + ",Y")
+			println(id + "," + task + "," + gold_label + ",Y")
 			
 		} else {
 			
-			println(id + "," + counter + "," + gold_label + ",N")
+			println(id + "," + task + "," + gold_label + ",N")
 			
 		}
 	}
-	
-	counter += 1
 }
 

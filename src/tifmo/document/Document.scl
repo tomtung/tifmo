@@ -30,8 +30,8 @@ package document {
 		for (i <- 0 until tokens.length; tok = tokens(i)) {
 			assert(tok.doc == null)
 			assert(tok.id == -1)
-			tok.doc = this
-			tok.id = i
+			tok.xdoc = this
+			tok.xid = i
 		}
 		
 		private[this] val nodes = mutable.Map.empty[Token, TokenNode]
