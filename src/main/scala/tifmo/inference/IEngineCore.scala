@@ -64,6 +64,8 @@ package inference {
 			}
 			term
 		}
+
+    def new1DTerm() = this.newTerm(new Dimension(null))
 		
 		// contradiction: 
 		private[this] var contraFlag = false

@@ -11,6 +11,15 @@ package inference {
 	}
 	
 	trait RuleDo[T <: IEPred] extends ((IEngineCore, T, Seq[RuleArg]) => Unit) with Serializable
+
+  object RuleDo {
+    def apply[T <: IEPred](op: (IEngineCore, T, Seq[RuleArg]) => Unit): RuleDo[T] =
+      new RuleDo[T] {
+        def apply(ie: IEngineCore, pred: T, args: Seq[RuleArg]) {
+          op(ie, pred, args)
+        }
+      }
+  }
 	
 	object RAConversion {
 		
