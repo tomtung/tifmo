@@ -30,26 +30,20 @@ package onthefly {
 			
 			val sup = {
 				
-				val ctxtm = for (ref <- ctx) yield ((ref, ie.getTerm(ref.getDenotation)))
-				val alltm = for (ref <- qtall) yield ((ref, ie.getTerm(ref.getDenotation)))
-				val notm = for (ref <- qtno) yield ((ref, ie.getTerm(ref.getDenotation)))
-				
 				def xctxqt(cdash: Set[(DCSTreeEdge, DCSTreeNode)]) = {
-					for ((e, n) <- cdash) ie.getTerm(n.output)
-					
 					val xctx = (for ((DCSTreeEdgeNormal(r), n) <- cdash) yield {
 						val tm = ie.getTerm(n.output)
-						for ((ref, x) <- ctxtm; if (x.superSets intersect tm.superSets).exists(!_.isW)) yield {
+						for (ref <- ctx; if (ie.getTerm(ref.getDenotation).superSets intersect tm.superSets).exists(!_.isW)) yield {
 							ContextA(r, ref):Context
 						}
 					}).flatten
 					val xqt = (for ((e:DCSTreeEdgeQuantifier, n) <- cdash) yield {
 						val tm = ie.getTerm(n.output)
 						val pool = e.quantifier match {
-							case QuantifierALL => alltm
-							case QuantifierNO => notm
+							case QuantifierALL => qtall
+							case QuantifierNO => qtno
 						}
-						for ((ref, x) <- pool; if (x.superSets intersect tm.superSets).exists(!_.isW)) yield {
+						for (ref <- pool; if (ie.getTerm(ref.getDenotation).superSets intersect tm.superSets).exists(!_.isW)) yield {
 							(e:DCSTreeEdge, ref.node.copy)
 						}
 					}).flatten
@@ -91,7 +85,7 @@ package onthefly {
 				val ascrev = if (supPath.asc.isEmpty) {
 					Seq.empty[(DCSTreeEdgeNormal, DCSTreeNode)]
 				} else {
-					val (tmp1, tmp2) = supPath.asc.reverse.unzip
+					val (tmp1, tmp2) = supPath.asc.unzip
 					(tmp2 zip (supPath.start.node +: tmp1.init)).reverse
 				}
 				val topcdash = topref.node.children -- supPath.dec.take(1) -- ascrev.take(1)

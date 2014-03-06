@@ -2,16 +2,35 @@ package tifmo
 
 import dcstree.DCSTreeNode
 import dcstree.DCSTreeEdgeNormal
+import dcstree.DCSTreeEdgeQuantifier
 import dcstree.Ref
 import dcstree.Declarative
 import dcstree.DeclarativeSubRef
 import inference.IEngine
+
+import scala.collection.mutable
 
 package onthefly {
 	
 	object alignPaths extends ((Set[Declarative], IEngine) => Set[PathAlignment]) {
 		
 		def apply(assumption: Set[Declarative], ie: IEngine) = {
+			
+			val nodespool = mutable.Set.empty[DCSTreeNode]
+			for (DeclarativeSubRef(sub, sup) <- assumption) {
+				nodespool ++= sub.subOrdinate.map(_._3.node) + sub.node
+				nodespool ++= sup.subOrdinate.map(_._3.node) + sup.node
+			}
+			for (n <- nodespool) {
+				ie.getTerm(n.output)
+				if (n.selection == null) {
+					n.rseq.foreach(r => ie.getTerm(n.germ(r)))
+					for ((e:DCSTreeEdgeQuantifier, nn) <- n.children) {
+						ie.getTerm(nn.output)
+					}
+				}
+			}
+			
 			for {
 				DeclarativeSubRef(sub, sup) <- assumption
 				if logicallyRelated(ie, sub, sup)

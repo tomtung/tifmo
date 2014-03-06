@@ -48,7 +48,8 @@ package document {
 		def allContentWords[T <: WordBase] = {
 			val ret = mutable.Set.empty[T]
 			def recur(x: TokenNode) {
-				ret += x.token.getWord.asInstanceOf[T]
+				val word = x.token.getWord.asInstanceOf[T]
+				if (!word.isStopWord) ret += word
 				for ((r, n) <- x.children) recur(n)
 			}
 			for (n <- allRootNodes) recur(n)
@@ -75,11 +76,8 @@ package document {
 					val ret = mutable.Set.empty[TokenNode]
 					def recur(y: TokenNode) {
 						val (conjs, notconjs) = y.children.partition(_._2.conj)
-						if (conjs.isEmpty) {
-							for ((r, nn) <- notconjs) recur(nn)
-						} else {
-							ret += y
-						}
+						if (!conjs.isEmpty) ret += y
+						for ((r, nn) <- notconjs) recur(nn)
 					}
 					recur(x)
 					ret.toSet

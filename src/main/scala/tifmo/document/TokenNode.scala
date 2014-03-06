@@ -87,9 +87,16 @@ package document {
 		 * Add a child.
 		 */
 		def addChild(r: SemRole, n: TokenNode) {
-			assert(n.prt == null)
-			cs.add((r, n))
-			n.prt = this
+			if (n == this) {
+				// ignore
+			} else if (n.parent == this) {
+				cs.retain(_._2 != n)
+				cs += ((r, n))
+			} else {
+				assert(n.parent == null)
+				cs += ((r, n))
+				n.prt = this
+			}
 		}
 		
 		///////////////////////////////////////////////////////
