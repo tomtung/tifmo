@@ -22,6 +22,7 @@ package onthefly {
 				if subPath.rnrs.length <= 5
 				if supPath.rnrs.length <= 5
 				if logicallyAligned(ie, subPath, supPath)
+				if signMatch(subPath, supPath)
 				if !headStopWord(subPath)
 				if !headNamedEntity(supPath)
 			} yield {
@@ -63,6 +64,12 @@ package onthefly {
 			} else {
 				!subPath.soft && !supPath.soft
 			}
+		}
+		
+		private[this] def signMatch(subPath: Path, supPath: Path) = {
+			val tmpsub = (true /: subPath.rnrs.map(_._2.sign))(_ == _)
+			val tmpsup = (true /: supPath.rnrs.map(_._2.sign))(_ == _)
+			tmpsub == tmpsup
 		}
 		
 		private[this] def headStopWord(path: Path) = {

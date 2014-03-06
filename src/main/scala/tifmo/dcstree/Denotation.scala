@@ -18,10 +18,14 @@ package dcstree {
 		assert(x.forall(_.roles == roles))
 	}
 	
-	case class DenotationCP(x: Set[(Denotation, SemRole)]) extends Denotation {
-		assert(x.forall(xx => (xx._1.roles.size == 1 && xx._2 != null) ^ (xx._1.roles.size >= 2 && xx._2 == null)))
-		val roles = x.flatMap(xx => if (xx._2 == null) xx._1.roles else Set(xx._2))
-		assert(roles.size == (0 /: x)(_ + _._1.roles.size))
+	case class DenotationRelabel(x: Denotation, r: SemRole) extends Denotation {
+		assert(x.roles.size == 1)
+		val roles = Set(r)
+	}
+	
+	case class DenotationCP(x: Set[Denotation]) extends Denotation {
+		val roles = x.flatMap(_.roles)
+		assert(roles.size == (0 /: x)(_ + _.roles.size))
 	}
 	
 	case class DenotationPI(x: Denotation, roles: Set[SemRole]) extends Denotation {
