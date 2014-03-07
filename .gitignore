@@ -1,3 +1,7 @@
-target/*
-project/*
+**/target
 .idea
+
+# The following resource files are unpacked from other compressed archives, no need to track them
+src/main/resources/en/dict
+src/main/resources/en/WordVectors/Turian10.cdb
+src/main/resources/en/WordVectors/Mikolov13.cdb
