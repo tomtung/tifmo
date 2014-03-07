@@ -5,3 +5,5 @@ libraryDependencies ++= Seq(
 )
 
 unmanagedBase := baseDirectory.value.getParentFile / "lib"
+
+addSbtPlugin("com.typesafe.sbt" % "sbt-start-script" % "0.10.0")

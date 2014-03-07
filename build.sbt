@@ -8,11 +8,21 @@ sbtVersion := "0.13.1"
 
 scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")
 
+fork in run := true
+
+javaOptions += "-Xmx3G"
+
 libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "2.0" % "test",
   "edu.stanford.nlp" % "stanford-corenlp" % "3.3.1",
   "edu.stanford.nlp" % "stanford-corenlp" % "3.3.1" classifier "models"
 ).map(_ withSources() withJavadoc())
+
+// This settings is from plugin "sbt-start-script", which makes task "start-script" available
+// "start-script" creates a script "target/start" for running the application without sbt
+// usage: start <class-name> <parameters>
+// e.g. ./target/start tifmo.demo.FraCas input/fracas.xml
+seq(com.typesafe.sbt.SbtStartScript.startScriptForClassesSettings: _*)
 
 
 // ------ Settings related to resource packs ------

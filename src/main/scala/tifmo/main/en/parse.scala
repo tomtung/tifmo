@@ -76,9 +76,7 @@ package main.en {
 				atoken <- sentence.get(classOf[TokensAnnotation])
 			} yield {
 				
-				val ret = new Token
-				
-				ret.surface = atoken.get(classOf[TextAnnotation])
+				val ret = new Token(atoken.get(classOf[TextAnnotation]))
 				
 				val pos = atoken.get(classOf[PartOfSpeechAnnotation])
 				val ner = atoken.get(classOf[NamedEntityTagAnnotation])
@@ -346,8 +344,7 @@ package main.en {
 							doc.getTokenNode(ptk._1).addChild(OBJ, doc.getTokenNode(ctk._1))
 						}
 						case "conj" => {
-							doc.getTokenNode(ptk._1).addChild(null, doc.getTokenNode(ctk._1))
-							doc.getTokenNode(ctk._1).conj = true
+							doc.getTokenNode(ptk._1).addConjunction(doc.getTokenNode(ctk._1))
 						}
 						case "amod" => {
 							if (ptk._2.mypos == "N" && ctk._3 == "JJS") {

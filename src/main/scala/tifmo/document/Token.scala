@@ -5,29 +5,36 @@ import dcstree.TokenBase
 
 package document {
 	
-	class Token extends TokenBase with Serializable {
-		
-		var word = null:WordBase
-		
-		def getWord = word
-		
-		
+	class Token(
 		/**
 		 * The surface string.
 		 */
-		var surface = null:String
+		val surface: String
+	) extends TokenBase with Serializable {
+		
+		/**
+		 * The word of this token.
+		 */
+		var word = null:WordBase
+		
+		def getWord = word
 		
 		/**
 		 * The coreference id (id of the mention cluster). `null` if not a mention.
 		 */
 		var corefID = null:String
 		
+		private[document] var xid = -1
 		/**
-		 * The id of the token. This id will be used to sort the children of a TokenNode.
+		 * The id of the token (in a document). This id will be used to sort the children of a TokenNode.
 		 */
-		var id = -1
+		def id = xid
 		
-		var doc = null:Document
+		private[document] var xdoc = null:Document
+		/**
+		 * The document that holds this token.
+		 */
+		def doc = xdoc
 		
 	}
 }

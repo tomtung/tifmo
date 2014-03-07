@@ -11,8 +11,11 @@ import scala.collection.mutable
 
 package document {
 	
-	class TokenNode(val token: Token) extends Ordered[TokenNode] {
+	class TokenNode(val token: Token) {
 		
+		/**
+		 * Set to `false` if the word is negated.
+		 */
 		var sign = true
 		
 		/**
@@ -45,6 +48,9 @@ package document {
 		 */
 		var conj = false
 		
+		/**
+		 * If this is the root node, setting `rootNeg` to `true` can negate the whole sentence.
+		 */
 		var rootNeg = false
 		
 		///////////////////////////////////////////////////////
@@ -57,7 +63,7 @@ package document {
 		def parent = prt
 		
 		/**
-		 * Get children.
+		 * Get all children (including conjunction).
 		 */
 		def children = cs.toSet
 		
@@ -99,8 +105,23 @@ package document {
 			}
 		}
 		
-		///////////////////////////////////////////////////////
-		def compare(that: TokenNode) = token.id - that.token.id
+		/**
+		 * Add a conjunction.
+		 */
+		def addConjunction(n: TokenNode) {
+			if (n == this) {
+				// ignore
+			} else if (n.parent == this) {
+				cs.retain(_._2 != n)
+				cs += ((null, n))
+				n.conj = true
+			} else {
+				assert(n.parent == null)
+				cs += ((null, n))
+				n.prt = this
+				n.conj = true
+			}
+		}
 		
 	}
 	
