@@ -10,6 +10,8 @@ scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")
 
 fork in run := true
 
+outputStrategy := Some(StdoutOutput)
+
 javaOptions += "-Xmx3G"
 
 libraryDependencies ++= Seq(

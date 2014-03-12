@@ -19,7 +19,7 @@ object FraCas {
       if (fracas_answer == "undef") {
         println(id + "," + "undef,ignore")
       } else {
-        val t = (p \ "p").map(_.text.trim).mkString("", " ", "")
+        val t = (p \ "p").map(_.text.trim).mkString(" ")
         val h = (p \ "h").text.trim
 
         val (tdoc, hdoc) = parse(t, h)
@@ -27,30 +27,37 @@ object FraCas {
         val prem = tdoc.makeDeclaratives.flatMap(_.toStatements)
         val hypo = hdoc.makeDeclaratives.flatMap(_.toStatements)
 
-        val ie = new IEngine
+        val ie = new IEngine()
 
         prem.foreach(ie.claimStatement)
         hypo.foreach(ie.checkStatement)
 
-        if (hypo.forall(ie.checkStatement)) {
-          println(id + "," + fracas_answer + ",yes")
-        } else {
-          // negate hdoc
-          for (n <- hdoc.allRootNodes) {
-            n.rootNeg = !n.rootNeg
-          }
-
-          val nhypo = hdoc.makeDeclaratives.flatMap(_.toStatements)
-          val nie = new IEngine
-
-          prem.foreach(nie.claimStatement)
-          nhypo.foreach(nie.checkStatement)
-
-          if (nhypo.forall(nie.checkStatement)) {
-            println(id + "," + fracas_answer + ",no")
+        val answer =
+          if (hypo.forall(ie.checkStatement)) {
+            "yes"
           } else {
-            println(id + "," + fracas_answer + ",unknown")
+            // negate hdoc
+            for (n <- hdoc.allRootNodes) {
+              n.rootNeg = !n.rootNeg
+            }
+
+            val nhypo = hdoc.makeDeclaratives.flatMap(_.toStatements)
+            val nie = new IEngine
+
+            prem.foreach(nie.claimStatement)
+            nhypo.foreach(nie.checkStatement)
+
+            if (nhypo.forall(nie.checkStatement)) {
+              "no"
+            } else {
+              "unknown"
+            }
           }
+
+        println(id + "," + fracas_answer + "," + answer)
+        if (fracas_answer != answer) {
+          println("T: " + t)
+          println("H: " + h)
         }
       }
     }

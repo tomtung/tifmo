@@ -43,9 +43,9 @@ package document {
 				Sorting.quickSort(sortrest)
 				
 				x.rseq = if (x.outRole != null) {
-					(beforeOutRoleQuantifier.toSeq :+ x.outRole) ++ sortrest ++ afterOutRoleQuantifier
+					(beforeOutRoleQuantifier.toVector :+ x.outRole) ++ sortrest ++ afterOutRoleQuantifier
 				} else {
-					val ret = beforeOutRoleQuantifier.toSeq ++ sortrest ++ afterOutRoleQuantifier
+					val ret = beforeOutRoleQuantifier.toVector ++ sortrest ++ afterOutRoleQuantifier
 					x.outRole = ret.head
 					ret
 				}

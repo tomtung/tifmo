@@ -6,6 +6,7 @@ package dcstree {
 	sealed abstract class DCSTreeEdge {
 		
 		def inRole: SemRole
+
 	}
 	
 	case class DCSTreeEdgeNormal(inRole: SemRole) extends DCSTreeEdge
