@@ -13,13 +13,13 @@ package main.en {
 		
 		val res: EnResources
 		
-		val SynonymFactor: Float
+		val wordSimMax: Float
 		
 		///////////////////////
 		
 		protected[this] def arrayNorm(x: Array[Float]) = {
 			val tmp = x.map(z => z * z).sum
-			if (tmp == 0.0) 0.0 else math.sqrt(tmp)
+			if (tmp == 0.0) 1.0f else math.sqrt(tmp).toFloat
 		}
 		protected[this] def arrayDot(x: Array[Float], y: Array[Float]) = {
 			(for (i <- 0 until dim) yield (x(i) * y(i))).sum
@@ -32,36 +32,28 @@ package main.en {
 		
 		def similarity(as: Iterable[EnWord], bs: Iterable[EnWord]) = {
 			
-			val avecs = as.toList.map(x => {
-				val tmp = ((new Array[Float](dim)) /: x.lemma.split(" ").map(lookup(_)))(arraySum(_, _))
-				if (!bs.exists(y => res.semrel(x, y) || res.hyponym(x, y))) {
-					tmp.map(_ * SynonymFactor)
-				} else if (x.mypos == "D") {
-					new Array[Float](dim)
-				} else {
-					tmp
-				}
-			})
+			val bvecs = bs.toList.map(x => (x, lookup(x.lemma)))
 			
-			val bvecs = bs.toList.map(x => {
-				val tmp = ((new Array[Float](dim)) /: x.lemma.split(" ").map(lookup(_)))(arraySum(_, _))
-				if (!as.exists(y => res.semrel(y, x) || res.hyponym(y, x))) {
-					tmp.map(_ * SynonymFactor)
-				} else if (x.mypos == "D") {
-					new Array[Float](dim)
-				} else {
-					tmp
+			val (bnull, bnormal) = bvecs.partition(_._2 == null)
+			if (bnull.forall(x => as.exists(y => res.semrel(y, x._1) || res.hyponym(y, x._1)))) {
+				val afil = for (x <- as.toList; vec = lookup(x.lemma); if vec != null) yield ((x, vec))
+				
+				var dotsum = 0.0f
+				for ((a, av) <- afil; (b, bv) <- bnormal) {
+					dotsum += arrayDot(av, bv).min(wordSimMax)
 				}
-			})
-			
-			val atot = ((new Array[Float](dim)) /: avecs)(arraySum(_, _))
-			val btot = ((new Array[Float](dim)) /: bvecs)(arraySum(_, _))
-			(arrayDot(atot, btot) / (arrayNorm(atot) * arrayNorm(btot))).max(0.0)
+				
+				val atot = ((new Array[Float](dim)) /: afil.map(_._2))(arraySum(_, _))
+				val btot = ((new Array[Float](dim)) /: bnormal.map(_._2))(arraySum(_, _))
+				
+				val pre = (dotsum / (arrayNorm(atot) * arrayNorm(btot))).max(0.0f)
+				
+				(pre * bnormal.length + wordSimMax * bnull.length) / bvecs.length
+				
+			} else {
+				0.0f
+			}
 		}
-		
-		def similarity(a: EnWord, b: EnWord): Double = similarity(List(a), List(b))
-		
-		def similarity(as: Iterable[EnWord], b: EnWord): Double = similarity(as, List(b))
 		
 	}
 	

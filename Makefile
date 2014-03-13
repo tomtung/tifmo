@@ -15,6 +15,7 @@ CORE=\
 	tifmo/dcstree/DCSTreeEdge.class \
 	tifmo/dcstree/DCSTreeNode.class \
 	tifmo/dcstree/Declarative.class \
+	tifmo/dcstree/SelCorefBase.class \
 	mylib/misc/oneFromEach.class \
 	mylib/misc/listPartitions.class \
 	mylib/misc/listCoverings.class \
@@ -31,10 +32,13 @@ CORE=\
 	tifmo/onthefly/Path.class \
 	tifmo/onthefly/PathAlignment.class \
 	tifmo/onthefly/alignPaths.class \
-	tifmo/extension/SelCoref.class \
-	tifmo/extension/SelNum.class \
-	tifmo/extension/RelPartialOrder.class \
-	tifmo/extension/SelSup.class \
+	tifmo/onthefly/contextCandidates.class \
+	mylib/misc/FibonacciHeap.class \
+	tifmo/onthefly/OnTheFly.class \
+	tifmo/document/SelCoref.class \
+	tifmo/document/SelNum.class \
+	tifmo/document/RelPartialOrder.class \
+	tifmo/document/SelSup.class \
 	tifmo/document/Document.class \
 	tifmo/document/tentRootNeg.class \
 	tifmo/document/tentRoles.class \
@@ -114,7 +118,7 @@ clean:
 	rm -rf mylib tifmo scaladoc lib/en/$(CORENLP_VERSION) resources/en/dict resources/en/WordVectors/Turian10.cdb resources/en/WordVectors/Turian10.txt resources/en/WordVectors/Mikolov13.cdb resources/en/WordVectors/Mikolov13.txt
 
 scaladoc:
-	$(SCALADOC) -d scaladoc src/tifmo/dcstree/*.scl src/tifmo/inference/*.scl src/tifmo/onthefly/*.scl src/tifmo/extension/*.scl src/tifmo/document/*.scl
+	$(SCALADOC) -d scaladoc src/tifmo/dcstree/*.scl src/tifmo/inference/*.scl src/tifmo/onthefly/*.scl src/tifmo/document/*.scl
 
 #################################
 

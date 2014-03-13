@@ -1,8 +1,9 @@
 package tifmo
 
 import dcstree.Executor
-import dcstree.Selection
+import dcstree.SelCorefBase
 import dcstree.Declarative
+import dcstree.Ref
 import inference.IEngineCore
 import inference.IEFunction
 import inference.Term
@@ -11,9 +12,9 @@ import inference.FuncSingle
 import inference.Debug_SimpleRuleTrace
 import onthefly.AEngine
 
-package extension {
+package document {
 	
-	case class SelCoref(id: String) extends Selection {
+	case class SelCoref(id: String) extends SelCorefBase {
 		
 		def execute[T](ex: Executor, x: T): T = {
 			(ex, x) match {
@@ -24,9 +25,10 @@ package extension {
 				case _ => throw new Exception("unknown executor!!")
 			}
 		}
+		
 	}
 	
-	private[extension] object SelCorefFunc extends IEFunction {
+	private[document] object SelCorefFunc extends IEFunction {
 		
 		def headDim(tms: Seq[Term], param: Any) = tms(1).dim
 		

@@ -90,8 +90,8 @@ package inference {
 			assert(y.hasSuper(b))
 			assert(x.disjointTo(y))
 			if (xpi != null || ypi != null) {
-				assert(isPI(xpi, x, r))
-				assert(isPI(ypi, y, r))
+				assert(isPI(x, xpi, r))
+				assert(isPI(y, ypi, r))
 				assert(xpi.disjointTo(ypi))
 			}
 		}

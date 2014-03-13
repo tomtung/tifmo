@@ -4,8 +4,6 @@ import dcstree.SemRole
 import dcstree.Quantifier
 import dcstree.Relation
 import dcstree.Selection
-import extension.SelNum
-import extension.SelSup
 
 import scala.collection.mutable
 

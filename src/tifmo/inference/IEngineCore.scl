@@ -27,6 +27,15 @@ package inference {
 			predCounter
 		}
 		
+		// lock
+		/**
+		 * Locking mechanism for debug.
+		 * 
+		 * If locked, an error will occur if the status of the inference engine is changed 
+		 * (e.g. new atomic sentences proven).
+		 */
+		var locked = false
+		
 		// W
 		protected[this] var W = null:TermIndex
 		protected[this] val WPool = mutable.Map.empty[Dimension, TermIndex]
@@ -35,6 +44,7 @@ package inference {
 		 */
 		def getW(dim: Dimension) = {
 			if (W == null) {
+				assert(!locked)
 				W = new TermIndex(new Dimension(null))
 				W.setwflag()
 				IEPredNonEmpty(W).apply(Debug_SimpleRuleTrace("W", getNewPredID()))
@@ -43,6 +53,7 @@ package inference {
 				WPool(W.dim) = W
 			}
 			WPool.getOrElseUpdate(dim, {
+				assert(!locked)
 				val ret = new TermIndex(dim)
 				ret.setwflag()
 				IEPredNonEmpty(ret).apply(Debug_SimpleRuleTrace("W", getNewPredID()))
@@ -55,6 +66,7 @@ package inference {
 		
 		// new term
 		def newTerm(dim: Dimension) = {
+			assert(!locked)
 			val w = getW(dim)
 			val term = new TermIndex(w.dim)
 			IEPredSubsume(term, term).apply(Debug_SimpleRuleTrace("tm id", getNewPredID()))
@@ -149,6 +161,7 @@ package inference {
 		private[inference] def applyNonEmpty(a: TermIndex, debug_trace: Debug_RuleTrace) = {
 			val tmp = IEPredNonEmpty(a)
 			if (tmp.apply(debug_trace)) {
+				assert(!locked)
 				rqPINE1(this, tmp)
 				rqPINE2(this, tmp)
 				rqCPNE1(this, tmp)
@@ -175,6 +188,7 @@ package inference {
 		private[inference] def applyDisjoint(a: TermIndex, b: TermIndex, debug_trace: Debug_RuleTrace) = {
 			val tmp = IEPredDisjoint(a, b)
 			if (tmp.apply(debug_trace)) {
+				assert(!locked)
 				for (x <- a.djtTriggers) x.fire(this, tmp)
 				if (a == b) {
 					if (a.knownNE) contradict()
@@ -203,6 +217,7 @@ package inference {
 		private[inference] def applySubsume(a: TermIndex, b: TermIndex, debug_trace: Debug_RuleTrace) = {
 			val tmp = IEPredSubsume(a, b)
 			if (tmp.apply(debug_trace)) {
+				assert(!locked)
 				if (a.hasSub(b)) mergePool += a
 				for (in <- b.mkins; if in.comp.forall(_.hasSub(a))) {
 					newQuick(() => claimSubsume(a, in.head, Debug_RuleINdef(a.holder, in.head.holder, in.comp.map(_.holder), getNewPredID())))
@@ -244,6 +259,7 @@ package inference {
 		private[inference] def applyCP(h: TermIndex, t: Set[(TermIndex, SemRole)], debug_trace: Debug_RuleTrace) = {
 			val tmp = IEPredCP(h, t)
 			if (tmp.apply(debug_trace)) {
+				assert(!locked)
 				val mincps = t.minBy[Int](_._1.mkcps.size)._1.mkcps
 				for (cp <- mincps; if cp.comp == t && cp != tmp) {
 					newQuick(() => claimSubsume(h, cp.head, Debug_SimpleRuleTrace("CP Uniqueness", getNewPredID())))
@@ -277,6 +293,7 @@ package inference {
 		private[inference] def applyPI(h: TermIndex, t: TermIndex, r: SemRole, debug_trace: Debug_RuleTrace) = {
 			val tmp = IEPredPI(h, t, r)
 			if (tmp.apply(debug_trace)) {
+				assert(!locked)
 				for (pi <- t.mkpis; if pi.headrs == tmp.headrs && pi != tmp) {
 					newQuick(() => claimSubsume(h, pi.head, Debug_SimpleRuleTrace("PI Uniqueness", getNewPredID())))
 					newQuick(() => claimSubsume(pi.head, h, Debug_SimpleRuleTrace("PI Uniqueness", getNewPredID())))
@@ -314,6 +331,7 @@ package inference {
 			h.isins.filter(in => in.aux && esssub(t, in.comp)).foreach(_.dispose())
 			val tmp = IEPredIN(h, t, aux)
 			if (tmp.apply(debug_trace)) {
+				assert(!locked)
 				val subs = t.minBy[Int](_.assuper.size).subSets.filter(x => t.forall(_.hasSub(x)))
 				for (x <- subs) {
 					newQuick(() => claimSubsume(x, h, Debug_RuleINdef(x.holder, h.holder, t.map(_.holder), getNewPredID())))
@@ -362,6 +380,7 @@ package inference {
 		def claimRL(a: TermIndex, rl: Relation, b: TermIndex, debug_trace: Debug_RuleTrace = Debug_SimpleRuleTrace("default", getNewPredID())) {
 			val tmp = IEPredRL(a, rl, b)
 			if (tmp.apply(debug_trace)) {
+				assert(!locked)
 				for (x <- a.arlTriggers) x.fire(this, tmp)
 				for (x <- b.rlbTriggers) x.fire(this, tmp)
 				rl.execute[TermIndex](this, a, b)
@@ -374,6 +393,7 @@ package inference {
 		def claimFunc(func: IEFunction, tms: Seq[TermIndex], param: Any, debug_trace: Debug_RuleTrace = Debug_SimpleRuleTrace("default", getNewPredID())) {
 			assert(tms.head.dim == func.headDim(null +: tms.tail.map(_.holder), param))
 			if (IEPredFunc(func, tms, param).apply(debug_trace)) {
+				assert(!locked)
 				if (!tms.tail.isEmpty) {
 					val minfuncs = tms.tail.minBy[Int](_.funcs.size).funcs
 					for (x <- minfuncs; if x.func == func && x.param == param && x.tms.tail == tms.tail) {
@@ -471,7 +491,10 @@ package inference {
 				}
 			}
 			for (x <- eqs) {
-				x.djts.toList.foreach(_.dispose())
+				for (y <- x.djts.toList) {
+					y.dispose()
+					IEPredDisjoint(y.b, y.a).dispose()
+				}
 				x.iscps.toList.foreach(_.dispose())
 				x.mkcps.toList.foreach(_.dispose())
 				x.ispis.toList.foreach(_.dispose())

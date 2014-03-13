@@ -2,6 +2,7 @@ package tifmo
 
 import dcstree.SemRole
 import dcstree.WordBase
+import dcstree.TokenBase
 import dcstree.DCSTreeNode
 import dcstree.DCSTreeEdge
 import dcstree.DCSTreeEdgeNormal
@@ -11,7 +12,6 @@ import dcstree.Declarative
 import dcstree.DeclarativePosi
 import dcstree.DeclarativeNega
 import dcstree.DeclarativeSubsume
-import extension.SelCoref
 
 import mylib.misc.oneFromEach
 
@@ -137,11 +137,34 @@ package document {
 				}
 			}
 			
-			for (nodes <- corefnodes.values; s <- nodes.subsets(2)) {
-				val a = s.head
-				val b = (s - a).head
-				ret += DeclarativeSubsume(a, b)
-				ret += DeclarativeSubsume(b, a)
+			val tokenmap = mutable.Map.empty[TokenBase, Set[TokenBase]]
+			for (n <- allRootNodes) {
+				val tokenpool = mutable.Set.empty[TokenBase]
+				def recur(x: TokenNode) {
+					tokenpool += x.token
+					for ((r, nn) <- x.children) recur(nn)
+				}
+				recur(n)
+				for (x <- tokenpool) {
+					tokenmap(x) = tokenmap.getOrElse(x, Set.empty[TokenBase]) ++ tokenpool
+				}
+			}
+			
+			for (nodes <- corefnodes.values) {
+				for (s <- nodes.subsets(2)) {
+					val a = s.head
+					val b = (s - a).head
+					ret += DeclarativeSubsume(a, b)
+					ret += DeclarativeSubsume(b, a)
+				}
+				
+				for (n <- nodes) {
+					val fil = nodes.filter(x => {
+						!tokenmap(n.token).contains(x.token)
+					})
+					assert(n.selection.asInstanceOf[SelCoref].coreferentNodes.isEmpty)
+					n.selection.asInstanceOf[SelCoref].coreferentNodes ++= fil
+				}
 			}
 			
 			ret.toSet

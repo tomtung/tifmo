@@ -2,7 +2,7 @@
 SCALA=scala
 CORENLP_VERSION=stanford-corenlp-full-2014-01-04
 
-JAVA_OPTS=-Xmx2g
+JAVA_OPTS=-Xmx8g
 export JAVA_OPTS
 
 CLASSPATH_EN=lib/*:lib/en/*:lib/en/$CORENLP_VERSION/*
@@ -19,7 +19,7 @@ import tifmo.dcstree.SemRole
 import tifmo.dcstree.Statement
 import tifmo.inference.IEngine
 import tifmo.onthefly.AEngine
-import tifmo.onthefly.alignPaths
+import tifmo.onthefly.OnTheFly
 import tifmo.onthefly.PathAlignment
 import tifmo.main.en.normalize
 import tifmo.main.en.parse
@@ -29,6 +29,7 @@ import tifmo.main.en.TIME
 import tifmo.main.en.EnSimilarityMikolov13
 
 import scala.collection.mutable
+import scala.util.Sorting
 
 val rte_xml = args(0)
 
@@ -50,9 +51,9 @@ for (p <- (f \ "pair")) {
 		"N"
 	}
 	
-	val t = (p \ "t").text.trim
-	val h = (p \ "h").text.trim
-	val (tdoc, hdoc) = parse(normalize(t), normalize(h))
+	val t = normalize((p \ "t").text.trim)
+	val h = normalize((p \ "h").text.trim)
+	val (tdoc, hdoc) = parse(t, h)
 	
 	val prem = tdoc.makeDeclaratives
 	val hypo = hdoc.makeDeclaratives
@@ -62,6 +63,12 @@ for (p <- (f \ "pair")) {
 	prem.flatMap(_.toStatements).foreach(ie.claimStatement(_))
 	hypo.flatMap(_.toStatements).foreach(ie.checkStatement(_))
 	
+	System.err.println("id: " + id + " gold: " + gold_label)
+	System.err.println("TEXT:")
+	System.err.println(" " + t)
+	System.err.println("HYPO:")
+	System.err.println(" " + h)
+	
 	// add linguistic knowledge
 	val res = new EnResources
 	val words = tdoc.allContentWords[EnWord] ++ hdoc.allContentWords[EnWord]
@@ -69,70 +76,128 @@ for (p <- (f \ "pair")) {
 		val a = s.head
 		val b = (s - a).head
 		if (res.synonym(a, b)) {
+			System.err.println("synonym: " + a + " = " + b)
 			ie.subsume(a, b)
 			ie.subsume(b, a)
 		} else if (Set(a.mypos, b.mypos).subsetOf(Set("J", "R")) && res.antonym(a, b)) {
+			System.err.println("antonym: " + a + " <> " + b)
 			ie.disjoint(a, b)
 		} else {
 			if (res.hyponym(a, b) && !b.isNamedEntity) {
+				System.err.println("hyponym: " + a + " -> " + b)
 				ie.subsume(a, b)
 			}
 			if (res.hyponym(b, a) && !a.isNamedEntity) {
+				System.err.println("hyponym: " + b + " -> " + a)
 				ie.subsume(b, a)
 			}
 		}
 	}
 	
-	if (hypo.flatMap(_.toStatements).forall(ie.checkStatement(_))) {
+	val proven = (x:IEngine) => hypo.flatMap(_.toStatements).forall(x.checkStatement(_))
+	
+	if (proven(ie)) {
 		
-		println(id + "," + task + "," + gold_label + ",Y")
+		System.err.println("Proven.")
+		println(id + "," + task + "," + gold_label + ",1.0")
 		
 	} else {
 		
 		val ae = new AEngine(prem)
 		hypo.foreach(ae.addGoal(_))
-		val alignedpaths = alignPaths(ae.allAssumptions, ie)
 		
-		val sim = new EnSimilarityMikolov13(res)
+		val otf = new OnTheFly(ie, ae)
 		
-		val fil = mutable.Set.empty[PathAlignment]
-		for (x @ PathAlignment(psub, psup) <- alignedpaths) {
-			// evaluate path alignments
+		val sim = new EnSimilarityMikolov13(res, 0.7f)
+		
+		val score = (x:PathAlignment) => {
+			// evaluate path alignment
 			
+			val PathAlignment(psub, psup, soft) = x
 			if (psup.rnrs.exists(x => x._1 == TIME || x._3 == TIME) 
 						&& !psub.rnrs.exists(x => x._1 == TIME || x._3 == TIME)) {
 				// time role unmatch, filtered.
+				0.0
 			} else {
-				
 				val wsub = psub.rnrs.map(x => x._2.token.getWord.asInstanceOf[EnWord]).filter(!_.isStopWord)
 				val wsup = psup.rnrs.map(x => x._2.token.getWord.asInstanceOf[EnWord]).filter(!_.isStopWord)
-				
 				if (wsub.isEmpty || wsup.isEmpty) {
 					// filtered.
+					0.0
 				} else if (wsup.exists(x => (x.isNamedEntity || x.mypos == "D") 
 						&& !wsub.exists(y => res.synonym(y, x) || res.hyponym(y, x)))) {
 					// time or named entity unmatch, filtered.
+					0.0
 				} else {
 					// phrase similarity
-					if (sim.similarity(wsub, wsup) > 0.1) {
-						fil += x
-					}
+					sim.similarity(wsub, wsup)
 				}
 			}
 		}
 		
-		// add on-the-fly knowledge
-		fil.flatMap(_.toOnTheFly(ie).toStatements).foreach(ie.claimStatement(_))
+		val (ret, rec) = otf.tryKnowledge(score, 0.1, proven)
 		
-		if (hypo.flatMap(_.toStatements).forall(ie.checkStatement(_))) {
+		if (ret) {
 			
-			println(id + "," + task + "," + gold_label + ",Y")
+			if (rec.isEmpty) {
+				
+				System.err.println("Proven.")
+				println(id + "," + task + "," + gold_label + ",1.0")
+				
+			} else {
+				
+				System.err.println("Proven with on-the-fly knowledge.")
+				println(id + "," + task + "," + gold_label + "," + rec.last._2)
+				
+				var necessary = Nil:List[(String, String, Double)]
+				
+				var tmpie = new IEngine
+				tmpie.load(ie.dump())
+				def loop() {
+					val bak = tmpie.dump()
+					rec.find(x => {
+						x._1.foreach(_._2.toStatements.foreach(tmpie.claimStatement(_)))
+						proven(tmpie)
+					}) match {
+						case Some((algs, scr)) => {
+							val ss = for ((x, y) <- algs) yield {
+								val sub = for ((r1, n, r2) <- x.subPath.rnrs) yield {
+									val pre = r1.toString + "(" + n.token.getWord + ")"
+									if (r2 == null) pre else (pre + r2)
+								}
+								val sup = for ((r1, n, r2) <- x.supPath.rnrs) yield {
+									val pre = r1.toString + "(" + n.token.getWord + ")"
+									if (r2 == null) pre else (pre + r2)
+								}
+								(sub.mkString("", "-", ""), sup.mkString("", "-", ""))
+							}
+							for ((sub, sup) <- ss) necessary = (sub, sup, scr) :: necessary
+							tmpie = new IEngine
+							tmpie.load(bak)
+							algs.foreach(_._2.toStatements.foreach(tmpie.claimStatement(_)))
+							if (!proven(tmpie)) loop()
+						}
+						case None => throw new Exception("this should not happen")
+					}
+				}
+				loop()
+				
+				System.err.println("ON THE FLY:")
+				for ((sub, sup, scr) <- necessary) {
+					System.err.println(" score: " + scr)
+					System.err.println("  subPath: " + sub)
+					System.err.println("  supPath: " + sup)
+				}
+				
+			}
 			
 		} else {
 			
-			println(id + "," + task + "," + gold_label + ",N")
+			System.err.println("Not proven.")
+			println(id + "," + task + "," + gold_label + ",0.0")
 			
 		}
+		
 	}
 }
 

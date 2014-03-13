@@ -72,19 +72,18 @@ package res.en {
 			}
 		}
 		
-		def stem(s: String, pos: String) = lock.synchronized {
-			val tmp = if (pos.matches("JJ.*")) {
-				stemmer.findStems(s, POS.ADJECTIVE).toSet
-			} else if (pos.matches("NN.*")) {
-				stemmer.findStems(s, POS.NOUN).toSet
-			} else if (pos.matches("RB.*")) {
-				stemmer.findStems(s, POS.ADVERB).toSet
-			} else if (pos.matches("VB.*")) {
-				stemmer.findStems(s, POS.VERB).toSet
-			} else {
-				Set.empty[String]
+		def stem(s: String, mypos: String) = lock.synchronized {
+			val tmp = mypos match {
+				case "J" => stemmer.findStems(s, POS.ADJECTIVE).toSet
+				case "N" => stemmer.findStems(s, POS.NOUN).toSet
+				case "R" => stemmer.findStems(s, POS.ADVERB).toSet
+				case "V" => stemmer.findStems(s, POS.VERB).toSet
+				case _ => Set.empty[String]
 			}
-			if (tmp.size == 1) tmp.head else s
+			if (tmp.isEmpty) s else {
+				val minlen = tmp.map(_.length).min
+				tmp.filter(_.length == minlen).min
+			}
 		}
 		
 		def synsets(lemma: String, mypos: String) = lock.synchronized {

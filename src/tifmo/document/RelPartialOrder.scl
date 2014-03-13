@@ -14,7 +14,7 @@ import inference.IEPredSubsume
 import inference.Debug_SimpleRuleTrace
 import inference.RAConversion._
 
-package extension {
+package document {
 	
 	/**
 	 * Partial order relation. 
@@ -33,7 +33,7 @@ package extension {
 		}
 	}
 	
-	private[extension] object FuncPartialOrder extends IEFunction {
+	private[document] object FuncPartialOrder extends IEFunction {
 		
 		def headDim(tms: Seq[Term], param: Any) = param.asInstanceOf[(String, Dimension)]._2
 		
@@ -45,7 +45,7 @@ package extension {
 		}
 	}
 	
-	private[extension] object rFuncPO3 extends RuleDo[IEPredRL] {
+	private[document] object rFuncPO3 extends RuleDo[IEPredRL] {
 		def apply(ie: IEngineCore, pred: IEPredRL, args: Seq[RuleArg]) {
 			args match {
 				case Seq(RuleArg(name:String)) => pred.rl match {
@@ -63,13 +63,13 @@ package extension {
 		}
 	}
 	
-	private[extension] object rFuncPO2 extends RuleDo[IEPredRL] {
+	private[document] object rFuncPO2 extends RuleDo[IEPredRL] {
 		def apply(ie: IEngineCore, pred: IEPredRL, args: Seq[RuleArg]) {
 			args match {
 				case Seq(RuleArg(name:String)) => pred.rl match {
 					case RelPartialOrder(nm) => if (nm == name) {
 						var task = Nil:List[() => Unit]
-						for ((rl @ RelPartialOrder(xnm), x) <- pred.a.allARLX; if xnm == name) {
+						for ((rl @ RelPartialOrder(xnm), x) <- pred.b.allARLX; if xnm == name) {
 							task = (() => ie.claimRL(pred.a, rl, x, Debug_SimpleRuleTrace("Partial Order transitivity", ie.getNewPredID()))) :: task
 						}
 						task.foreach(_())
@@ -81,7 +81,7 @@ package extension {
 		}
 	}
 	
-	private[extension] object rFuncPO1 extends RuleDo[IEPredSubsume] {
+	private[document] object rFuncPO1 extends RuleDo[IEPredSubsume] {
 		def apply(ie: IEngineCore, pred: IEPredSubsume, args: Seq[RuleArg]) {
 			args match {
 				case Seq(RuleArg(name:String)) => {

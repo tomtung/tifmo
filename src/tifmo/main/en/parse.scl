@@ -2,8 +2,8 @@ package tifmo
 
 import dcstree.QuantifierALL
 import dcstree.QuantifierNO
-import extension.SelNum
-import extension.SelSup
+import document.SelNum
+import document.SelSup
 import document.Token
 import document.Document
 import document.tentRootNeg
@@ -39,9 +39,9 @@ package main.en {
 			
 			val doctext = makeDocument(annotext, "text")
 			
-			makeDCSTrees(annotext, doctext)
-			
 			addCoreferences(annotext, doctext)
+			
+			makeDCSTrees(annotext, doctext)
 			
 			tentRootNeg(doctext)
 			
@@ -83,7 +83,7 @@ package main.en {
 				val lemma = if (ner == "DATE" || ner == "TIME") {
 					atoken.get(classOf[NormalizedNamedEntityTagAnnotation])
 				} else {
-					EnWordNet.stem(atoken.get(classOf[LemmaAnnotation]), pos)
+					atoken.get(classOf[LemmaAnnotation])
 				}
 				val mypos = if (ner == "DATE" || ner == "TIME") {
 					"D"
@@ -98,7 +98,9 @@ package main.en {
 				} else {
 					"O"
 				}
-				ret.word = EnWord(lemma, mypos, ner)
+				// work around for "each"
+				val nner = if (lemma == "each") "O" else ner
+				ret.word = EnWord(lemma, mypos, nner)
 				
 				ret
 			}
@@ -130,13 +132,29 @@ package main.en {
 				// copula
 				edges = {
 					var ret = edges
-					for ((ptk, rel, spc, ctk) <- edges; if rel.matches("[nc]?subj") && ptk._2.lemma == "be" && ptk._3.matches("VB.*")) {
-						ret = ret - ((ptk, rel, spc, ctk))
-						for ((pp, rrel, sspc, cc) <- edges; if pp == ptk && !rrel.matches("[nc]?subj")) {
-							ret = ret - ((pp, rrel, sspc, cc)) + ((ctk, rrel, sspc, cc))
-						}
-						for ((pp, rrel, sspc, cc) <- edges; if cc == ptk) {
-							ret = ret - ((pp, rrel, sspc, cc)) + ((pp, rrel, sspc, ctk))
+					for (ptk @ (t, wd, pos) <- edges.map(_._1); if wd.lemma == "be" && pos.matches("VB.*")) {
+						val filcomp = edges.filter(x => x._1 == ptk && x._2.matches("[cx]?comp"))
+						if (filcomp.size == 1) {
+							val (pcomp, relcomp, spccomp, ccomp) = filcomp.head
+							ret = ret - filcomp.head
+							for ((pp, rrel, sspc, cc) <- edges; if pp == ptk && !rrel.matches("[cx]?comp")) {
+								ret = ret - ((pp, rrel, sspc, cc)) + ((ccomp, (if (rrel.matches("[nc]?subj")) "copula" else rrel), sspc, cc))
+							}
+							for ((pp, rrel, sspc, cc) <- edges; if cc == ptk) {
+								ret = ret - ((pp, rrel, sspc, cc)) + ((pp, rrel, sspc, ccomp))
+							}
+						} else {
+							val filsubj = edges.filter(x => x._1 == ptk && x._2.matches("[nc]?subj"))
+							if (filsubj.size == 1) {
+								val (psubj, relsubj, spcsubj, csubj) = filsubj.head
+								ret = ret - filsubj.head
+								for ((pp, rrel, sspc, cc) <- edges; if pp == ptk && !rrel.matches("[nc]?subj")) {
+									ret = ret - ((pp, rrel, sspc, cc)) + ((csubj, rrel, sspc, cc))
+								}
+								for ((pp, rrel, sspc, cc) <- edges; if cc == ptk) {
+									ret = ret - ((pp, rrel, sspc, cc)) + ((pp, rrel, sspc, csubj))
+								}
+							}
 						}
 					}
 					ret
@@ -206,8 +224,8 @@ package main.en {
 							val theword = doc.tokens(i).word.asInstanceOf[EnWord]
 							def sameNE(tk: Token) = {
 								val tkword = tk.word.asInstanceOf[EnWord]
-								tkword.ner == theword.ner && 
-									(theword.mypos != "D" || tkword.lemma == theword.lemma)
+								//(doc.tokens(i).corefID == null || tk.corefID == null || doc.tokens(i).corefID == tk.corefID) && 
+									tkword.ner == theword.ner && (theword.mypos != "D" || tkword.lemma == theword.lemma)
 							}
 							if (theword.ner != "O") {
 								val tmpmax = {
@@ -241,6 +259,12 @@ package main.en {
 										theword
 									}
 									doc.tokens(i).word = nword
+									
+									(i to tmpmax).find(j => doc.tokens(j).corefID != null) match {
+										case Some(j) => doc.tokens(i).corefID = doc.tokens(j).corefID
+										case None => {}
+									}
+									
 									for ((pp, rrel, sspc, cc) <- ret.toList) {
 										if (pp._1.id >= i && pp._1.id <= tmpmax) {
 											ret = ret - ((pp, rrel, sspc, cc))
@@ -269,6 +293,10 @@ package main.en {
 				// annotate
 				for ((ptk, rel, spc, ctk) <- edges) {
 					rel match {
+						case "copula" => {
+							doc.getTokenNode(ctk._1).outRole = ARG
+							doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
+						}
 						case "dep" => {
 							if (ptk._2.mypos != "O" && ctk._2.mypos != "O") {
 								doc.getTokenNode(ctk._1).outRole = ARG
@@ -348,7 +376,7 @@ package main.en {
 						}
 						case "amod" => {
 							if (ptk._2.mypos == "N" && ctk._3 == "JJS") {
-								doc.getTokenNode(ptk._1).selection = SelSup(ctk._2.lemma, ARG)
+								doc.getTokenNode(ptk._1).selection = SelSup(EnWordNet.stem(ctk._2.lemma, ctk._2.mypos), ARG)
 							} else {
 								doc.getTokenNode(ctk._1).outRole = ARG
 								doc.getTokenNode(ptk._1).addChild(MOD, doc.getTokenNode(ctk._1))
@@ -410,7 +438,13 @@ package main.en {
 						}
 						case "nn" => {
 							doc.getTokenNode(ctk._1).outRole = ARG
-							val tmp = if (ctk._2.mypos == "D") TIME else ARG
+							val tmp = if (ctk._2.mypos == "D" && ptk._2.mypos != "D") {
+								TIME
+							} else if (ptk._2.isNamedEntity && ctk._2.isNamedEntity) {
+								MOD
+							} else {
+								ARG
+							}
 							doc.getTokenNode(ptk._1).addChild(tmp, doc.getTokenNode(ctk._1))
 						}
 						case "npadvmod" => {
@@ -480,6 +514,10 @@ package main.en {
 						case "parataxis" => {
 							doc.getTokenNode(ctk._1).outRole = ARG
 							doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
+						}
+						case "vmod" => {
+							doc.getTokenNode(ctk._1).outRole = ARG
+							doc.getTokenNode(ptk._1).addChild(MOD, doc.getTokenNode(ctk._1))
 						}
 						case _ => {}
 					}

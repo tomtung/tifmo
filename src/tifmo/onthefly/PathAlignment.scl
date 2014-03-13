@@ -6,6 +6,7 @@ import dcstree.DCSTreeEdgeQuantifier
 import dcstree.QuantifierALL
 import dcstree.QuantifierNO
 import dcstree.DCSTreeNode
+import dcstree.Ref
 import dcstree.RefOutput
 import dcstree.RefGerm
 import dcstree.Context
@@ -16,15 +17,15 @@ import inference.IEngine
 
 package onthefly {
 	
-	case class PathAlignment(subPath: Path, supPath: Path) {
+	case class PathAlignment(subPath: Path, supPath: Path, soft: Boolean) {
 		
-		def toOnTheFly(ie: IEngine) = {
+		def toOnTheFly(ie: IEngine, ctx: Set[Ref]) = {
 			
-			val ctx = subPath.start.subOrdinate.map(_._3) -- subPath.asc.map(x => RefGerm(x._1, x._2.inRole)) -- subPath.dec.map(x => RefOutput(x._2))
-			val qtall = (for ((asc, dec, end) <- subPath.start.subOrdinate; if end.node.selection == null) yield {
+			val subords = subPath.start.subOrdinate.map(_._3) -- subPath.last.subOrdinate.map(_._3)
+			val qtall = (for (end <- subords; if end.node.selection == null) yield {
 				end.quantifyALL
 			}).flatten
-			val qtno = (for ((asc, dec, end) <- subPath.start.subOrdinate; if end.node.selection == null) yield {
+			val qtno = (for (end <- subords; if end.node.selection == null) yield {
 				end.quantifyNO
 			}).flatten
 			
@@ -78,7 +79,10 @@ package onthefly {
 				}
 				val pretopctx = if (topref.isInstanceOf[RefGerm] && topref.node.compare2outRole(topref.role) >= 0 && topref.node.parent != null) {
 					val (pn, e) = topref.node.parent
-					Set(ContextB(RefGerm(pn, e.inRole)):Context)
+					val tm = ie.getTerm(pn.germ(e.inRole))
+					for (ref <- ctx; if (ie.getTerm(ref.getDenotation).superSets intersect tm.superSets).exists(!_.isW)) yield {
+						ContextB(ref):Context
+					}
 				} else {
 					Set.empty[Context]
 				}
@@ -122,6 +126,7 @@ package onthefly {
 					RefGerm(lastnode, supPath.start.role)
 				}
 			}
+			
 			DeclarativeSubRef(subPath.start, sup)
 		}
 		

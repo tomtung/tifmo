@@ -189,7 +189,7 @@ package inference {
 		
 		def hasSub(that: TermIndex) = assuper.contains(IEPredSubsume(that, this))
 		
-		def disjointSets = (for (x <- djts; if x.a == this) yield x.b).toSet
+		def disjointSets = djts.map(_.b).toSet
 		
 		def disjointTo(that: TermIndex) = djts.contains(IEPredDisjoint(this, that))
 		
