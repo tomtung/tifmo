@@ -18,7 +18,16 @@ import inference.IEngine
 package onthefly {
 	
 	case class PathAlignment(subPath: Path, supPath: Path, soft: Boolean) {
-		
+		/**
+		 * Make a tree transformation and generate on-the-fly knowledge.
+		 * 
+		 * The process will generate a transformed DCS tree with some contexts. 
+		 * Given context candidates are logically filtered to make contexts. 
+		 * 
+		 * @param ie Inference engine used to logically filter context candidates.
+		 * @param ctx Context candidates.
+		 * @return A [[tifmo.dcstree.DeclarativeSubRef]] representing the generated on-the-fly knowledge. 
+		 */
 		def toOnTheFly(ie: IEngine, ctx: Set[Ref]) = {
 			
 			val subords = subPath.start.subOrdinate.map(_._3) -- subPath.last.subOrdinate.map(_._3)

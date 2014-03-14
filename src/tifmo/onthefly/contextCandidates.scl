@@ -13,7 +13,9 @@ import inference.IEngine
 import scala.collection.mutable
 
 package onthefly {
-	
+	/**
+	 * Function object `contextCandidates` generate context candidates form a path.
+	 */
 	object contextCandidates extends (Path => Set[Ref]) {
 		
 		private[this] def refChildren(x: Ref) = {
@@ -56,6 +58,11 @@ package onthefly {
 			}
 		}
 		
+		/**
+		 * Generated context candidates will be logically filtered during construction of on-the-fly knowledge. 
+		 * Inference engine terms necessary for the later filtering process should be 
+		 * constructed beforehand, otherwise these terms may be lost due to merge by inference engine.
+		 */
 		def init(assumption: Set[Declarative], ie: IEngine) {
 			
 			val refpool = mutable.Set.empty[Ref]

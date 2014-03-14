@@ -11,13 +11,22 @@ import dcstree.RefGerm
 package onthefly {
 	/**
 	 * Path in a DCS tree. 
+	 * 
+	 * A path in a rooted tree has an ascending part (which goes up toward the root) and 
+	 * a descending part (which goes down toward leaves). 
 	 */
 	class Path(
 		/**
 		 * The germ from which this path begins.
 		 */
 		val start: Ref, 
+		/**
+		 * Ascending part. 
+		 */
 		val asc: Seq[(DCSTreeNode, DCSTreeEdgeNormal)], 
+		/**
+		 * Descending part. 
+		 */
 		val dec: Seq[(DCSTreeEdgeNormal, DCSTreeNode)]
 	) extends Serializable {
 		/**
@@ -51,6 +60,9 @@ package onthefly {
 			tmp.map(_._2.token.getWord).toSet
 		}
 		
+		/**
+		 * The last germ of this path. 
+		 */
 		val last = if (!dec.isEmpty) {
 			RefOutput(dec.last._2)
 		} else if (!asc.isEmpty) {

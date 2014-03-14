@@ -8,15 +8,18 @@ import mylib.misc.FibonacciHeap
 import scala.collection.mutable
 
 package onthefly {
-	
+	/**
+	 * An interface to try generated on-the-fly knowledge. 
+	 */
 	class OnTheFly(ie: IEngine, ae: AEngine) {
 		
 		private[this] val assumptions = ae.allAssumptions
 		
-		// contruct terms in ie, necessary for on-the-fly knowledge generation, in advance.
+		// contruct terms in advance, necessary for on-the-fly knowledge generation.
 		alignPaths.init(assumptions, ie)
 		contextCandidates.init(assumptions, ie)
 		
+		// save the status of current ie
 		private[this] val dump = ie.dump()
 		
 		// lock ie to make sure its status not changed during on-the-fly knowledge generation.

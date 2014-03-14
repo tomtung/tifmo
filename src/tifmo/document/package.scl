@@ -28,5 +28,10 @@ package tifmo
  * disambiguate the calculation order or scopes of quantifiers, mostly suited for English).
  * 
  * (vi) Call `Document.makeDeclaratives` method to get a set of [[tifmo.dcstree.Declarative]].
+ * 
+ * Extensions of DCS trees, including the implementation of coreferences [[tifmo.document.SelCoref]], 
+ * numerics [[tifmo.document.SelNum]], and superlatives [[tifmo.document.SelSup]], as well as 
+ * a simple treatment of conjunctions (the `conj` field and `addConjunction` method of 
+ * [[tifmo.document.TokenNode]]), are also found in this package. 
  */
 package object document {}

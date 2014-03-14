@@ -3,9 +3,14 @@ package tifmo
 /**
  * This package provides a way to generate on-the-fly knowledge.
  * 
- * The process is like this: 
+ * You need: (i) an [[tifmo.inference.IEngine]], and add premises and hypotheses and 
+ * linguistic knowledge; (ii) an [[tifmo.inference.AEngine]], and add premises and 
+ * hypotheses; and (iii) construct an [[tifmo.onthefly.OnTheFly]], which provides 
+ * an interface for you to try generated on-the-fly knowledge. 
  * 
- * (i) Firstly, create an [[tifmo.onthefly.AEngine]], which initially takes a set of 
+ * In details, on-the-fly knowledge is generated like this: 
+ * 
+ * (i) Firstly, [[tifmo.onthefly.AEngine]] takes a set of 
  * [[tifmo.dcstree.Declarative]]s as premise, and will do abduction for each goal 
  * (represented also by [[tifmo.dcstree.Declarative]]), to produce assumptions 
  * that may be helpful to prove the goal.
@@ -15,7 +20,7 @@ package tifmo
  * path alignments are intuitive tree transformations motivated by the assumptions, 
  * but may or may not generate the knowledge that implies the assumptions.
  * 
- * (iii) Thirdly, filter or evaluate these path alignments as you will.
+ * (iii) Thirdly, filter or evaluate these path alignments.
  * 
  * (iv) Finally, each path alignment can generate a piece of on-the-fly knowledge. 
  */
