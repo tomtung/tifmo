@@ -1,7 +1,6 @@
 package tifmo.document
 
 import tifmo.dcstree.{SemRole, Quantifier, Relation, Selection}
-import tifmo.extension.{SelNum, SelSup}
 
 import scala.collection.{mutable, immutable}
 

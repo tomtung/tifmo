@@ -10,14 +10,12 @@ package main.en {
 		
 		private[this] val numbers = Set("twenty-one", "twenty-two", "twenty-three", "twenty-four", "twenty-five", "twenty-six", "twenty-seven", "twenty-eight", "twenty-nine", "thirty-one", "thirty-two", "thirty-three", "thirty-four", "thirty-five", "thirty-six", "thirty-seven", "thirty-eight", "thirty-nine", "forty-one", "forty-two", "forty-three", "forty-four", "forty-five", "forty-six", "forty-seven", "forty-eight", "forty-nine", "fifty-one", "fifty-two", "fifty-three", "fifty-four", "fifty-five", "fifty-six", "fifty-seven", "fifty-eight", "fifty-nine", "sixty-one", "sixty-two", "sixty-three", "sixty-four", "sixty-five", "sixty-six", "sixty-seven", "sixty-eight", "sixty-nine", "seventy-one", "seventy-two", "seventy-three", "seventy-four", "seventy-five", "seventy-six", "seventy-seven", "seventy-eight", "seventy-nine", "eighty-one", "eighty-two", "eighty-three", "eighty-four", "eighty-five", "eighty-six", "eighty-seven", "eighty-eight", "eighty-nine", "ninety-one", "ninety-two", "ninety-three", "ninety-four", "ninety-five", "ninety-six", "ninety-seven", "ninety-eight", "ninety-nine")
 		
-		private[this] val numwords = Set("zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "hundred", "thousand", "million", "billion", "trillion")
-		
-	  private[this] val biun = new BiuNormalizer(new java.io.File(classOf[BiuNormalizer].getClassLoader.getResource("en/BiuNormalizer.Rules/string_rules.txt").toURI))
-		
+		private[this] val biun = new BiuNormalizer(new java.io.File(classOf[BiuNormalizer].getClassLoader.getResource("en/BiuNormalizer.Rules/string_rules.txt").toURI))
+
 		def apply(s: String) = {
-			
+
 			var tmp = s.trim
-			
+
 			// zenkaku -> hankaku
 			tmp = for (c <- tmp) yield {
 				if (c >= 0xff10 && c <= 0xff5a) {
@@ -44,14 +42,16 @@ package main.en {
 						pw.replaceAll("-", "(")
 					} else if (pw.substring(pw.length - 1, pw.length) == "-") {
 						pw.replaceAll("-", ")")
-					} else if (numbers.contains(pw.toLowerCase)) {
-						pw.replaceAll("-", " ")
-					} else if (pw.split("-").exists(x => numwords.contains(x.toLowerCase) || x.matches("[0-9\\.]+"))) {
-						pw
-					} else if (!EnWordNet.hasWord(pw) && pw.split("-").forall(EnWordNet.hasWord(_))) {
-						pw.replaceAll("-", " ")
 					} else {
-						pw
+						val regex = "(.*[A-Za-z0-9])([^A-Za-z0-9]*)".r
+						val regex(normal, punc) = pw
+						if (numbers.contains(normal.toLowerCase)) {
+							pw.replaceAll("-", " ")
+						} else if (!EnWordNet.hasWord(normal) && normal.split("-").forall(x => x.matches("[0-9\\.]+") || EnWordNet.hasWord(x))) {
+							pw.replaceAll("-", " ")
+						} else {
+							pw
+						}
 					}
 				} else {
 					pw
@@ -67,7 +67,7 @@ package main.en {
 				}
 			}
 			
-			// normalize
+			// number normalize
 			biun.normalize(tmpsp.mkString("", " ", ""))
 		}
 		

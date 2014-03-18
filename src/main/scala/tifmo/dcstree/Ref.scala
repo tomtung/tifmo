@@ -39,9 +39,12 @@ package dcstree {
 				(Seq.empty[(DCSTreeNode, DCSTreeEdgeNormal)], x._1, x._2)
 			}).toSet
 		}
+		
 	}
 	
 	case class RefGerm(node: DCSTreeNode, role: SemRole) extends Ref {
+		
+		def getDenotation = node.germ(role)
 		
 		@transient lazy val subOrdinate = {
 			if (node.compare2outRole(role) < 0) {
@@ -59,7 +62,6 @@ package dcstree {
 			}
 		}
 		
-		def getDenotation = node.germ(role)
 	}
 	
 }

@@ -1,25 +1,33 @@
 package tifmo
 
 import dcstree.SemRole
+import dcstree.WordBase
 import dcstree.DCSTreeNode
 import dcstree.DCSTreeEdgeNormal
 import dcstree.Ref
+import dcstree.RefOutput
+import dcstree.RefGerm
 
 package onthefly {
 	/**
 	 * Path in a DCS tree. 
+	 * 
+	 * A path in a rooted tree has an ascending part (which goes up toward the root) and 
+	 * a descending part (which goes down toward leaves). 
 	 */
 	class Path(
 		/**
 		 * The germ from which this path begins.
 		 */
 		val start: Ref, 
-		private[onthefly] val asc: Seq[(DCSTreeNode, DCSTreeEdgeNormal)], 
-		private[onthefly] val dec: Seq[(DCSTreeEdgeNormal, DCSTreeNode)], 
 		/**
-		 * `soft == false` if and only if the end point of this path is a leaf.
+		 * Ascending part. 
 		 */
-		val soft: Boolean
+		val asc: Seq[(DCSTreeNode, DCSTreeEdgeNormal)], 
+		/**
+		 * Descending part. 
+		 */
+		val dec: Seq[(DCSTreeEdgeNormal, DCSTreeNode)]
 	) extends Serializable {
 		/**
 		 * Representing the path in a `role(node)role-...-role(node)` manner. 
@@ -50,6 +58,18 @@ package onthefly {
 				ret
 			})
 			tmp.map(_._2.token.getWord).toSet
+		}
+		
+		/**
+		 * The last germ of this path. 
+		 */
+		val last = if (!dec.isEmpty) {
+			RefOutput(dec.last._2)
+		} else if (!asc.isEmpty) {
+			val (pn, DCSTreeEdgeNormal(r)) = asc.last
+			RefGerm(pn, r)
+		} else {
+			start
 		}
 		
 	}

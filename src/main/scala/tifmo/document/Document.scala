@@ -1,11 +1,8 @@
 package tifmo.document
 
-import tifmo.dcstree._
-import tifmo.extension.SelCoref
-
-import mylib.misc.oneFromEach
-
 import scala.collection.mutable
+import tifmo.dcstree._
+import mylib.misc.oneFromEach
 
 /**
  * Document class provides an interface for making DCS trees.
@@ -124,11 +121,34 @@ class Document(val id: String,
       }
     }
 
-    for (nodes <- corefnodes.values; s <- nodes.subsets(2)) {
-      val a = s.head
-      val b = (s - a).head
-      ret += DeclarativeSubsume(a, b)
-      ret += DeclarativeSubsume(b, a)
+    val tokenmap = mutable.Map.empty[TokenBase, Set[TokenBase]]
+    for (n <- allRootNodes) {
+      val tokenpool = mutable.Set.empty[TokenBase]
+      def recur(x: TokenNode) {
+        tokenpool += x.token
+        for ((r, nn) <- x.children) recur(nn)
+      }
+      recur(n)
+      for (x <- tokenpool) {
+        tokenmap(x) = tokenmap.getOrElse(x, Set.empty[TokenBase]) ++ tokenpool
+      }
+    }
+    
+    for (nodes <- corefnodes.values) {
+      for (s <- nodes.subsets(2)) {
+        val a = s.head
+        val b = (s - a).head
+        ret += DeclarativeSubsume(a, b)
+        ret += DeclarativeSubsume(b, a)
+      }
+      
+      for (n <- nodes) {
+        val fil = nodes.filter(x => {
+          !tokenmap(n.token).contains(x.token)
+        })
+        assert(n.selection.asInstanceOf[SelCoref].coreferentNodes.isEmpty)
+        n.selection.asInstanceOf[SelCoref].coreferentNodes ++= fil
+      }
     }
 
     ret.toSet

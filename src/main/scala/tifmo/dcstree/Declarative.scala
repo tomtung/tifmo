@@ -77,16 +77,14 @@ case class DeclarativeRel(rel: Relation, a: Ref, b: Ref) extends Declarative {
 
 case class DeclarativeSubsume(sub: DCSTreeNode, sup: DCSTreeNode) extends Declarative {
 
-  private[this] def tmppi(x: Denotation, rs: Set[SemRole]) = {
-    if (rs == x.roles) x else DenotationPI(x, rs)
-  }
-
   def toStatements = {
     val crs = sub.approx.roles intersect sup.approx.roles
     if (crs.isEmpty) {
       Set.empty[Statement]
     } else {
-      Set(StatementSubsume(tmppi(sub.approx, crs), tmppi(sup.approx, crs)): Statement)
+      val tmpsub = if (crs == sub.approx.roles) sub.approx else DenotationPI(sub.approx, crs)
+      val tmpsup = if (crs == sup.approx.roles) sup.approx else DenotationPI(sup.approx, crs)
+      Set(StatementSubsume(tmpsub, tmpsup):Statement)
     }
   }
 

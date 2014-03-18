@@ -19,7 +19,7 @@ package dcstree {
 	}
 	
 	case class DenotationRelabel(x: Denotation, r: SemRole) extends Denotation {
-		assert(x.roles.size == 1)
+		assert(x.roles.size == 1 && x.roles.head != r)
 		val roles = Set(r)
 	}
 	

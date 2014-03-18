@@ -55,7 +55,7 @@ package inference {
 	}
 	
 	case class IEPredDisjoint(a: TermIndex, b: TermIndex) extends IEPred {
-		private[this] val pl = Set(a, b).toSeq.map(_.djts)
+		private[this] val pl = Seq(a.djts)
 		private[inference] def apply(debug_ruletrace: Debug_RuleTrace) = applyThis[IEPredDisjoint](this, pl, debug_ruletrace)
 		private[inference] def dispose() { disposeThis[IEPredDisjoint](this, pl) }
 		private[inference] def valid = (a.valid && b.valid)

@@ -30,6 +30,14 @@ package inference {
 		private[this] val wdrs = mutable.Map.empty[WordBase, Set[SemRole]]
 		private[this] val wdtm = mutable.Map.empty[WordBase, Term]
 		
+		private def wordTermRoles = for ((wd, rs) <- wdrs.toSet) yield ((wd, wdtm(wd).index, rs))
+		
+		private[this] val wspool = mutable.Set.empty[DenotationWordSign]
+		/**
+		 * Get all constants corresponding to content words. 
+		 */
+		def allDenotationWordSign = wspool.toSet
+		
 		private[this] def getWordSign(roles: Set[SemRole], word: WordBase, sign: Boolean) = {
 			assert(!word.isStopWord)
 			
@@ -37,7 +45,9 @@ package inference {
 				wdrs(word) = roles
 				val ret = newTerm(Dimension(roles)._1).holder
 				if (word.isNamedEntity) claimFunc(FuncSingle, Seq(ret.index), ret.dim, Debug_SimpleRuleTrace("Named Entity", getNewPredID()))
-				if (roles.size >= 2) for (r <- roles) getPI(ret, Set(r))
+				val ws = DenotationWordSign(roles, word, true)
+				wspool += ws
+				if (roles.size >= 2) for (r <- roles) dcache(DenotationPI(ws, Set(r))) = getPI(ret, Set(r))
 				wdtm(word) = ret
 				ret
 			}
@@ -58,7 +68,15 @@ package inference {
 				if (ers == roles) etm else getPI(etm, roles)
 			}
 			
-			if (sign) pre else getFunc(FuncNegation, Seq(null, pre), null)
+			if (sign) {
+				pre
+			} else {
+				val ret = getFunc(FuncNegation, Seq(null, pre), null)
+				val ws = DenotationWordSign(roles, word, false)
+				wspool += ws
+				if (roles.size >= 2) for (r <- roles) dcache(DenotationPI(ws, Set(r))) = getPI(ret, Set(r))
+				ret
+			}
 		}
 		
 		private[this] val dcache = mutable.Map.empty[Denotation, Term]
@@ -66,22 +84,24 @@ package inference {
 		 * Get an inference engine term from a denotation.
 		 */
 		def getTerm(denotation: Denotation) = {
-			def recur(x: Denotation): Term = dcache.getOrElseUpdate(x, x match {
-				case DenotationW(rs) => getW(Dimension(rs)._1).holder
-				case DenotationWordSign(rs, wd, sgn) => getWordSign(rs, wd, sgn)
-				case DenotationIN(x) => getIN(x.map(recur(_)))
-				case DenotationRelabel(x, r) => recur(x)
-				case DenotationCP(x) => getCP(x.map(y => (recur(y), (if (y.roles.size == 1) y.roles.head else null))))
-				case DenotationPI(x, rs) => getPI(recur(x), rs)
-				case DenotationDI(qt, x, y, r) => qt match {
-					case QuantifierALL => getFunc(FuncDIall, Seq(null, recur(x), recur(y)), r)
-					case QuantifierNO => getFunc(FuncDIno, Seq(null, recur(x), recur(y)), r)
+			def recur(x: Denotation): Term = dcache.getOrElseUpdate(x, {
+				x match {
+					case DenotationW(rs) => getW(Dimension(rs)._1).holder
+					case DenotationWordSign(rs, wd, sgn) => getWordSign(rs, wd, sgn)
+					case DenotationIN(x) => getIN(x.map(recur(_)))
+					case DenotationRelabel(x, r) => recur(x)
+					case DenotationCP(x) => getCP(x.map(y => (recur(y), (if (y.roles.size == 1) y.roles.head else null))))
+					case DenotationPI(x, rs) => getPI(recur(x), rs)
+					case DenotationDI(qt, x, y, r) => qt match {
+						case QuantifierALL => getFunc(FuncDIall, Seq(null, recur(x), recur(y)), r)
+						case QuantifierNO => getFunc(FuncDIno, Seq(null, recur(x), recur(y)), r)
+					}
+					case DenotationSelection(sel, x) => sel.execute[Term](this, recur(x))
 				}
-				case DenotationSelection(sel, x) => sel.execute[Term](this, recur(x))
 			})
 			val ret = recur(denotation)
 			explore()
-			ret
+			ret.index.holder
 		}
 		
 		/**
@@ -158,6 +178,28 @@ package inference {
 		}
 		
 		// dump & load: 
+		/**
+		 * Get all proven atomic sentences.
+		 */
+		def allProven = {
+			val allws = WPool.values.toSet
+			val alltms = allws.flatMap(_.subSets)
+			val preds = mutable.Set.empty[IEPred]
+			for (tm <- alltms) {
+				tm.kne.foreach(preds += _)
+				tm.assub.foreach(preds += _)
+				tm.djts.foreach(preds += _)
+				tm.iscps.foreach(preds += _)
+				tm.ispis.foreach(preds += _)
+				tm.isins.foreach(preds += _)
+				tm.funcs.foreach(preds += _)
+				tm.asarl.foreach(preds += _)
+			}
+			val ret = preds.toArray
+			Sorting.quickSort[IEPred](ret)
+			ret
+		}
+		
 		/**
 		 * Dump a serializable record of current status.
 		 */
@@ -256,6 +298,130 @@ package inference {
 			}
 			
 			explore()
+		}
+		
+		/**
+		 * Compare with another inference engine (for debug).
+		 */
+		def diagnose(that: IEngine) {
+			
+			val tmmap = mutable.Map.empty[TermIndex, TermIndex]
+			def addCorrespondence(thattm: TermIndex, tm: TermIndex, msg: String) {
+				if (thattm.isW != tm.isW) System.err.println("W-term discrepancy: " + thattm)
+				if (tmmap.contains(thattm)) {
+					if (tmmap(thattm) != tm) System.err.println(msg + ": term discrepancy! " + thattm)
+				} else {
+					tmmap(thattm) = tm
+				}
+			}
+			
+			for ((wd, thattm, rs) <- that.wordTermRoles) {
+				if (!wdrs.contains(wd)) {
+					System.err.println("additional word: " + wd + " " + rs)
+				} else if (wdrs(wd) != rs) {
+					System.err.println("word role discrepancy: " + wd + " " + rs + " <> " + wdrs(wd))
+				} else {
+					addCorrespondence(thattm, wdtm(wd).index, "word term " + wd)
+				}
+			}
+			
+			for (x <- that.allProven) x match {
+				case IEPredNonEmpty(thattm) => {
+					if (thattm.isW) {
+						if (WPool.contains(thattm.dim)) {
+							addCorrespondence(thattm, WPool(thattm.dim), "W-term " + thattm.dim)
+						} else {
+							System.err.println("additional W-term: " + thattm.dim)
+						}
+					} else {
+						if (!tmmap.contains(thattm)) {
+							System.err.println("IEPredNonEmpty from nowhere: " + x.debug_trace)
+						} else {
+							if (!tmmap(thattm).knownNE) {
+								System.err.println("addtional IEPredNonEmpty: " + x.debug_trace)
+							}
+						}
+					}
+				}
+				case IEPredSubsume(thatsub, thatsup) => {
+					if (thatsub != thatsup && !thatsup.isW) {
+						if (tmmap.contains(thatsub) && tmmap.contains(thatsup)) {
+							if (!tmmap(thatsub).hasSuper(tmmap(thatsup))) {
+								System.err.println("addtional IEPredSubsume: " + x.debug_trace)
+							}
+						} else {
+							System.err.println("IEPredSubsume from nowhere: " + x.debug_trace)
+						}
+					}
+				}
+				case IEPredDisjoint(thata, thatb) => {
+					if (tmmap.contains(thata) && tmmap.contains(thata)) {
+						if (!tmmap(thata).disjointTo(tmmap(thatb))) {
+							System.err.println("addtional IEPredDisjoint: " + x.debug_trace)
+						}
+					} else {
+						System.err.println("IEPredDisjoint from nowhere: " + x.debug_trace)
+					}
+				}
+				case IEPredCP(thath, thatcp) => {
+					if (thatcp.map(_._1).forall(tmmap.contains(_))) {
+						Finder.findCP(thatcp.map(y => (tmmap(y._1).holder, y._2))) match {
+							case Some(tm) => addCorrespondence(thath, tm.index, "CP " + thatcp)
+							case None => System.err.println("IEPredCP unfound: " + x.debug_trace)
+						}
+					} else {
+						System.err.println("IEPredCP from nowhere: " + x.debug_trace)
+					}
+				}
+				case IEPredPI(thath, thatt, thatr) => {
+					if (tmmap.contains(thatt)) {
+						Finder.findPI(tmmap(thatt).holder, x.asInstanceOf[IEPredPI].headrs) match {
+							case Some(tm) => addCorrespondence(thath, tm.index, "PI " + thatt)
+							case None => System.err.println("IEPredPI unfound: " + x.debug_trace)
+						}
+					} else {
+						System.err.println("IEPredPI from nowhere: " + x.debug_trace)
+					}
+				}
+				case IEPredIN(thath, thatin, aux) => {
+					if (thatin.forall(tmmap.contains(_))) {
+						Finder.findIN(thatin.map(tmmap(_).holder)) match {
+							case Some(tm) => addCorrespondence(thath, tm.index, "IN " + thatin)
+							case None => System.err.println("IEPredIN unfound: " + x.debug_trace)
+						}
+					} else {
+						System.err.println("IEPredIN from nowhere: " + x.debug_trace)
+					}
+				}
+				case IEPredFunc(func, thattms, param) => {
+					if (thattms.length == 1) {
+						if (!tmmap.contains(thattms.head)) {
+							System.err.println("IEPredFunc " + func.getClass + " from nowhere: " + x.debug_trace)
+						} else {
+							if (!tmmap(thattms.head).funcs.contains(IEPredFunc(func, Seq(tmmap(thattms.head)), param))) {
+								System.err.println("addtional IEPredFunc " + func.getClass + ": " + x.debug_trace)
+							}
+						}
+					} else if (thattms.tail.forall(tmmap.contains(_))) {
+						Finder.findFunc(func, null +: thattms.tail.map(tmmap(_).holder), param) match {
+							case Some(tm) => addCorrespondence(thattms.head, tm.index, "Func " + thattms)
+							case None => System.err.println("IEPredFunc " + func.getClass + " unfound: " + x.debug_trace)
+						}
+					} else {
+						System.err.println("IEPredFunc " + func.getClass + " from nowhere: " + x.debug_trace)
+					}
+				}
+				case IEPredRL(thata, rl, thatb) => {
+					if (tmmap.contains(thata) && tmmap.contains(thata)) {
+						if (!tmmap(thata).hasARLX(rl, tmmap(thatb))) {
+							System.err.println("addtional IEPredRL " + rl + ": " + x.debug_trace)
+						}
+					} else {
+						System.err.println("IEPredRL " + rl + " from nowhere: " + x.debug_trace)
+					}
+				}
+			}
+			
 		}
 		
 	}

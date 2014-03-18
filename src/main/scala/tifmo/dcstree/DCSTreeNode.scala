@@ -104,7 +104,7 @@ class DCSTreeNode(val children: Set[(DCSTreeEdge, DCSTreeNode)],
       gm(outRole) = if (tmp.size == 1) {
         tmp.head
       } else {
-        DenotationIN(tmp.map(DenotationRelabel(_, outRole)))
+        DenotationIN(tmp.map(makeRelabel(_, outRole)))
       }
       for ((edge@DCSTreeEdgeNormal(rr), n) <- children; if rr == outRole) {
         n.downward((this, edge))
@@ -279,6 +279,11 @@ class DCSTreeNode(val children: Set[(DCSTreeEdge, DCSTreeNode)],
 
 private object DCSTreeNode {
 
+  private def makeRelabel(x: Denotation, r: SemRole) = {
+    assert(x.roles.size == 1)
+    if (x.roles.head == r) x else DenotationRelabel(x, r)
+  }
+
   private def makePI(x: Denotation, r: SemRole): Denotation = {
     if (x.roles.size == 1) {
       assert(x.roles.head == r)
@@ -295,7 +300,7 @@ private object DCSTreeNode {
       val rs = s.map(_._1)
       assert(rs.subsetOf(c.roles))
       val side = for (r <- rs) yield {
-        val fil = s.filter(_._1 == r).map(x => DenotationRelabel(x._2, x._1): Denotation)
+        val fil = s.filter(_._1 == r).map(x => makeRelabel(x._2, x._1))
         if (fil.size <= 1) fil.head else DenotationIN(fil)
       }
       val rest = c.roles -- rs
