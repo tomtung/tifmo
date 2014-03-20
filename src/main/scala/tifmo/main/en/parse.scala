@@ -1,19 +1,11 @@
 package tifmo
 
-import dcstree.QuantifierALL
-import dcstree.QuantifierNO
-import document.SelNum
-import document.SelSup
-import document.Token
-import document.Document
-import document.tentRootNeg
-import document.tentRoles
-import document.tentRoleOrder
+import dcstree.{QuantifierALL, QuantifierNO}
+import document.{SelNum, SelSup, Token, Document, tentRootNeg, tentRoles, tentRoleOrder}
 
 import mylib.res.en.EnWordNet
 
-import edu.stanford.nlp.pipeline.StanfordCoreNLP
-import edu.stanford.nlp.pipeline.Annotation
+import edu.stanford.nlp.pipeline.{StanfordCoreNLP, Annotation}
 import edu.stanford.nlp.ling.IndexedWord
 import edu.stanford.nlp.ling.CoreAnnotations._
 import edu.stanford.nlp.semgraph.SemanticGraphCoreAnnotations.CollapsedDependenciesAnnotation
@@ -21,12 +13,13 @@ import edu.stanford.nlp.dcoref.CorefCoreAnnotations.CorefClusterIdAnnotation
 
 import java.util.Properties
 
-import scala.collection.mutable
 import scala.collection.JavaConversions._
 
 package main.en {
-	
-	object parse extends ((String, String) => (Document, Document)) {
+
+import scala.annotation.tailrec
+
+object parse extends ((String, String) => (Document, Document)) {
 		
 		private[this] val props = new Properties
 		props.put("annotators", "tokenize, ssplit, pos, lemma, ner, parse, dcoref")
@@ -109,6 +102,9 @@ package main.en {
 		}
 		
 		private[this] def makeDCSTrees(anno: Annotation, doc: Document) {
+
+			case class TokenInfo(token: Token, word: EnWord, pos: String)
+			case class EdgeInfo(parentToken: TokenInfo, relation: String, relationSpecific: String, childToken: TokenInfo)
 			
 			var counter = 0
 			for (sentence <- anno.get(classOf[SentencesAnnotation])) {
@@ -118,7 +114,7 @@ package main.en {
 					val token = doc.tokens(xid)
 					val word = token.word.asInstanceOf[EnWord]
 					val pos = x.get(classOf[PartOfSpeechAnnotation])
-					(token, word, pos)
+					TokenInfo(token, word, pos)
 				}
 				
 				var edges = (for (e <- sentence.get(classOf[CollapsedDependenciesAnnotation]).edgeIterable) yield {
@@ -126,33 +122,40 @@ package main.en {
 					val rel = e.getRelation.getShortName
 					val spc = e.getRelation.getSpecific
 					val ctk = tokeninfo(e.getDependent)
-					(ptk, rel, spc, ctk)
+					EdgeInfo(ptk, rel, spc, ctk)
 				}).toSet
 				
 				// copula
 				edges = {
 					var ret = edges
-					for (ptk @ (t, wd, pos) <- edges.map(_._1); if wd.lemma == "be" && pos.matches("VB.*")) {
-						val filcomp = edges.filter(x => x._1 == ptk && x._2.matches("[cx]?comp"))
-						if (filcomp.size == 1) {
-							val (pcomp, relcomp, spccomp, ccomp) = filcomp.head
-							ret = ret - filcomp.head
-							for ((pp, rrel, sspc, cc) <- edges; if pp == ptk && !rrel.matches("[cx]?comp")) {
-								ret = ret - ((pp, rrel, sspc, cc)) + ((ccomp, (if (rrel.matches("[nc]?subj")) "copula" else rrel), sspc, cc))
+					for (
+						beToken @ TokenInfo(_, wd, pos) <- edges.iterator.map(_.parentToken)
+						if wd.lemma == "be" && pos.matches("VB.*")
+					) {
+						val compEdgeSet = edges.filter(e => e.parentToken == beToken && e.relation.matches("[cx]?comp"))
+						if (compEdgeSet.size == 1) {
+							val compEdge @ EdgeInfo(_, _, _, ccomp) = compEdgeSet.head
+							ret -= compEdge
+							for (edgeFromBe @ EdgeInfo(`beToken`, rrel, _, _) <- edges if !rrel.matches("[cx]?comp")) {
+								ret = ret - edgeFromBe +
+									edgeFromBe.copy(
+										parentToken = ccomp,
+										relation = if (rrel.matches("[nc]?subj")) "copula" else rrel
+									)
 							}
-							for ((pp, rrel, sspc, cc) <- edges; if cc == ptk) {
-								ret = ret - ((pp, rrel, sspc, cc)) + ((pp, rrel, sspc, ccomp))
+							for (edgeToBe @ EdgeInfo(_, _, _, `beToken`) <- edges) {
+								ret = ret - edgeToBe + edgeToBe.copy(childToken = ccomp)
 							}
 						} else {
-							val filsubj = edges.filter(x => x._1 == ptk && x._2.matches("[nc]?subj"))
-							if (filsubj.size == 1) {
-								val (psubj, relsubj, spcsubj, csubj) = filsubj.head
-								ret = ret - filsubj.head
-								for ((pp, rrel, sspc, cc) <- edges; if pp == ptk && !rrel.matches("[nc]?subj")) {
-									ret = ret - ((pp, rrel, sspc, cc)) + ((csubj, rrel, sspc, cc))
+							val subjEdgeSet = edges.filter(e => e.parentToken == beToken && e.relation.matches("[nc]?subj"))
+							if (subjEdgeSet.size == 1) {
+								val subjEdge @ EdgeInfo(_, _, _, csubj) = subjEdgeSet.head
+								ret = ret - subjEdge
+								for (edgeFromBe @ EdgeInfo(`beToken`, rrel, _, _) <- edges if !rrel.matches("[nc]?subj")) {
+									ret = ret - edgeFromBe + edgeFromBe.copy(parentToken = csubj)
 								}
-								for ((pp, rrel, sspc, cc) <- edges; if cc == ptk) {
-									ret = ret - ((pp, rrel, sspc, cc)) + ((pp, rrel, sspc, csubj))
+								for (edgeToBe @ EdgeInfo(_, _, _, `beToken`) <- edges) {
+									ret = ret - edgeToBe + edgeToBe.copy(childToken = csubj)
 								}
 							}
 						}
@@ -164,42 +167,40 @@ package main.en {
 				edges = {
 					var ret = edges
 					val sensitive = Set("nsubj", "dobj", "iobj", "nsubjpass")
-					for ((ptk, rel, spc, ctk) <- edges; if rel == "rcmod") {
-						for ((pp, rrel, sspc, cc) <- edges; if pp == ctk && ((cc._3.matches("W.+") && sensitive.contains(rrel)) || cc._2.lemma == "when")) {
-							ret = ret - ((pp, rrel, sspc, cc))
-							val tmp = if (sensitive.contains(rrel)) rrel else "when"
-							ret = ret - ((ptk, rel, spc, ctk)) + ((ptk, rel, tmp, ctk))
-						}
+					for (
+						rcmodEdge @ EdgeInfo(_, "rcmod", _, ctk) <- edges;
+					   followingEdge @ EdgeInfo(`ctk`, rrel, _, TokenInfo(_, ccWord, ccPos)) <- edges
+					   if (ccPos.matches("W.+") && sensitive(rrel)) || ccWord.lemma == "when"
+					) {
+						ret = ret - followingEdge - rcmodEdge +
+							rcmodEdge.copy(relationSpecific = if (sensitive(rrel)) rrel else "when")
 					}
 					ret
 				}
 				
-				// some of
+				// some/most/all/each/none/<number> of
 				edges = {
 					var ret = edges
-					for ((ptk, rel, spc, ctk) <- edges; if rel == "prep" && spc == "of") {
-						if (ptk._2.lemma == "some" || ptk._2.lemma == "most") {
-							ret = ret - ((ptk, rel, spc, ctk))
-							for ((pp, rrel, sspc, cc) <- edges; if cc == ptk) {
-								ret = ret - ((pp, rrel, sspc, cc)) + ((pp, rrel, sspc, ctk))
+					for (ofEdge @ EdgeInfo(ptk, "prep", "of", ctk) <- edges) {
+						val (doCollapse, reverseRelationOp) =
+							ptk.word.lemma match {
+								case "some" | "most" =>
+									(true, None)
+								case "all" | "each" | "none" =>
+									(true, Some("det"))
+								case lemma if lemma.matches("-?[0-9\\.]+") =>
+									(true, Some("num"))
+								case _ =>
+									(false, None)
 							}
-						}
-						if (ptk._2.lemma == "all" || ptk._2.lemma == "each") {
-							ret = ret - ((ptk, rel, spc, ctk)) + ((ctk, "det", null, ptk))
-							for ((pp, rrel, sspc, cc) <- edges; if cc == ptk) {
-								ret = ret - ((pp, rrel, sspc, cc)) + ((pp, rrel, sspc, ctk))
+
+						if (doCollapse) {
+							ret -= ofEdge
+							for (revRel <- reverseRelationOp) {
+								ret += EdgeInfo(ctk, revRel, null, ptk)
 							}
-						}
-						if (ptk._2.lemma == "none") {
-							ret = ret - ((ptk, rel, spc, ctk)) + ((ctk, "det", null, ptk))
-							for ((pp, rrel, sspc, cc) <- edges; if cc == ptk) {
-								ret = ret - ((pp, rrel, sspc, cc)) + ((pp, rrel, sspc, ctk))
-							}
-						}
-						if (ptk._2.lemma.matches("-?[0-9\\.]+")) {
-							ret = ret - ((ptk, rel, spc, ctk)) + ((ctk, "num", null, ptk))
-							for ((pp, rrel, sspc, cc) <- edges; if cc == ptk) {
-								ret = ret - ((pp, rrel, sspc, cc)) + ((pp, rrel, sspc, ctk))
+							for (precedingEdge @ EdgeInfo(_, _, _, `ptk`) <- edges) {
+								ret = ret - precedingEdge + precedingEdge.copy(childToken = ctk)
 							}
 						}
 					}
@@ -209,8 +210,8 @@ package main.en {
 				// most JJ
 				edges = {
 					var ret = edges
-					for ((ptk, rel, spc, ctk) <- edges; if ctk._2.lemma == "most" && ptk._3 == "JJ") {
-						ret = ret - ((ptk, rel, spc, ctk)) + (((ptk._1, ptk._2, "JJS"), rel, spc, ctk))
+					for (e @ EdgeInfo(ptk @ TokenInfo(_, _, "JJ"), _, _, ctk) <- edges; if ctk.word.lemma == "most") {
+						ret = ret - e + e.copy(parentToken = ptk.copy(pos = "JJS"))
 					}
 					ret
 				}
@@ -219,32 +220,38 @@ package main.en {
 				edges = {
 					var ret = edges
 					val finish = counter + sentence.get(classOf[TokensAnnotation]).size
+
+					@tailrec
 					def scan(i: Int) {
 						if (i < finish) {
 							val theword = doc.tokens(i).word.asInstanceOf[EnWord]
-							def sameNE(tk: Token) = {
-								val tkword = tk.word.asInstanceOf[EnWord]
-								//(doc.tokens(i).corefID == null || tk.corefID == null || doc.tokens(i).corefID == tk.corefID) && 
-									tkword.ner == theword.ner && (theword.mypos != "D" || tkword.lemma == theword.lemma)
-							}
-							if (theword.ner != "O") {
+							if (theword.ner == "O") {
+								scan(i + 1)
+							} else {
 								val tmpmax = {
+									def sameNE(tk: Token) = {
+										val tkword = tk.word.asInstanceOf[EnWord]
+										tkword.ner == theword.ner && (theword.mypos != "D" || tkword.lemma == theword.lemma)
+									}
 									var tmp = Set.empty[Int]
 									var cachemax = i
+									@tailrec
 									def loop() {
-										for ((ptk, rel, spc, ctk) <- ret; if rel != "conj") {
-											if (ptk._1.id >= i && ptk._1.id <= cachemax && sameNE(ctk._1)) {
-												tmp += ctk._1.id
+										for (EdgeInfo(ptk, rel, spc, ctk) <- ret; if rel != "conj") {
+											if (ptk.token.id >= i && ptk.token.id <= cachemax && sameNE(ctk.token)) {
+												tmp += ctk.token.id
 											}
-											if (ctk._1.id >= i && ctk._1.id <= cachemax && sameNE(ptk._1)) {
-												tmp += ptk._1.id
+											if (ctk.token.id >= i && ctk.token.id <= cachemax && sameNE(ptk.token)) {
+												tmp += ptk.token.id
 											}
 										}
+
 										if (!tmp.isEmpty && tmp.max != cachemax) {
 											cachemax = tmp.max
 											loop()
 										}
 									}
+
 									loop()
 									cachemax
 								}
@@ -252,37 +259,36 @@ package main.en {
 								if (tmpmax == i) {
 									scan(i + 1)
 								} else {
-									val nword = if (theword.mypos != "D") {
-										val nlemma = (i to tmpmax).map(j => doc.tokens(j).surface).mkString("", " ", "")
-										EnWord(nlemma, "N", theword.ner)
-									} else {
-										theword
-									}
+									val nword =
+										if (theword.mypos == "D") {
+											theword
+										} else {
+											val nlemma = (i to tmpmax).map(j => doc.tokens(j).surface).mkString(" ")
+											EnWord(nlemma, "N", theword.ner)
+										}
 									doc.tokens(i).word = nword
-									
+
 									(i to tmpmax).find(j => doc.tokens(j).corefID != null) match {
 										case Some(j) => doc.tokens(i).corefID = doc.tokens(j).corefID
-										case None => {}
+										case None => // Do nothing
 									}
-									
-									for ((pp, rrel, sspc, cc) <- ret.toList) {
-										if (pp._1.id >= i && pp._1.id <= tmpmax) {
-											ret = ret - ((pp, rrel, sspc, cc))
-											if (!(cc._1.id >= i && cc._1.id <= tmpmax)) {
-												ret = ret + (((doc.tokens(i), nword, pp._3), rrel, sspc, cc))
+
+									for (e @ EdgeInfo(TokenInfo(pToken, _, pPos), _, _, TokenInfo(cToken, _, cPos)) <- ret.toList) {
+										if (pToken.id >= i && pToken.id <= tmpmax) {
+											ret -= e
+											if (!(cToken.id >= i && cToken.id <= tmpmax)) {
+												ret = ret + e.copy(parentToken = TokenInfo(doc.tokens(i), nword, pPos))
 											}
 										}
-										if (cc._1.id >= i && cc._1.id <= tmpmax) {
-											ret = ret - ((pp, rrel, sspc, cc))
-											if (!(pp._1.id >= i && pp._1.id <= tmpmax)) {
-												ret = ret + ((pp, rrel, sspc, (doc.tokens(i), nword, cc._3)))
+										if (cToken.id >= i && cToken.id <= tmpmax) {
+											ret -= e
+											if (!(pToken.id >= i && pToken.id <= tmpmax)) {
+												ret = ret + e.copy(childToken = TokenInfo(doc.tokens(i), nword, cPos))
 											}
 										}
 									}
 									scan(tmpmax + 1)
 								}
-							} else {
-								scan(i + 1)
 							}
 						}
 					}
@@ -291,235 +297,236 @@ package main.en {
 				}
 				
 				// annotate
-				for ((ptk, rel, spc, ctk) <- edges) {
+				for (EdgeInfo(ptk, rel, spc, ctk) <- edges) {
 					rel match {
-						case "copula" => {
-							doc.getTokenNode(ctk._1).outRole = ARG
-							doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
-						}
-						case "dep" => {
-							if (ptk._2.mypos != "O" && ctk._2.mypos != "O") {
-								doc.getTokenNode(ctk._1).outRole = ARG
-								doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
+						case "copula" =>
+							doc.getTokenNode(ctk.token).outRole = ARG
+							doc.getTokenNode(ptk.token).addChild(ARG, doc.getTokenNode(ctk.token))
+
+						case "dep" =>
+							if (ptk.word.mypos != "O" && ctk.word.mypos != "O") {
+								doc.getTokenNode(ctk.token).outRole = ARG
+								doc.getTokenNode(ptk.token).addChild(ARG, doc.getTokenNode(ctk.token))
 							}
-						}
-						case "agent" => {
-							doc.getTokenNode(ctk._1).outRole = ARG
-							doc.getTokenNode(ptk._1).addChild(SBJ, doc.getTokenNode(ctk._1))
-						}
-						case "acomp" => {
-							doc.getTokenNode(ctk._1).outRole = ARG
-							doc.getTokenNode(ptk._1).addChild(MOD, doc.getTokenNode(ctk._1))
-						}
-						case "ccomp" => {
-							if (ptk._2.mypos == "V") {
-								doc.getTokenNode(ctk._1).outRole = ARG
-								doc.getTokenNode(ptk._1).addChild(OBJ, doc.getTokenNode(ctk._1))
-							} else if (ptk._2.mypos == "J") {
-								doc.getTokenNode(ctk._1).outRole = MOD
-								doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
+
+						case "agent" =>
+							doc.getTokenNode(ctk.token).outRole = ARG
+							doc.getTokenNode(ptk.token).addChild(SBJ, doc.getTokenNode(ctk.token))
+
+						case "acomp" =>
+							doc.getTokenNode(ctk.token).outRole = ARG
+							doc.getTokenNode(ptk.token).addChild(MOD, doc.getTokenNode(ctk.token))
+
+						case "ccomp" =>
+							if (ptk.word.mypos == "V") {
+								doc.getTokenNode(ctk.token).outRole = ARG
+								doc.getTokenNode(ptk.token).addChild(OBJ, doc.getTokenNode(ctk.token))
+							} else if (ptk.word.mypos == "J") {
+								doc.getTokenNode(ctk.token).outRole = MOD
+								doc.getTokenNode(ptk.token).addChild(ARG, doc.getTokenNode(ctk.token))
 							} else {
-								doc.getTokenNode(ctk._1).outRole = ARG
-								doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
+								doc.getTokenNode(ctk.token).outRole = ARG
+								doc.getTokenNode(ptk.token).addChild(ARG, doc.getTokenNode(ctk.token))
 							}
-						}
-						case "xcomp" => {
-							doc.getTokenNode(ctk._1).outRole = ARG
-							doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
-						}
-						case "dobj" => {
-							doc.getTokenNode(ctk._1).outRole = ARG
-							doc.getTokenNode(ptk._1).addChild(OBJ, doc.getTokenNode(ctk._1))
-						}
-						case "iobj" => {
-							doc.getTokenNode(ctk._1).outRole = ARG
-							doc.getTokenNode(ptk._1).addChild(IOBJ, doc.getTokenNode(ctk._1))
-						}
-						case "pobj" => {
-							doc.getTokenNode(ctk._1).outRole = ARG
-							doc.getTokenNode(ptk._1).addChild(IOBJ, doc.getTokenNode(ctk._1))
-						}
-						case "nsubj" => {
-							if (ptk._2.mypos == "V") {
-								doc.getTokenNode(ctk._1).outRole = ARG
-								doc.getTokenNode(ptk._1).addChild(SBJ, doc.getTokenNode(ctk._1))
-							} else if (ptk._2.mypos == "J") {
-								doc.getTokenNode(ctk._1).outRole = MOD
-								doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
+
+						case "xcomp" =>
+							doc.getTokenNode(ctk.token).outRole = ARG
+							doc.getTokenNode(ptk.token).addChild(ARG, doc.getTokenNode(ctk.token))
+
+						case "dobj" =>
+							doc.getTokenNode(ctk.token).outRole = ARG
+							doc.getTokenNode(ptk.token).addChild(OBJ, doc.getTokenNode(ctk.token))
+
+						case "iobj" =>
+							doc.getTokenNode(ctk.token).outRole = ARG
+							doc.getTokenNode(ptk.token).addChild(IOBJ, doc.getTokenNode(ctk.token))
+
+						case "pobj" =>
+							doc.getTokenNode(ctk.token).outRole = ARG
+							doc.getTokenNode(ptk.token).addChild(IOBJ, doc.getTokenNode(ctk.token))
+
+						case "nsubj" =>
+							if (ptk.word.mypos == "V") {
+								doc.getTokenNode(ctk.token).outRole = ARG
+								doc.getTokenNode(ptk.token).addChild(SBJ, doc.getTokenNode(ctk.token))
+							} else if (ptk.word.mypos == "J") {
+								doc.getTokenNode(ctk.token).outRole = MOD
+								doc.getTokenNode(ptk.token).addChild(ARG, doc.getTokenNode(ctk.token))
 							} else {
-								doc.getTokenNode(ctk._1).outRole = ARG
-								doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
+								doc.getTokenNode(ctk.token).outRole = ARG
+								doc.getTokenNode(ptk.token).addChild(ARG, doc.getTokenNode(ctk.token))
 							}
-						}
-						case "nsubjpass" => {
-							doc.getTokenNode(ctk._1).outRole = ARG
-							doc.getTokenNode(ptk._1).addChild(OBJ, doc.getTokenNode(ctk._1))
-						}
-						case "csubj" => {
-							if (ptk._2.mypos == "V") {
-								doc.getTokenNode(ctk._1).outRole = ARG
-								doc.getTokenNode(ptk._1).addChild(SBJ, doc.getTokenNode(ctk._1))
-							} else if (ptk._2.mypos == "J") {
-								doc.getTokenNode(ctk._1).outRole = MOD
-								doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
+
+						case "nsubjpass" =>
+							doc.getTokenNode(ctk.token).outRole = ARG
+							doc.getTokenNode(ptk.token).addChild(OBJ, doc.getTokenNode(ctk.token))
+
+						case "csubj" =>
+							if (ptk.word.mypos == "V") {
+								doc.getTokenNode(ctk.token).outRole = ARG
+								doc.getTokenNode(ptk.token).addChild(SBJ, doc.getTokenNode(ctk.token))
+							} else if (ptk.word.mypos == "J") {
+								doc.getTokenNode(ctk.token).outRole = MOD
+								doc.getTokenNode(ptk.token).addChild(ARG, doc.getTokenNode(ctk.token))
 							} else {
-								doc.getTokenNode(ctk._1).outRole = ARG
-								doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
+								doc.getTokenNode(ctk.token).outRole = ARG
+								doc.getTokenNode(ptk.token).addChild(ARG, doc.getTokenNode(ctk.token))
 							}
-						}
-						case "csubjpass" => {
-							doc.getTokenNode(ctk._1).outRole = ARG
-							doc.getTokenNode(ptk._1).addChild(OBJ, doc.getTokenNode(ctk._1))
-						}
-						case "conj" => {
-							doc.getTokenNode(ptk._1).addConjunction(doc.getTokenNode(ctk._1))
-						}
-						case "amod" => {
-							if (ptk._2.mypos == "N" && ctk._3 == "JJS") {
-								doc.getTokenNode(ptk._1).selection = SelSup(EnWordNet.stem(ctk._2.lemma, ctk._2.mypos), ARG)
+
+						case "csubjpass" =>
+							doc.getTokenNode(ctk.token).outRole = ARG
+							doc.getTokenNode(ptk.token).addChild(OBJ, doc.getTokenNode(ctk.token))
+
+						case "conj" =>
+							doc.getTokenNode(ptk.token).addConjunction(doc.getTokenNode(ctk.token))
+
+						case "amod" =>
+							if (ptk.word.mypos == "N" && ctk.pos == "JJS") {
+								doc.getTokenNode(ptk.token).selection = SelSup(EnWordNet.stem(ctk.word.lemma, ctk.word.mypos), ARG)
 							} else {
-								doc.getTokenNode(ctk._1).outRole = ARG
-								doc.getTokenNode(ptk._1).addChild(MOD, doc.getTokenNode(ctk._1))
+								doc.getTokenNode(ctk.token).outRole = ARG
+								doc.getTokenNode(ptk.token).addChild(MOD, doc.getTokenNode(ctk.token))
 							}
-						}
-						case "appos" => {
-							doc.getTokenNode(ctk._1).outRole = ARG
-							doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
-						}
-						case "advcl" => {
-							doc.getTokenNode(ctk._1).outRole = ARG
-							doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
-						}
-						case "det" => {
-							if (ctk._2.lemma == "all" || ctk._2.lemma == "every" || ctk._2.lemma == "each") {
-								doc.getTokenNode(ptk._1).quantifier = QuantifierALL
-							} else if (ctk._2.lemma == "no" || ctk._2.lemma == "none") {
-								doc.getTokenNode(ptk._1).quantifier = QuantifierNO
+
+						case "appos" =>
+							doc.getTokenNode(ctk.token).outRole = ARG
+							doc.getTokenNode(ptk.token).addChild(ARG, doc.getTokenNode(ctk.token))
+
+						case "advcl" =>
+							doc.getTokenNode(ctk.token).outRole = ARG
+							doc.getTokenNode(ptk.token).addChild(ARG, doc.getTokenNode(ctk.token))
+
+						case "det" =>
+							if (ctk.word.lemma == "all" || ctk.word.lemma == "every" || ctk.word.lemma == "each") {
+								doc.getTokenNode(ptk.token).quantifier = QuantifierALL
+							} else if (ctk.word.lemma == "no" || ctk.word.lemma == "none") {
+								doc.getTokenNode(ptk.token).quantifier = QuantifierNO
 							}
-						}
-						case "predet" => {
-							if (ctk._2.lemma == "all") {
-								doc.getTokenNode(ptk._1).quantifier = QuantifierALL
+
+						case "predet" =>
+							if (ctk.word.lemma == "all") {
+								doc.getTokenNode(ptk.token).quantifier = QuantifierALL
 							}
-						}
-						case "infmod" => {
-							doc.getTokenNode(ctk._1).outRole = OBJ
-							doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
-						}
-						case "partmod" => {
-							doc.getTokenNode(ctk._1).outRole = if (ctk._3 == "VBG") SBJ else OBJ
-							val tmp = if (ptk._2.mypos == "V") {
-								if (edges.exists(x => x._1 == ptk && (x._2 == "nsubjpass" || x._2 == "csubjpass"))) OBJ else SBJ
+
+						case "infmod" =>
+							doc.getTokenNode(ctk.token).outRole = OBJ
+							doc.getTokenNode(ptk.token).addChild(ARG, doc.getTokenNode(ctk.token))
+
+						case "partmod" =>
+							doc.getTokenNode(ctk.token).outRole = if (ctk.pos == "VBG") SBJ else OBJ
+							val tmp = if (ptk.word.mypos == "V") {
+								if (edges.exists(x => x.parentToken == ptk && (x.relation == "nsubjpass" || x.relation == "csubjpass"))) OBJ else SBJ
 							} else {
 								ARG
 							}
-							doc.getTokenNode(ptk._1).addChild(tmp, doc.getTokenNode(ctk._1))
-						}
-						case "advmod" => {
-							doc.getTokenNode(ctk._1).outRole = ARG
-							doc.getTokenNode(ptk._1).addChild(MOD, doc.getTokenNode(ctk._1))
-						}
-						case "neg" => {
-							doc.getTokenNode(ptk._1).sign = false
-						}
-						case "rcmod" => {
-							if (ctk._2.mypos == "V") {
+							doc.getTokenNode(ptk.token).addChild(tmp, doc.getTokenNode(ctk.token))
+
+						case "advmod" =>
+							doc.getTokenNode(ctk.token).outRole = ARG
+							doc.getTokenNode(ptk.token).addChild(MOD, doc.getTokenNode(ctk.token))
+
+						case "neg" =>
+							doc.getTokenNode(ptk.token).sign = false
+
+						case "rcmod" =>
+							if (ctk.word.mypos == "V") {
 								val tmpmap = Map("when" -> TIME, "nsubj" -> SBJ, "dobj" -> OBJ, "iobj" -> IOBJ, "nsubjpass" -> OBJ)
-								doc.getTokenNode(ctk._1).outRole = if (spc == null) ARG else tmpmap(spc)
+								doc.getTokenNode(ctk.token).outRole = if (spc == null) ARG else tmpmap(spc)
 								val tmp = if (spc == "when") TIME else ARG
-								doc.getTokenNode(ptk._1).addChild(tmp, doc.getTokenNode(ctk._1))
-							} else if (ctk._2.mypos == "J") {
-								doc.getTokenNode(ctk._1).outRole = ARG
-								doc.getTokenNode(ptk._1).addChild(MOD, doc.getTokenNode(ctk._1))
+								doc.getTokenNode(ptk.token).addChild(tmp, doc.getTokenNode(ctk.token))
+							} else if (ctk.word.mypos == "J") {
+								doc.getTokenNode(ctk.token).outRole = ARG
+								doc.getTokenNode(ptk.token).addChild(MOD, doc.getTokenNode(ctk.token))
 							} else {
-								doc.getTokenNode(ctk._1).outRole = ARG
-								doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
+								doc.getTokenNode(ctk.token).outRole = ARG
+								doc.getTokenNode(ptk.token).addChild(ARG, doc.getTokenNode(ctk.token))
 							}
-						}
-						case "nn" => {
-							doc.getTokenNode(ctk._1).outRole = ARG
-							val tmp = if (ctk._2.mypos == "D" && ptk._2.mypos != "D") {
+
+						case "nn" =>
+							doc.getTokenNode(ctk.token).outRole = ARG
+							val tmp = if (ctk.word.mypos == "D" && ptk.word.mypos != "D") {
 								TIME
-							} else if (ptk._2.isNamedEntity && ctk._2.isNamedEntity) {
+							} else if (ptk.word.isNamedEntity && ctk.word.isNamedEntity) {
 								MOD
 							} else {
 								ARG
 							}
-							doc.getTokenNode(ptk._1).addChild(tmp, doc.getTokenNode(ctk._1))
-						}
-						case "npadvmod" => {
-							doc.getTokenNode(ctk._1).outRole = ARG
-							doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
-						}
-						case "tmod" => {
-							doc.getTokenNode(ctk._1).outRole = ARG
-							doc.getTokenNode(ptk._1).addChild(TIME, doc.getTokenNode(ctk._1))
-						}
-						case "num" => {
-							doc.getTokenNode(ctk._1).outRole = ARG
-							if (ctk._2.mypos == "D") {
-								doc.getTokenNode(ptk._1).addChild(TIME, doc.getTokenNode(ctk._1))
-							} else if (ptk._2.mypos == "N") {
-								doc.getTokenNode(ptk._1).selection = SelNum(ctk._2.lemma, ARG)
-							} else if (ctk._2.lemma.matches("-?[0-9\\.%]+")) {
-								doc.getTokenNode(ctk._1).selection = SelNum(ctk._2.lemma, ARG)
-								doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
+							doc.getTokenNode(ptk.token).addChild(tmp, doc.getTokenNode(ctk.token))
+
+						case "npadvmod" =>
+							doc.getTokenNode(ctk.token).outRole = ARG
+							doc.getTokenNode(ptk.token).addChild(ARG, doc.getTokenNode(ctk.token))
+
+						case "tmod" =>
+							doc.getTokenNode(ctk.token).outRole = ARG
+							doc.getTokenNode(ptk.token).addChild(TIME, doc.getTokenNode(ctk.token))
+
+						case "num" =>
+							doc.getTokenNode(ctk.token).outRole = ARG
+							if (ctk.word.mypos == "D") {
+								doc.getTokenNode(ptk.token).addChild(TIME, doc.getTokenNode(ctk.token))
+							} else if (ptk.word.mypos == "N") {
+								doc.getTokenNode(ptk.token).selection = SelNum(ctk.word.lemma, ARG)
+							} else if (ctk.word.lemma.matches("-?[0-9\\.%]+")) {
+								doc.getTokenNode(ctk.token).selection = SelNum(ctk.word.lemma, ARG)
+								doc.getTokenNode(ptk.token).addChild(ARG, doc.getTokenNode(ctk.token))
 							}
-						}
-						case "number" => {
-							if (ctk._2.lemma.matches("-?[0-9\\.%]+") && ptk._2.mypos == "N") {
-								doc.getTokenNode(ptk._1).selection = SelNum(ctk._2.lemma, ARG)
+
+						case "number" =>
+							if (ctk.word.lemma.matches("-?[0-9\\.%]+") && ptk.word.mypos == "N") {
+								doc.getTokenNode(ptk.token).selection = SelNum(ctk.word.lemma, ARG)
 							} else {
-								doc.getTokenNode(ctk._1).outRole = ARG
-								doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
+								doc.getTokenNode(ctk.token).outRole = ARG
+								doc.getTokenNode(ptk.token).addChild(ARG, doc.getTokenNode(ctk.token))
 							}
-						}
-						case "prep" => {
-							doc.getTokenNode(ctk._1).outRole = ARG
-							if (ctk._2.mypos == "D") {
+
+						case "prep" =>
+							doc.getTokenNode(ctk.token).outRole = ARG
+							if (ctk.word.mypos == "D") {
 								// we should add more rules to recognize
 								 // relations like before, after, since, from, to, ...
-								doc.getTokenNode(ptk._1).addChild(TIME, doc.getTokenNode(ctk._1))
-							} else if (ctk._2.mypos == "N" && ptk._2.mypos == "N") {
+								doc.getTokenNode(ptk.token).addChild(TIME, doc.getTokenNode(ctk.token))
+							} else if (ctk.word.mypos == "N" && ptk.word.mypos == "N") {
 								if (spc == "as") {
-									doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
+									doc.getTokenNode(ptk.token).addChild(ARG, doc.getTokenNode(ctk.token))
 								} else if (spc == "of" || spc == "by") {
-									doc.getTokenNode(ptk._1).addChild(MOD, doc.getTokenNode(ctk._1))
+									doc.getTokenNode(ptk.token).addChild(MOD, doc.getTokenNode(ctk.token))
 								} else if (spc == null) {
-									doc.getTokenNode(ctk._1).outRole = MOD
-									doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
+									doc.getTokenNode(ctk.token).outRole = MOD
+									doc.getTokenNode(ptk.token).addChild(ARG, doc.getTokenNode(ctk.token))
 								} else {
-									doc.getTokenNode(ptk._1).addChild(MOD, doc.getTokenNode(ctk._1))
+									doc.getTokenNode(ptk.token).addChild(MOD, doc.getTokenNode(ctk.token))
 								}
 							} else {
-								doc.getTokenNode(ptk._1).addChild(IOBJ, doc.getTokenNode(ctk._1))
+								doc.getTokenNode(ptk.token).addChild(IOBJ, doc.getTokenNode(ctk.token))
 							}
-						}
-						case "prepc" => {
-							doc.getTokenNode(ctk._1).outRole = ARG
+
+						case "prepc" =>
+							doc.getTokenNode(ctk.token).outRole = ARG
 							if (spc == null) {
-								doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
+								doc.getTokenNode(ptk.token).addChild(ARG, doc.getTokenNode(ctk.token))
 							} else {
-								doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
+								doc.getTokenNode(ptk.token).addChild(ARG, doc.getTokenNode(ctk.token))
 							}
-						}
-						case "poss" => {
-							doc.getTokenNode(ctk._1).outRole = ARG
-							doc.getTokenNode(ptk._1).addChild(MOD, doc.getTokenNode(ctk._1))
-						}
-						case "prt" => {
-							val nword = EnWord(ptk._2.lemma + " " + ctk._2.lemma, ptk._2.mypos, ptk._2.ner)
-							ptk._1.word = nword
-						}
-						case "parataxis" => {
-							doc.getTokenNode(ctk._1).outRole = ARG
-							doc.getTokenNode(ptk._1).addChild(ARG, doc.getTokenNode(ctk._1))
-						}
-						case "vmod" => {
-							doc.getTokenNode(ctk._1).outRole = ARG
-							doc.getTokenNode(ptk._1).addChild(MOD, doc.getTokenNode(ctk._1))
-						}
-						case _ => {}
+
+						case "poss" =>
+							doc.getTokenNode(ctk.token).outRole = ARG
+							doc.getTokenNode(ptk.token).addChild(MOD, doc.getTokenNode(ctk.token))
+
+						case "prt" =>
+							val nword = EnWord(ptk.word.lemma + " " + ctk.word.lemma, ptk.word.mypos, ptk.word.ner)
+							ptk.token.word = nword
+
+						case "parataxis" =>
+							doc.getTokenNode(ctk.token).outRole = ARG
+							doc.getTokenNode(ptk.token).addChild(ARG, doc.getTokenNode(ctk.token))
+
+						case "vmod" =>
+							doc.getTokenNode(ctk.token).outRole = ARG
+							doc.getTokenNode(ptk.token).addChild(MOD, doc.getTokenNode(ctk.token))
+
+						case _ =>
+							// Do nothing
 					}
 				}
 				
