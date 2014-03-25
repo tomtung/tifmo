@@ -217,7 +217,7 @@
 217,single,unknown,unknown
 218,single,yes,yes
 219,single,unknown,yes
-220,multi,yes,unknown
+220,multi,yes,yes
 221,single,unknown,unknown
 222,multi,unknown,unknown
 223,multi,no,unknown

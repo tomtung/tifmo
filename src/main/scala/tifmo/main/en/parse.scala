@@ -18,59 +18,61 @@ import scala.collection.JavaConversions._
 package main.en {
 
 import scala.annotation.tailrec
+import tifmo.document.RelPartialOrder
+import tifmo.dcstree.Relation
 
 object parse extends ((String, String) => (Document, Document)) {
-		
+
 		private[this] val props = new Properties
 		props.put("annotators", "tokenize, ssplit, pos, lemma, ner, parse, dcoref")
 		private[this] val pipeline = new StanfordCoreNLP(props)
-		
+
 		def apply(text: String, hypo: String) = {
-			
+
 			val annotext = new Annotation(text)
 			pipeline.annotate(annotext)
-			
+
 			val doctext = makeDocument(annotext, "text")
-			
+
 			addCoreferences(annotext, doctext)
-			
+
 			makeDCSTrees(annotext, doctext)
-			
+
 			tentRootNeg(doctext)
-			
+
 			///////////
-			
+
 			val annohypo = new Annotation(hypo)
 			pipeline.annotate(annohypo)
-			
+
 			val dochypo = makeDocument(annohypo, "hypo")
-			
+
 			makeDCSTrees(annohypo, dochypo)
-			
+
 			tentRootNeg(dochypo)
-			
+
 			//////////////
-			
+
 			val rolesDic = tentRoles(Set(doctext, dochypo))
-			
+
 			tentRoleOrder(rolesDic, doctext)
-			
+
 			tentRoleOrder(rolesDic, dochypo)
-			
+
 			/////////////////
-			
+
 			(doctext, dochypo)
 		}
-		
+
 		private[this] def makeDocument(anno: Annotation, id: String) = {
-			
+
 			val tokens = for {
 				sentence <- anno.get(classOf[SentencesAnnotation])
 				atoken <- sentence.get(classOf[TokensAnnotation])
 			} yield {
-				
+
 				val ret = new Token(atoken.get(classOf[TextAnnotation]))
-				
+
 				val pos = atoken.get(classOf[PartOfSpeechAnnotation])
 				val ner = atoken.get(classOf[NamedEntityTagAnnotation])
 				val lemma = if (ner == "DATE" || ner == "TIME") {
@@ -94,21 +96,21 @@ object parse extends ((String, String) => (Document, Document)) {
 				// work around for "each"
 				val nner = if (lemma == "each") "O" else ner
 				ret.word = EnWord(lemma, mypos, nner)
-				
+
 				ret
 			}
-			
+
 			new Document(id, tokens.toIndexedSeq)
 		}
-		
+
 		private[this] def makeDCSTrees(anno: Annotation, doc: Document) {
 
 			case class TokenInfo(token: Token, word: EnWord, pos: String)
 			case class EdgeInfo(parentToken: TokenInfo, relation: String, relationSpecific: String, childToken: TokenInfo)
-			
+
 			var counter = 0
 			for (sentence <- anno.get(classOf[SentencesAnnotation])) {
-				
+
 				def tokeninfo(x: IndexedWord) = {
 					val xid = counter + x.get(classOf[IndexAnnotation]) - 1
 					val token = doc.tokens(xid)
@@ -116,7 +118,7 @@ object parse extends ((String, String) => (Document, Document)) {
 					val pos = x.get(classOf[PartOfSpeechAnnotation])
 					TokenInfo(token, word, pos)
 				}
-				
+
 				var edges = (for (e <- sentence.get(classOf[CollapsedDependenciesAnnotation]).edgeIterable) yield {
 					val ptk = tokeninfo(e.getGovernor)
 					val rel = e.getRelation.getShortName
@@ -124,7 +126,74 @@ object parse extends ((String, String) => (Document, Document)) {
 					val ctk = tokeninfo(e.getDependent)
 					EdgeInfo(ptk, rel, spc, ctk)
 				}).toSet
-				
+
+				// This hack is for working around a bug in Stanford CoreNLP
+				// In sentences like "Tom is fast", "fast" is incorrectly recognized as an adverb
+				{
+					// See whether a word lemma could be an adjective in some context, according to the WordNet
+					def canBeAdj(lemma: String) = EnWordNet.synsets(lemma, null).exists(_.getType == 3)
+
+					// Maps a "RB.*" POS tag to a corresponding "JJ.*" POS tag
+					def correctRbPosToJj(pos: String) = pos match {
+						case "RB" => "JJ"
+						case "RBR" => "JJR"
+						case "RBS" => "JJS"
+						case _ => pos
+					}
+
+					var ret = edges
+					for (
+						beTokenInfo @ TokenInfo(beToken, beWord, pos) <- edges.iterator.map(_.parentToken)
+						if beWord.lemma == "be" && pos.matches("VB.*");
+						// Find the incorrect edges
+						// The assumption here is that a "be" verb can't be modified by a adverb w that comes after it,
+						// when w could be used as an adjective as well.
+						wrongAdvmodEdges = edges.collect {
+							case e @ EdgeInfo(`beTokenInfo`, "advmod", _, childTokenInfo)
+								if canBeAdj(childTokenInfo.word.lemma) &&
+									childTokenInfo.token.id > beToken.id => e
+						}
+						if wrongAdvmodEdges.nonEmpty
+					) {
+						// When there are multiple such edges, choose the last one to revert.
+						// This choice is to handle cases similar to:
+						//    Tom is definitely fast.
+						// in which case both "definitely" and "fast" are label as advmod for "is"
+						val edgeToRevert @ EdgeInfo(`beTokenInfo`, "advmod", _, wrongAdjTokenInfo) =
+							wrongAdvmodEdges.maxBy(_.childToken.token.id)
+						ret -= edgeToRevert
+
+						// Relabel the token as an adjective
+						val adjTokenInfo = TokenInfo(
+							token = wrongAdjTokenInfo.token,
+							word = wrongAdjTokenInfo.word.copy(mypos = "J"),
+							pos = correctRbPosToJj(wrongAdjTokenInfo.pos)
+						)
+
+						// Revert the edge and relabel it as "cop"
+						ret += EdgeInfo(adjTokenInfo, "cop", null, beTokenInfo)
+
+						// Replace all other appearance of wrongAdjTokenInfo and the "be" verb with adjTokenInfo
+						def replaceWithAdjTokenInfo(tokenInfo: TokenInfo) {
+							for (e @ EdgeInfo(`tokenInfo`, _, _, _) <- edges if e != edgeToRevert) {
+								ret -= e
+								ret += e.copy(parentToken = adjTokenInfo)
+							}
+
+							for (e @ EdgeInfo(_, _, _, `tokenInfo`) <- edges if e != edgeToRevert) {
+								ret -= e
+								ret += e.copy(childToken = adjTokenInfo)
+							}
+						}
+
+						replaceWithAdjTokenInfo(wrongAdjTokenInfo)
+						replaceWithAdjTokenInfo(beTokenInfo)
+
+						// Finally update edges after each iteration
+						edges = ret
+					}
+				}
+
 				// copula
 				edges = {
 					var ret = edges
@@ -162,7 +231,40 @@ object parse extends ((String, String) => (Document, Document)) {
 					}
 					ret
 				}
-				
+
+				// Introduce relation "rel:partial-order" for comparative adjectives
+				// in sentences like "Jerry is smaller than Tom."
+				edges = {
+					var ret = edges
+
+					for(
+						jjrToken <- edges.map(_.parentToken).filter(_.pos == "JJR");
+						edgesFromJjr = edges.filter(_.parentToken == jjrToken)
+						if !edgesFromJjr.exists(_.relation == "neg"); // JJR shouldn't be negated
+						// Assuming there's only one of each such nsubjEdge/thanEdge/copEdge
+						nsubjEdge @ EdgeInfo(`jjrToken`, "nsubj", null, nsubj) <- edgesFromJjr;
+						thanEdge @ EdgeInfo(`jjrToken`, "prep", "than", thanDependent) <- edgesFromJjr;
+						copEdge @ EdgeInfo(`jjrToken`, "cop", null, _) <- edgesFromJjr
+					) {
+						ret = ret - nsubjEdge - thanEdge - copEdge
+
+						// TODO extract magic string "rel:partial-order" when more relations are added
+						ret +=
+							EdgeInfo(
+								nsubj,
+								"rel:partial-order",
+								EnWordNet.stem(jjrToken.word.lemma, jjrToken.word.mypos),
+								thanDependent
+							)
+
+						for (incomingEdge @ EdgeInfo(_, _, _, `jjrToken`) <- edges) {
+							ret = ret - incomingEdge + incomingEdge.copy(childToken = nsubj)
+						}
+					}
+
+					ret
+				}
+
 				// rcmod
 				edges = {
 					var ret = edges
@@ -177,7 +279,7 @@ object parse extends ((String, String) => (Document, Document)) {
 					}
 					ret
 				}
-				
+
 				// some/most/all/each/none/<number> of
 				edges = {
 					var ret = edges
@@ -206,7 +308,7 @@ object parse extends ((String, String) => (Document, Document)) {
 					}
 					ret
 				}
-				
+
 				// most JJ
 				edges = {
 					var ret = edges
@@ -215,8 +317,8 @@ object parse extends ((String, String) => (Document, Document)) {
 					}
 					ret
 				}
-				
-				// cluster named entity
+
+				// cluster named entity tokens into chunks
 				edges = {
 					var ret = edges
 					val finish = counter + sentence.get(classOf[TokensAnnotation]).size
@@ -237,7 +339,7 @@ object parse extends ((String, String) => (Document, Document)) {
 									var cachemax = i
 									@tailrec
 									def loop() {
-										for (EdgeInfo(ptk, rel, spc, ctk) <- ret; if rel != "conj") {
+										for (EdgeInfo(ptk, rel, spc, ctk) <- ret; if rel != "conj" && rel != "prep" && !rel.matches("rel:.*")) {
 											if (ptk.token.id >= i && ptk.token.id <= cachemax && sameNE(ctk.token)) {
 												tmp += ctk.token.id
 											}
@@ -295,7 +397,7 @@ object parse extends ((String, String) => (Document, Document)) {
 					scan(counter)
 					ret
 				}
-				
+
 				// annotate
 				for (EdgeInfo(ptk, rel, spc, ctk) <- edges) {
 					rel match {
@@ -525,18 +627,24 @@ object parse extends ((String, String) => (Document, Document)) {
 							doc.getTokenNode(ctk.token).outRole = ARG
 							doc.getTokenNode(ptk.token).addChild(MOD, doc.getTokenNode(ctk.token))
 
+						case "rel:partial-order" =>
+							val ctkNode = doc.getTokenNode(ctk.token)
+							ctkNode.outRole = MOD
+							doc.getTokenNode(ptk.token).addChild(MOD, ctkNode)
+							ctkNode.relation = RelPartialOrder(spc)
+
 						case _ =>
 							// Do nothing
 					}
 				}
-				
+
 				counter += sentence.get(classOf[TokensAnnotation]).size
 			}
-			
+
 		}
-		
+
 		private[this] def addCoreferences(anno: Annotation, doc: Document) {
-			
+
 			var counter = 0
 			for {
 				sentence <- anno.get(classOf[SentencesAnnotation])
@@ -547,7 +655,7 @@ object parse extends ((String, String) => (Document, Document)) {
 				counter += 1
 			}
 		}
-		
+
 	}
-	
+
 }

@@ -29,6 +29,20 @@ class Document(val id: String,
     nodes.values.filter(x => x.parent == null && !x.children.filter(!_._2.conj).isEmpty).toSet
   }
 
+  def allRelations: Set[Relation] = {
+	  val builder = Set.newBuilder[Relation]
+
+	  def findRelations(root: TokenNode) {
+		  if (root.relation != null) {
+			  builder += root.relation
+		  }
+		  root.children.foreach(c => findRelations(c._2))
+	  }
+
+	  allRootNodes.foreach(findRelations)
+	  builder.result()
+  }
+
   def allContentWords[T <: WordBase] = {
     val ret = mutable.Set.empty[T]
     def recur(x: TokenNode) {
