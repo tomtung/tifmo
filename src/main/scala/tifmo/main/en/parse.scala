@@ -286,7 +286,7 @@ object parse extends ((String, String) => (Document, Document)) {
 					for (ofEdge @ EdgeInfo(ptk, "prep", "of", ctk) <- edges) {
 						val (doCollapse, reverseRelationOp) =
 							ptk.word.lemma match {
-								case "some" =>
+								case "some" | "one" | "lot" =>
 									(true, None)
 								case "most"=>
 									(true, Some("advmod"))
