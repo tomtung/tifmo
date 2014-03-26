@@ -1,7 +1,7 @@
 package tifmo
 
 import dcstree.{QuantifierALL, QuantifierNO}
-import document.{SelNum, SelSup, Token, Document, tentRootNeg, tentRoles, tentRoleOrder}
+import document.{SelNum, SelSup, Token, Document, tentRootNeg, tentRoles, tentRoleOrder, SelGeneralizedQuantifier}
 
 import mylib.res.en.EnWordNet
 
@@ -18,7 +18,7 @@ import scala.collection.JavaConversions._
 package main.en {
 
 import scala.annotation.tailrec
-import tifmo.document.RelPartialOrder
+import tifmo.document.{MostQuantifier, RelPartialOrder}
 import tifmo.dcstree.Relation
 
 object parse extends ((String, String) => (Document, Document)) {
@@ -286,8 +286,10 @@ object parse extends ((String, String) => (Document, Document)) {
 					for (ofEdge @ EdgeInfo(ptk, "prep", "of", ctk) <- edges) {
 						val (doCollapse, reverseRelationOp) =
 							ptk.word.lemma match {
-								case "some" | "most" =>
+								case "some" =>
 									(true, None)
+								case "most"=>
+									(true, Some("advmod"))
 								case "all" | "each" | "none" =>
 									(true, Some("det"))
 								case lemma if lemma.matches("-?[0-9\\.]+") =>
@@ -484,7 +486,12 @@ object parse extends ((String, String) => (Document, Document)) {
 
 						case "amod" =>
 							if (ptk.word.mypos == "N" && ctk.pos == "JJS") {
-								doc.getTokenNode(ptk.token).selection = SelSup(EnWordNet.stem(ctk.word.lemma, ctk.word.mypos), ARG)
+								if (ctk.word.lemma == "most") {
+									doc.getTokenNode(ptk.token).selection = SelGeneralizedQuantifier(MostQuantifier)
+									doc.getTokenNode(ptk.token).quantifier = QuantifierALL
+								} else {
+									doc.getTokenNode(ptk.token).selection = SelSup(EnWordNet.stem(ctk.word.lemma, ctk.word.mypos), ARG)
+								}
 							} else {
 								doc.getTokenNode(ctk.token).outRole = ARG
 								doc.getTokenNode(ptk.token).addChild(MOD, doc.getTokenNode(ctk.token))
