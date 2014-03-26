@@ -3,7 +3,8 @@ package tifmo.demo
 import tifmo.inference.{IEPredRL, IEPredSubsume, RuleDo, IEngine}
 import tifmo.main.en.{parse, EnWord}
 import mylib.res.en.EnWordNet
-import tifmo.document.RelPartialOrder
+import tifmo.document.{Document, RelPartialOrder}
+import tifmo.main.en.normalize
 
 object FraCas {
 	def main(args: Array[String]) {
@@ -33,52 +34,8 @@ object FraCas {
 
 				val (tdoc, hdoc) = parse(t, h)
 
-				val words = tdoc.allContentWords[EnWord] ++ hdoc.allContentWords[EnWord]
-				def sameWordSynonym(x: IEngine) {
-					for (s <- words.subsets(2)) {
-						val a = s.head
-						val b = (s - a).head
-						if (EnWordNet.stem(a.lemma, a.mypos) == EnWordNet.stem(b.lemma, b.mypos)) {
-							x.subsume(a, b)
-							x.subsume(b, a)
-						}
-					}
-				}
-
-				val prem = tdoc.makeDeclaratives.flatMap(_.toStatements)
-				val hypo = hdoc.makeDeclaratives.flatMap(_.toStatements)
-
-				val ie = new IEngine()
-
-				prem.foreach(ie.claimStatement)
-				hypo.foreach(ie.checkStatement)
-
-				sameWordSynonym(ie)
-
-				// Adding semantic knowledge for handling fracas-220
-				// TODO Refactor so that common semantic knowledge is re-usable
-				for (
-					r@RelPartialOrder(lemma) <- tdoc.allRelations;
-					deno <- ie.allDenotationWordSign.find(_.word.asInstanceOf[EnWord].lemma == lemma)
-				) {
-					val term = ie.getTerm(deno)
-					ie.foreachSubset(term.index, Seq.empty, RuleDo((ie, pred, arg) => {
-						pred match {
-							case IEPredSubsume(sub, _) =>
-								ie.foreachARLX(sub, Seq.empty, RuleDo((ie, rlPred, arg) => {
-									rlPred match {
-										case IEPredRL(`sub`, `r`, b) =>
-											ie.claimSubsume(b, term.index)
-									}
-								}))
-						}
-					}))
-				}
-
-				ie.explore()
-
 				val answer =
-					if (hypo.forall(ie.checkStatement)) {
+					if (tryProve(tdoc, hdoc)) {
 						"yes"
 					} else {
 						// negate hdoc
@@ -86,13 +43,7 @@ object FraCas {
 							n.rootNeg = !n.rootNeg
 						}
 
-						val nhypo = hdoc.makeDeclaratives.flatMap(_.toStatements)
-						val nie = new IEngine
-
-						prem.foreach(nie.claimStatement)
-						nhypo.foreach(nie.checkStatement)
-
-						if (nhypo.forall(nie.checkStatement)) {
+						if (tryProve(tdoc, hdoc)) {
 							"no"
 						} else {
 							"unknown"
@@ -101,10 +52,57 @@ object FraCas {
 
 				println("%s,%s,%s,%s".format(id, sm, fracas_answer, answer))
 				if (fracas_answer != answer) {
-					System.err.println("T: " + t)
-					System.err.println("H: " + h)
+					System.err.println(id + " T: " + t)
+					System.err.println(id + " H: " + h)
 				}
 			}
 		}
+	}
+
+	def tryProve(tdoc: Document, hdoc: Document): Boolean = {
+		val prem = tdoc.makeDeclaratives
+		val hypo = hdoc.makeDeclaratives
+
+		val premStatements = prem.flatMap(_.toStatements)
+		val hypoStatements = hypo.flatMap(_.toStatements)
+
+		val ie = new IEngine()
+
+		premStatements.foreach(ie.claimStatement)
+		hypoStatements.foreach(ie.checkStatement)
+
+		val words = tdoc.allContentWords[EnWord] ++ hdoc.allContentWords[EnWord]
+		for (s <- words.subsets(2)) {
+			val a = s.head
+			val b = (s - a).head
+			if (EnWordNet.stem(a.lemma, a.mypos) == EnWordNet.stem(b.lemma, b.mypos)) {
+				ie.subsume(a, b)
+				ie.subsume(b, a)
+			}
+		}
+
+		// Adding semantic knowledge for handling fracas-220
+		// TODO Refactor so that common semantic knowledge is re-usable
+		for (
+			r@RelPartialOrder(lemma) <- tdoc.allRelations;
+			deno <- ie.allDenotationWordSign.find(_.word.asInstanceOf[EnWord].lemma == lemma)
+		) {
+			val term = ie.getTerm(deno)
+			ie.foreachSubset(term.index, Seq.empty, RuleDo((ie, pred, arg) => {
+				pred match {
+					case IEPredSubsume(sub, _) =>
+						ie.foreachARLX(sub, Seq.empty, RuleDo((ie, rlPred, arg) => {
+							rlPred match {
+								case IEPredRL(`sub`, `r`, b) =>
+									ie.claimSubsume(b, term.index)
+							}
+						}))
+				}
+			}))
+		}
+
+		ie.explore()
+
+		hypoStatements.forall(ie.checkStatement)
 	}
 }
