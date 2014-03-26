@@ -508,7 +508,7 @@ object parse extends ((String, String) => (Document, Document)) {
 						case "det" =>
 							if (ctk.word.lemma == "all" || ctk.word.lemma == "every" || ctk.word.lemma == "each") {
 								doc.getTokenNode(ptk.token).quantifier = QuantifierALL
-							} else if (ctk.word.lemma == "no" || ctk.word.lemma == "none") {
+							} else if (ctk.word.lemma == "no" || ctk.word.lemma == "none" || ctk.word.lemma == "neither") {
 								doc.getTokenNode(ptk.token).quantifier = QuantifierNO
 							}
 
