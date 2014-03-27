@@ -105,8 +105,10 @@ object parse extends ((String, String) => (Document, Document)) {
 
 		private[this] def makeDCSTrees(anno: Annotation, doc: Document) {
 
-			case class TokenInfo(token: Token, word: EnWord, pos: String)
-			case class EdgeInfo(parentToken: TokenInfo, relation: String, relationSpecific: String, childToken: TokenInfo)
+			case class TokenPos(token: Token, pos: String) {
+				def word = token.getWord.asInstanceOf[EnWord]
+			}
+			case class EdgeInfo(parentToken: TokenPos, relation: String, relationSpecific: String, childToken: TokenPos)
 
 			var counter = 0
 			for (sentence <- anno.get(classOf[SentencesAnnotation])) {
@@ -114,9 +116,8 @@ object parse extends ((String, String) => (Document, Document)) {
 				def tokeninfo(x: IndexedWord) = {
 					val xid = counter + x.get(classOf[IndexAnnotation]) - 1
 					val token = doc.tokens(xid)
-					val word = token.word.asInstanceOf[EnWord]
 					val pos = x.get(classOf[PartOfSpeechAnnotation])
-					TokenInfo(token, word, pos)
+					TokenPos(token, pos)
 				}
 
 				var edges = (for (e <- sentence.get(classOf[CollapsedDependenciesAnnotation]).edgeIterable) yield {
@@ -128,7 +129,7 @@ object parse extends ((String, String) => (Document, Document)) {
 				}).toSet
 
 
-				// Maps a "RB.*" POS tag to a corresponding "JJ.*" POS tag
+				// Helper function: Maps a "RB.*" POS tag to a corresponding "JJ.*" POS tag
 				def correctRbPosToJj(pos: String) = pos match {
 					case "RB" => "JJ"
 					case "RBR" => "JJR"
@@ -136,62 +137,68 @@ object parse extends ((String, String) => (Document, Document)) {
 					case _ => pos
 				}
 
+				// Helper function: replaces all appearances of one TokenInfo into another among all edges
+				def replaceTokenInfo(edges: Set[EdgeInfo])(tokenInfo: TokenPos, newTokenInfo: TokenPos) = edges.map({
+					case e @ EdgeInfo(`tokenInfo`, _, _, _) =>
+						assert(e.childToken != tokenInfo)
+						e.copy(parentToken = newTokenInfo)
+					case e @ EdgeInfo(_, _, _, `tokenInfo`) =>
+						assert(e.parentToken != tokenInfo)
+						e.copy(childToken = newTokenInfo)
+					case e =>
+						e
+				})
+
 				// This hack is for working around a bug in Stanford CoreNLP
 				// In sentences like "Tom is fast", "fast" is incorrectly recognized as an adverb
+				// Note: this fix also introduces some errors (albeit benign).
+				// For example, in sentence "Tom is here", the adverb "here" would be incorrectly relabeled as an adj.
+				// Since this doesn't seem to cause any issue, we live with it for the moment.
 				{
 					// See whether a word lemma could be an adjective in some context, according to the WordNet
-					def canBeAdj(lemma: String) = EnWordNet.synsets(lemma, null).exists(_.getType == 3)
+					def canBeAdj(lemma: String) = EnWordNet.synsets(lemma, null).exists(s => s.getType == 3 || s.getType == 5)
 
 					var ret = edges
 					for (
-						beTokenInfo @ TokenInfo(beToken, beWord, pos) <- edges.iterator.map(_.parentToken)
-						if beWord.lemma == "be" && pos.matches("VB.*");
+						beTokenInfo @ TokenPos(beToken, pos) <- edges.iterator.map(_.parentToken)
+						if beTokenInfo.word.lemma == "be" && pos.matches("VB.*")
+					) {
 						// Find the incorrect edges
 						// The assumption here is that a "be" verb can't be modified by a adverb w that comes after it,
 						// when w could be used as an adjective as well.
-						wrongAdvmodEdges = edges.collect {
+						val wrongAdvmodEdges = edges.collect {
 							case e @ EdgeInfo(`beTokenInfo`, "advmod", _, childTokenInfo)
 								if canBeAdj(childTokenInfo.word.lemma) &&
 									childTokenInfo.token.id > beToken.id => e
 						}
-						if wrongAdvmodEdges.nonEmpty
-					) {
-						// When there are multiple such edges, choose the last one to revert.
-						// This choice is to handle cases similar to:
-						//    Tom is definitely fast.
-						// in which case both "definitely" and "fast" are label as advmod for "is"
-						val edgeToRevert @ EdgeInfo(`beTokenInfo`, "advmod", _, wrongAdjTokenInfo) =
-							wrongAdvmodEdges.maxBy(_.childToken.token.id)
-						ret -= edgeToRevert
 
-						// Relabel the token as an adjective
-						val adjTokenInfo = TokenInfo(
-							token = wrongAdjTokenInfo.token,
-							word = wrongAdjTokenInfo.word.copy(mypos = "J"),
-							pos = correctRbPosToJj(wrongAdjTokenInfo.pos)
-						)
+						if (wrongAdvmodEdges.nonEmpty) {
+							// When there are multiple such edges, choose the last one to revert.
+							// This choice is to handle cases similar to:
+							//    Tom is definitely fast.
+							// in which case both "definitely" and "fast" are label as advmod for "is"
+							val edgeToRevert @ EdgeInfo(`beTokenInfo`, "advmod", _, wrongAdjTokenInfo) =
+								wrongAdvmodEdges.maxBy(_.childToken.token.id)
+							ret -= edgeToRevert
 
-						// Revert the edge and relabel it as "cop"
-						ret += EdgeInfo(adjTokenInfo, "cop", null, beTokenInfo)
+							// Relabel the token as an adjective
+							wrongAdjTokenInfo.token.word = wrongAdjTokenInfo.word.copy(mypos = "J")
+							val adjTokenInfo = wrongAdjTokenInfo.copy(
+								pos = correctRbPosToJj(wrongAdjTokenInfo.pos)
+							)
 
-						// Replace all other appearance of wrongAdjTokenInfo and the "be" verb with adjTokenInfo
-						def replaceWithAdjTokenInfo(tokenInfo: TokenInfo) {
-							for (e @ EdgeInfo(`tokenInfo`, _, _, _) <- edges if e != edgeToRevert) {
-								ret -= e
-								ret += e.copy(parentToken = adjTokenInfo)
-							}
+							ret = replaceTokenInfo(ret)(wrongAdjTokenInfo, adjTokenInfo)
 
-							for (e @ EdgeInfo(_, _, _, `tokenInfo`) <- edges if e != edgeToRevert) {
-								ret -= e
-								ret += e.copy(childToken = adjTokenInfo)
-							}
+							// Also replace all occurences of the be token with our adj
+							ret = replaceTokenInfo(ret)(beTokenInfo, adjTokenInfo)
+
+							// Revert the edge and relabel it as "cop"
+							// (This is intentionally done after the previous step)
+							ret += EdgeInfo(adjTokenInfo, "cop", null, beTokenInfo)
+
+							// Finally update edges after each iteration
+							edges = ret
 						}
-
-						replaceWithAdjTokenInfo(wrongAdjTokenInfo)
-						replaceWithAdjTokenInfo(beTokenInfo)
-
-						// Finally update edges after each iteration
-						edges = ret
 					}
 				}
 
@@ -206,17 +213,6 @@ object parse extends ((String, String) => (Document, Document)) {
 						val synsets = EnWordNet.synsets(lemma, null)
 						!synsets.isEmpty && synsets.forall(s => s.getType == 3 || s.getType == 5)
 					}
-
-					def replaceTokenInfo(edges: Set[EdgeInfo])(tokenInfo: TokenInfo, newTokenInfo: TokenInfo) = edges.map({
-						case e @ EdgeInfo(`tokenInfo`, _, _, _) =>
-							assert(e.childToken != tokenInfo)
-							e.copy(parentToken = newTokenInfo)
-						case e @ EdgeInfo(_, _, _, `tokenInfo`) =>
-							assert(e.parentToken != tokenInfo)
-							e.copy(childToken = newTokenInfo)
-						case e =>
-							e
-					})
 
 					@tailrec
 					def fixEdges(edges: Set[EdgeInfo]): Set[EdgeInfo] = {
@@ -234,10 +230,8 @@ object parse extends ((String, String) => (Document, Document)) {
 							edges
 						} else {
 							val wrongEdge @ EdgeInfo(verbTokenInfo, _, _, childTokenInfo) = wrongEdgeOp.get
-							val correctWord = childTokenInfo.word.copy(mypos = "J")
-							childTokenInfo.token.word = correctWord
+							childTokenInfo.token.word = childTokenInfo.word.copy(mypos = "J")
 							val correctChildTokenInfo = childTokenInfo.copy(
-								word = correctWord,
 								pos =
 									if(childTokenInfo.pos.startsWith("RB")) {
 										correctRbPosToJj(childTokenInfo.pos)
@@ -260,8 +254,8 @@ object parse extends ((String, String) => (Document, Document)) {
 				edges = {
 					var ret = edges
 					for (
-						beToken @ TokenInfo(_, wd, pos) <- edges.iterator.map(_.parentToken)
-						if wd.lemma == "be" && pos.matches("VB.*")
+						beToken @ TokenPos(_, pos) <- edges.iterator.map(_.parentToken)
+						if beToken.word.lemma == "be" && pos.matches("VB.*")
 					) {
 						val compEdgeSet = edges.filter(e => e.parentToken == beToken && e.relation.matches("[cx]?comp"))
 						if (compEdgeSet.size == 1) {
@@ -333,8 +327,8 @@ object parse extends ((String, String) => (Document, Document)) {
 					val sensitive = Set("nsubj", "dobj", "iobj", "nsubjpass")
 					for (
 						rcmodEdge @ EdgeInfo(_, "rcmod", _, ctk) <- edges;
-					   followingEdge @ EdgeInfo(`ctk`, rrel, _, TokenInfo(_, ccWord, ccPos)) <- edges
-					   if (ccPos.matches("W.+") && sensitive(rrel)) || ccWord.lemma == "when"
+					   followingEdge @ EdgeInfo(`ctk`, rrel, _, cctk) <- edges
+					   if (cctk.pos.matches("W.+") && sensitive(rrel)) || cctk.word.lemma == "when"
 					) {
 						ret = ret - followingEdge - rcmodEdge +
 							rcmodEdge.copy(relationSpecific = if (sensitive(rrel)) rrel else "when")
@@ -376,7 +370,7 @@ object parse extends ((String, String) => (Document, Document)) {
 				// most JJ
 				edges = {
 					var ret = edges
-					for (e @ EdgeInfo(ptk @ TokenInfo(_, _, "JJ"), _, _, ctk) <- edges; if ctk.word.lemma == "most") {
+					for (e @ EdgeInfo(ptk @ TokenPos(_, "JJ"), _, _, ctk) <- edges; if ctk.word.lemma == "most") {
 						ret = ret - e + e.copy(parentToken = ptk.copy(pos = "JJS"))
 					}
 					ret
@@ -439,17 +433,17 @@ object parse extends ((String, String) => (Document, Document)) {
 										case None => // Do nothing
 									}
 
-									for (e @ EdgeInfo(TokenInfo(pToken, _, pPos), _, _, TokenInfo(cToken, _, cPos)) <- ret.toList) {
+									for (e @ EdgeInfo(TokenPos(pToken, pPos), _, _, TokenPos(cToken, cPos)) <- ret.toList) {
 										if (pToken.id >= i && pToken.id <= tmpmax) {
 											ret -= e
 											if (!(cToken.id >= i && cToken.id <= tmpmax)) {
-												ret = ret + e.copy(parentToken = TokenInfo(doc.tokens(i), nword, pPos))
+												ret = ret + e.copy(parentToken = TokenPos(doc.tokens(i), pPos))
 											}
 										}
 										if (cToken.id >= i && cToken.id <= tmpmax) {
 											ret -= e
 											if (!(pToken.id >= i && pToken.id <= tmpmax)) {
-												ret = ret + e.copy(childToken = TokenInfo(doc.tokens(i), nword, cPos))
+												ret = ret + e.copy(childToken = TokenPos(doc.tokens(i), cPos))
 											}
 										}
 									}
