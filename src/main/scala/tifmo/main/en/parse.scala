@@ -127,19 +127,20 @@ object parse extends ((String, String) => (Document, Document)) {
 					EdgeInfo(ptk, rel, spc, ctk)
 				}).toSet
 
+
+				// Maps a "RB.*" POS tag to a corresponding "JJ.*" POS tag
+				def correctRbPosToJj(pos: String) = pos match {
+					case "RB" => "JJ"
+					case "RBR" => "JJR"
+					case "RBS" => "JJS"
+					case _ => pos
+				}
+
 				// This hack is for working around a bug in Stanford CoreNLP
 				// In sentences like "Tom is fast", "fast" is incorrectly recognized as an adverb
 				{
 					// See whether a word lemma could be an adjective in some context, according to the WordNet
 					def canBeAdj(lemma: String) = EnWordNet.synsets(lemma, null).exists(_.getType == 3)
-
-					// Maps a "RB.*" POS tag to a corresponding "JJ.*" POS tag
-					def correctRbPosToJj(pos: String) = pos match {
-						case "RB" => "JJ"
-						case "RBR" => "JJR"
-						case "RBS" => "JJS"
-						case _ => pos
-					}
 
 					var ret = edges
 					for (
@@ -192,6 +193,67 @@ object parse extends ((String, String) => (Document, Document)) {
 						// Finally update edges after each iteration
 						edges = ret
 					}
+				}
+
+				// This hack is for working around a(nother) bug in Stanford CoreNLP on recognizing adjectival complement
+				// For example, in sentences
+				//    Neither leading tenor comes cheap.
+				//    Pavarotti is a leading tenor who comes cheap.
+				// The word "cheap" is incorrectly recognized as an adverb or noun, even it couldn't serve such a role
+				// according to the dictionary
+				{
+					def canOnlyBeAdj(lemma: String) = {
+						val synsets = EnWordNet.synsets(lemma, null)
+						!synsets.isEmpty && synsets.forall(s => s.getType == 3 || s.getType == 5)
+					}
+
+					def replaceTokenInfo(edges: Set[EdgeInfo])(tokenInfo: TokenInfo, newTokenInfo: TokenInfo) = edges.map({
+						case e @ EdgeInfo(`tokenInfo`, _, _, _) =>
+							assert(e.childToken != tokenInfo)
+							e.copy(parentToken = newTokenInfo)
+						case e @ EdgeInfo(_, _, _, `tokenInfo`) =>
+							assert(e.parentToken != tokenInfo)
+							e.copy(childToken = newTokenInfo)
+						case e =>
+							e
+					})
+
+					@tailrec
+					def fixEdges(edges: Set[EdgeInfo]): Set[EdgeInfo] = {
+						val wrongEdgeOp = edges.find({
+							case EdgeInfo(verbTokenInfo, rel, _, childTokenInfo) =>
+								rel != "acomp" &&
+									verbTokenInfo.pos.matches("VB.*") &&
+									childTokenInfo.token.id > verbTokenInfo.token.id &&
+									childTokenInfo.word.ner == "O" &&
+									!childTokenInfo.pos.startsWith("JJ") &&
+									canOnlyBeAdj(childTokenInfo.word.lemma)
+						})
+
+						if (wrongEdgeOp.isEmpty) {
+							edges
+						} else {
+							val wrongEdge @ EdgeInfo(verbTokenInfo, _, _, childTokenInfo) = wrongEdgeOp.get
+							val correctWord = childTokenInfo.word.copy(mypos = "J")
+							childTokenInfo.token.word = correctWord
+							val correctChildTokenInfo = childTokenInfo.copy(
+								word = correctWord,
+								pos =
+									if(childTokenInfo.pos.startsWith("RB")) {
+										correctRbPosToJj(childTokenInfo.pos)
+									} else {
+										"JJ"
+									}
+							)
+
+							var updatedEdges = edges - wrongEdge + EdgeInfo(verbTokenInfo, "acomp", null, correctChildTokenInfo)
+							updatedEdges = replaceTokenInfo(updatedEdges)(childTokenInfo, correctChildTokenInfo)
+
+							fixEdges(updatedEdges)
+						}
+					}
+
+					edges = fixEdges(edges)
 				}
 
 				// copula

@@ -11,7 +11,7 @@
 011,multi,yes,yes
 012,single,undef,ignore
 013,multi,yes,yes
-014,multi,no,unknown
+014,multi,no,no
 015,single,yes,yes
 016,single,undef,ignore
 017,single,yes,yes
