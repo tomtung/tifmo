@@ -14,7 +14,7 @@ import scala.collection.mutable
 
 package onthefly {
 	/**
-	 * Function object `contextCandidates` generate context candidates form a path.
+	 * Function object `contextCandidates` generate context candidates from a path.
 	 */
 	object contextCandidates extends (Path => Set[Ref]) {
 		

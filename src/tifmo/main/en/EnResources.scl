@@ -40,7 +40,18 @@ package main.en {
 				if (pre != null) {
 					pre
 				} else {
-					val tmp = EnWordNet.synsets(x.lemma, x.mypos)
+					val tmp = x.mypos match {
+						case "R" => {
+							val prepre = EnWordNet.synsets(x.lemma, "R")
+							val pre = if (prepre.isEmpty) EnWordNet.synsets(x.lemma, "J") else prepre
+							if (pre.isEmpty) EnWordNet.synsets(x.lemma, "O") else pre
+						}
+						case "J" | "N" | "V" => {
+							val pre = EnWordNet.synsets(x.lemma, x.mypos)
+							if (pre.isEmpty) EnWordNet.synsets(x.lemma, "O") else pre
+						}
+						case _ => EnWordNet.synsets(x.lemma, x.mypos)
+					}
 					val ret = if (x.mypos == "R") tmp ++ EnWordNet.lexical(tmp, DERIVED_FROM_ADJ) else tmp
 					wordnetCacheSyn.synchronized {
 						wordnetCacheSyn(x) = ret

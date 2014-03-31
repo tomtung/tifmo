@@ -232,7 +232,7 @@ package main.en {
 									var tmp = Set.empty[Int]
 									var cachemax = i
 									def loop() {
-										for ((ptk, rel, spc, ctk) <- ret; if rel != "conj") {
+										for ((ptk, rel, spc, ctk) <- ret; if rel != "conj" && rel != "prep") {
 											if (ptk._1.id >= i && ptk._1.id <= cachemax && sameNE(ctk._1)) {
 												tmp += ctk._1.id
 											}

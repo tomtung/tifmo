@@ -4,7 +4,7 @@ package tifmo
  * This package provides a way to generate on-the-fly knowledge.
  * 
  * You need: (i) an [[tifmo.inference.IEngine]], and add premises and hypotheses and 
- * linguistic knowledge; (ii) an [[tifmo.inference.AEngine]], and add premises and 
+ * linguistic knowledge; (ii) an [[tifmo.onthefly.AEngine]], and add premises and 
  * hypotheses; and (iii) construct an [[tifmo.onthefly.OnTheFly]], which provides 
  * an interface for you to try generated on-the-fly knowledge. 
  * 
