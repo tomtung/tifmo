@@ -700,12 +700,11 @@ class IEngineCoreSpec extends FlatSpec with Matchers {
     val ie = new IEngineCore()
 
     val termIndex1, termIndex2 = ie.new1DTerm()
-    val w = ie.getW(new Dimension(null))
 
-    ie.claimDisjoint(termIndex1, termIndex2)
+	  ie.claimDisjoint(termIndex1, termIndex2)
     ie.explore()
 
-    var flag1To2, flag2To1, flag1ToSelf, flag1And2, flag1AndSelf = 0
+    var flag1To2, flag1ToSelf, flag1And2, flag1AndSelf = 0
 
     ie.ifDisjoint(termIndex1, termIndex2, customEmptySeq,
       RuleDo((i, p, args) => {
@@ -729,7 +728,6 @@ class IEngineCoreSpec extends FlatSpec with Matchers {
         args should be theSameInstanceAs customEmptySeq
         p match {
           case IEPredDisjoint(`termIndex1`, `termIndex2`) => flag1To2 += 1
-          case IEPredDisjoint(`termIndex2`, `termIndex1`) => flag2To1 += 1
           case IEPredDisjoint(`termIndex1`, `termIndex1`) => flag1ToSelf += 1
           case _ => fail()
         }
@@ -737,7 +735,6 @@ class IEngineCoreSpec extends FlatSpec with Matchers {
     ie.explore()
 
     flag1To2 shouldEqual 1
-    flag2To1 shouldEqual 1
     flag1And2 shouldEqual 1
     flag1ToSelf shouldEqual 0
     flag1AndSelf shouldEqual 0
@@ -746,7 +743,6 @@ class IEngineCoreSpec extends FlatSpec with Matchers {
     ie.explore()
 
     flag1To2 shouldEqual 1
-    flag2To1 shouldEqual 1
     flag1And2 shouldEqual 1
     flag1ToSelf shouldEqual 1
     flag1AndSelf shouldEqual 1
