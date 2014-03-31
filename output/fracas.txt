@@ -23,7 +23,7 @@
 023,single,yes,yes
 024,single,yes,yes
 025,single,yes,yes
-026,multi,yes,unknown
+026,multi,yes,yes
 027,multi,yes,unknown
 028,multi,unknown,unknown
 029,single,yes,yes

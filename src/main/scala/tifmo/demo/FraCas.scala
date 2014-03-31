@@ -1,10 +1,11 @@
 package tifmo.demo
 
 import tifmo.inference.{IEPredRL, IEPredSubsume, RuleDo, IEngine}
-import tifmo.main.en.{parse, EnWord}
+import tifmo.main.en.{ARG, parse, EnWord}
 import mylib.res.en.EnWordNet
 import tifmo.document.{Document, RelPartialOrder}
-import tifmo.main.en.normalize
+import tifmo.dcstree.{SemRole, DenotationWordSign, DenotationPI, StatementSubsume}
+import scala.collection.immutable.Set
 
 object FraCas {
 	def main(args: Array[String]) {
@@ -71,10 +72,37 @@ object FraCas {
 		premStatements.foreach(ie.claimStatement)
 		hypoStatements.foreach(ie.checkStatement)
 
+		// TODO Refactor so that common semantic knowledge is re-usable
+
+		// Adding the following heuristic:
+		// For each statements "A[ARG] ⊂ B[ARG]" in the premise, if both A and B are denotation for words,
+		// we also claim "A ⊂ B"
+		val argSingletonSet: Set[SemRole] = Set(ARG)
+		for (
+			StatementSubsume(
+			DenotationPI(subWord@DenotationWordSign(_, _, true), `argSingletonSet`),
+			DenotationPI(supWord@DenotationWordSign(_, _, true), `argSingletonSet`)
+			) <- premStatements
+		) {
+			val commonRoles = subWord.roles intersect supWord.roles
+			def projectedIndex(d: DenotationWordSign) = {
+				val t = ie.getTerm(d)
+				if (d.roles == commonRoles) {
+					t
+				} else {
+					ie.getPI(t, commonRoles)
+				}
+			}.index
+
+			ie.claimSubsume(
+				projectedIndex(subWord),
+				projectedIndex(supWord)
+			)
+		}
+
+		// If two words are have equivalent stems according to WordNet, claim their equivalency
 		val words = tdoc.allContentWords[EnWord] ++ hdoc.allContentWords[EnWord]
-		for (s <- words.subsets(2)) {
-			val a = s.head
-			val b = (s - a).head
+		for (a :: b :: Nil <- words.subsets(2).map(_.toList)) {
 			if (EnWordNet.stem(a.lemma, a.mypos) == EnWordNet.stem(b.lemma, b.mypos)) {
 				ie.subsume(a, b)
 				ie.subsume(b, a)
@@ -82,7 +110,6 @@ object FraCas {
 		}
 
 		// Adding semantic knowledge for handling fracas-220
-		// TODO Refactor so that common semantic knowledge is re-usable
 		for (
 			r@RelPartialOrder(lemma) <- tdoc.allRelations;
 			deno <- ie.allDenotationWordSign.find(_.word.asInstanceOf[EnWord].lemma == lemma)
