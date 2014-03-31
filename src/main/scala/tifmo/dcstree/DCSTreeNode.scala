@@ -212,7 +212,7 @@ class DCSTreeNode(val children: Set[(DCSTreeEdge, DCSTreeNode)],
       } else {
         "[%s%s%s]".format(outRole.toString, signStr, selectionStr)
       }
-    } + " ───> "
+    } + " <─── "
 
     builder.append(rootLinePrefix).append(token.getWord).append({
       if (!rseq.isEmpty) rseq.mkString(" (", ", ", ")")
