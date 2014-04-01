@@ -17,7 +17,9 @@ import inference.RAConversion._
 package document {
 	
 	/**
-	 * Partial order relation. 
+	 * Partial order relation.
+	 * For example, if A and B have relation RelPartialOrder("fast"),
+	 * than B is faster than A (*NOT* A faster than B)
 	 */
 	case class RelPartialOrder(name: String) extends Relation {
 		
