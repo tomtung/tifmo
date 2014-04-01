@@ -232,15 +232,15 @@ class DCSTreeNode(val children: Set[(DCSTreeEdge, DCSTreeNode)],
           case DCSTreeEdgeNormal(inRole) =>
             inRole.toString
           case DCSTreeEdgeQuantifier(inRole, QuantifierALL) =>
-            "[%s, ALL]".format(inRole.toString)
+            "%s / ALL".format(inRole.toString)
           case DCSTreeEdgeQuantifier(inRole, QuantifierNO) =>
-            "[%s, NO]".format(inRole.toString)
+            "%s / NO".format(inRole.toString)
           case DCSTreeEdgeQuantifier(inRole, qualifier) =>
-            "[%s, %s]".format(inRole.toString, qualifier.toString)
+            "%s / %s".format(inRole.toString, qualifier.toString)
           case DCSTreeEdgeRelation(inRole, relation) =>
-            "[%s, %s]".format(inRole.toString, relation.toString)
+            "%s / %s".format(inRole.toString, relation.toString)
           case edge =>
-            "[%s]".format(edge.toString)
+            "%s / %s".format(edge.inRole, edge.toString)
         }) + " / "
 
         (childLinePrefix + childNode).
