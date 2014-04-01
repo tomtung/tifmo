@@ -111,7 +111,7 @@ class Document(val id: String,
                 val e = if (nn.quantifier != null) {
                   DCSTreeEdgeQuantifier(r, nn.quantifier)
                 } else if (nn.relation != null) {
-                  DCSTreeEdgeRelation(r, nn.relation)
+                  DCSTreeEdgeRelation(r, nn.relation, nn.relationFromParent)
                 } else {
                   DCSTreeEdgeNormal(r)
                 }

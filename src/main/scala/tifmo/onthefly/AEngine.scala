@@ -48,7 +48,7 @@ package onthefly {
 			var ret = mutable.Set.empty[Declarative] ++ prem
 			for (DeclarativePosi(rt) <- prem) {
 				def recurRel(x: DCSTreeNode) {
-					for ((DCSTreeEdgeRelation(r, rel), n) <- x.children) {
+					for ((DCSTreeEdgeRelation(r, rel, _), n) <- x.children) {
 						ret += DeclarativeRel(rel, RefOutput(n), RefGerm(x, r))
 					}
 					for ((e, n) <- x.children) recurRel(n)
@@ -63,7 +63,7 @@ package onthefly {
 								case QuantifierALL => ret += DeclarativeSubRef(RefOutput(n), RefGerm(x, r))
 								case QuantifierNO => if (r == x.rseq.last) ret += DeclarativeDjtRef(RefOutput(n), RefGerm(x, r))
 							}
-							case DCSTreeEdgeRelation(r, rel) => {}
+							case _ : DCSTreeEdgeRelation =>
 						}
 					}
 				}
@@ -145,7 +145,7 @@ package onthefly {
 			hypo match {
 				case DeclarativePosi(rt) => {
 					def recurRel(x: DCSTreeNode) {
-						for ((DCSTreeEdgeRelation(r, rel), n) <- x.children) {
+						for ((DCSTreeEdgeRelation(r, rel, _), n) <- x.children) {
 							addGoal(DeclarativeRel(rel, RefOutput(n), RefGerm(x, r)))
 						}
 						for ((e, n) <- x.children) recurRel(n)

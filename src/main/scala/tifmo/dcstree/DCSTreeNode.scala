@@ -31,7 +31,7 @@ class DCSTreeNode(val children: Set[(DCSTreeEdge, DCSTreeNode)],
 
   private[this] def calcr(denotation: Denotation, role: SemRole): Denotation = {
     children.foreach {
-      case (DCSTreeEdgeRelation(`role`, _), childNode) =>
+      case (DCSTreeEdgeRelation(`role`, _, _), childNode) =>
         childNode.upward()
         childNode.downward(null)
       case _ =>
@@ -237,8 +237,10 @@ class DCSTreeNode(val children: Set[(DCSTreeEdge, DCSTreeNode)],
             "%s / NO".format(inRole.toString)
           case DCSTreeEdgeQuantifier(inRole, qualifier) =>
             "%s / %s".format(inRole.toString, qualifier.toString)
-          case DCSTreeEdgeRelation(inRole, relation) =>
-            "%s / %s".format(inRole.toString, relation.toString)
+          case DCSTreeEdgeRelation(inRole, relation, false) =>
+            "%s / <~%s".format(inRole.toString, relation.toString)
+          case DCSTreeEdgeRelation(inRole, relation, true) =>
+	         "%s / %s~>".format(inRole.toString, relation.toString)
           case edge =>
             "%s / %s".format(edge.inRole, edge.toString)
         }) + " / "

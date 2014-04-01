@@ -27,9 +27,17 @@ class TokenNode(val token: Token) {
   var quantifier = null: Quantifier
 
   /**
-   * A relation. If none set it to `null`.
+   * The relation with its parent. If none set it to `null`.
+   * The direction of this relation is determined by `relationFromParent`.
    */
   var relation = null: Relation
+
+  /**
+   * Indicate the direction of relation.
+   * If set to true, the parent of the current node would be the first argument of the relation,
+   * while the node itself being second, and vice versa.
+   */
+  var relationFromParent: Boolean = false
 
   /**
    * The selection operator. If none set it to `null`.

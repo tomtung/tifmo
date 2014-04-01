@@ -11,8 +11,15 @@ case class DeclarativePosi(root: DCSTreeNode) extends Declarative {
     root.downward(null)
     var ret = Set(StatementNotEmpty(root.halfcalc): Statement)
     def recurRel(x: DCSTreeNode) {
-      for ((DCSTreeEdgeRelation(r, rel), n) <- x.children) {
-        ret += StatementRelation(rel, n.output, x.germ(r))
+      for ((DCSTreeEdgeRelation(role, rel, parentToChild), n) <- x.children) {
+	      val (l, r) =
+		      if (parentToChild) {
+			      (x.germ(role), n.output)
+		      } else {
+			      (n.output, x.germ(role))
+		      }
+
+	      ret += StatementRelation(rel, l, r)
       }
       for ((e, n) <- x.children) recurRel(n)
     }
@@ -22,16 +29,15 @@ case class DeclarativePosi(root: DCSTreeNode) extends Declarative {
       for ((e, n) <- x.children; if rs.contains(e.inRole)) {
         e match {
           case DCSTreeEdgeNormal(r) => recur(n)
-          case DCSTreeEdgeQuantifier(r, qt) => {
-            ret += StatementNotEmpty(x.germ(x.rseq.last))
-            if (r == x.rseq.last) {
-              qt match {
-                case QuantifierALL => ret += StatementSubsume(n.output, x.germ(r))
-                case QuantifierNO => ret += StatementDisjoint(n.output, x.germ(r))
-              }
-            }
-          }
-          case DCSTreeEdgeRelation(r, rel) => {}
+          case DCSTreeEdgeQuantifier(r, qt) =>
+	          ret += StatementNotEmpty(x.germ(x.rseq.last))
+	          if (r == x.rseq.last) {
+	            qt match {
+	              case QuantifierALL => ret += StatementSubsume(n.output, x.germ(r))
+	              case QuantifierNO => ret += StatementDisjoint(n.output, x.germ(r))
+	            }
+	          }
+          case _ : DCSTreeEdgeRelation =>
         }
       }
     }
