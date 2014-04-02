@@ -130,6 +130,6 @@ object FraCas {
 
 		ie.explore()
 
-		hypoStatements.forall(ie.checkStatement)
+		hypoStatements.nonEmpty && hypoStatements.forall(ie.checkStatement)
 	}
 }
