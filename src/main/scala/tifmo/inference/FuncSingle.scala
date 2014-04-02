@@ -13,16 +13,8 @@ package inference {
 		def headDim(tms: Seq[Term], param: Any) = param.asInstanceOf[Dimension]
 		
 		def applyFunc(ie: IEngineCore, tms: Seq[TermIndex], param: Any) {
-			ie.foreachIsPI(tms.head, Seq.empty[RuleArg], rSingle3)
 			ie.foreachMkPI(tms.head, Seq.empty[RuleArg], rSingle2)
 			ie.foreachSubset(tms.head, Seq.empty[RuleArg], rSingle1)
-		}
-	}
-	
-	private[inference] object rSingle3 extends RuleDo[IEPredPI] {
-		def apply(ie: IEngineCore, pred: IEPredPI, args: Seq[RuleArg]) {
-			assert(args.isEmpty)
-			ie.claimFunc(FuncSingle, Seq(pred.compt), pred.compt.dim, Debug_SimpleRuleTrace("FuncSingle", ie.getNewPredID()))
 		}
 	}
 	

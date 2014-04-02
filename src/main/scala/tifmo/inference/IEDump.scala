@@ -3,6 +3,7 @@ package tifmo
 import dcstree.SemRole
 import dcstree.WordBase
 import dcstree.Denotation
+import dcstree.DenotationWordSign
 
 package inference {
 	/**
@@ -14,6 +15,7 @@ package inference {
 		private[inference] val guards: List[Guard[_ <: IEPred]], 
 		private[inference] val wdtm: Map[WordBase, TermIndex], 
 		private[inference] val wdrs: Map[WordBase, Set[SemRole]], 
+		private[inference] val wspool: Set[DenotationWordSign], 
 		private[inference] val dcache: Map[Denotation, TermIndex]
 	) extends Serializable {
 		
@@ -27,9 +29,10 @@ package inference {
 			val nguards = guards.map(_.dumpMe(tmmap))
 			val nwdtm = wdtm.mapValues(tmmap(_)).toMap
 			val nwdrs = wdrs
+			val nwspool = wspool
 			val ndcache = dcache.mapValues(tmmap(_)).toMap
 			
-			new IEDump(nws, npreds, nguards, nwdtm, nwdrs, ndcache)
+			new IEDump(nws, npreds, nguards, nwdtm, nwdrs, nwspool, ndcache)
 		}
 		
 	}

@@ -91,12 +91,12 @@
 091,single,unknown,yes
 092,single,yes,unknown
 093,single,yes,yes
-094,single,unknown,yes
+094,single,unknown,unknown
 095,single,unknown,unknown
 096,single,yes,unknown
 097,single,yes,unknown
 098,multi,unknown,unknown
-099,multi,yes,yes
+099,multi,yes,unknown
 100,single,yes,unknown
 101,multi,yes,unknown
 102,multi,unknown,unknown
@@ -258,8 +258,8 @@
 258,single,no,unknown
 259,multi,yes,unknown
 260,multi,yes,unknown
-261,multi,yes,yes
-262,multi,yes,yes
+261,multi,yes,unknown
+262,multi,yes,unknown
 263,multi,unknown,yes
 264,multi,yes,yes
 265,multi,yes,yes

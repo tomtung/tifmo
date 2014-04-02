@@ -249,6 +249,7 @@ package inference {
 				guards.toList, 
 				wdtm.mapValues(x => tmmap(x.index)).toMap, 
 				wdrs.toMap, 
+				wspool.toSet, 
 				dcache.mapValues(x => tmmap(x.index)).toMap
 			)
 		}
@@ -277,6 +278,7 @@ package inference {
 				}
 				wdtm ++= dp.wdtm.mapValues(_.holder)
 				wdrs ++= dp.wdrs
+				wspool ++= dp.wspool
 				dcache ++= dp.dcache.mapValues(_.holder)
 				dps.tail
 			} else {
