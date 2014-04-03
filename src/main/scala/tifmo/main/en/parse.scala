@@ -18,7 +18,7 @@ import scala.collection.JavaConversions._
 package main.en {
 
 import scala.annotation.tailrec
-import tifmo.document.{MostQuantifier, RelPartialOrder}
+import tifmo.document.{AtLeastQuantifier, AtMostQuantifier, MostQuantifier, RelPartialOrder}
 import tifmo.dcstree.Relation
 
 object parse extends ((String, String) => (Document, Document)) {
@@ -376,6 +376,25 @@ object parse extends ((String, String) => (Document, Document)) {
 					ret
 				}
 
+				// Recognize quantifier "at most" and "at least" + cardinal number
+				// As a result, "at_most" and "at_least" will be stored in the "relationSpecific" field of the "num" edge
+				edges = {
+					var ret = edges
+
+					for (
+						numEdge @ EdgeInfo(_, "num", null, numToken) <- edges;
+						qmodEdge @ EdgeInfo(`numToken`, "quantmod", null, atToken) <- edges
+						if atToken.word.lemma == "at";
+						mweEdge @ EdgeInfo(`atToken`, "mwe", null, mostOrLeastToken) <- edges
+						if Set("most", "least").contains(mostOrLeastToken.word.lemma)
+					) {
+						ret = ret - numEdge - qmodEdge - mweEdge +
+							numEdge.copy(relationSpecific = "at_" + mostOrLeastToken.word.lemma)
+					}
+
+					ret
+				}
+
 				// cluster named entity tokens into chunks
 				edges = {
 					var ret = edges
@@ -635,7 +654,14 @@ object parse extends ((String, String) => (Document, Document)) {
 							if (ctk.word.mypos == "D") {
 								pNode.addChild(TIME, cNode)
 							} else if (ptk.word.mypos == "N") {
-								pNode.selection = SelNum(ctk.word.lemma, ARG)
+								spc match {
+									case "at_most" =>
+										pNode.selection = SelGeneralizedQuantifier(AtMostQuantifier(ctk.word.lemma))
+									case "at_least" =>
+										pNode.selection = SelGeneralizedQuantifier(AtLeastQuantifier(ctk.word.lemma))
+									case _ =>
+										pNode.selection = SelNum(ctk.word.lemma, ARG)
+								}
 							} else if (ctk.word.lemma.matches("-?[0-9\\.%]+")) {
 								cNode.selection = SelNum(ctk.word.lemma, ARG)
 								pNode.addChild(ARG, cNode)

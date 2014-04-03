@@ -60,8 +60,8 @@
 060,single,unknown,yes
 061,single,undef,ignore
 062,single,undef,ignore
-063,single,yes,yes
-064,single,unknown,yes
+063,single,yes,unknown
+064,single,unknown,unknown
 065,multi,unknown,unknown
 066,multi,yes,yes
 067,multi,yes,yes
@@ -318,7 +318,7 @@
 318,multi,no,unknown
 319,multi,yes,unknown
 320,single,yes,unknown
-321,multi,yes,unknown
+321,multi,yes,yes
 322,single,yes,unknown
 323,multi,yes,unknown
 324,single,yes,unknown
