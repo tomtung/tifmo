@@ -325,14 +325,23 @@ object parse extends ((String, String) => (Document, Document)) {
 				edges = {
 					var ret = edges
 					val sensitive = Set("nsubj", "dobj", "iobj", "nsubjpass")
+
 					for (
-						rcmodEdge @ EdgeInfo(_, "rcmod", _, ctk) <- edges;
+						rcmodEdge @ EdgeInfo(ptk, "rcmod", _, ctk) <- edges;
 					   followingEdge @ EdgeInfo(`ctk`, rrel, _, cctk) <- edges
-					   if (cctk.pos.matches("W.+") && sensitive(rrel)) || cctk.word.lemma == "when"
 					) {
-						ret = ret - followingEdge - rcmodEdge +
-							rcmodEdge.copy(relationSpecific = if (sensitive(rrel)) rrel else "when")
+						if (
+							cctk.word.lemma == "when" ||
+							(cctk.pos.matches("W.+") && sensitive(rrel))
+						) {
+							ret = ret - followingEdge - rcmodEdge +
+								rcmodEdge.copy(relationSpecific = if (sensitive(rrel)) rrel else "when")
+						} else if (ctk.pos.startsWith("W") && rrel == "prep") {
+							// For setences like "People who are from China...", directly collapse to "People from China..."
+							ret = ret - followingEdge - rcmodEdge + followingEdge.copy(parentToken = ptk)
+						}
 					}
+
 					ret
 				}
 

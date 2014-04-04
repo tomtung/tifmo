@@ -24,8 +24,8 @@
 024,single,yes,yes
 025,single,yes,yes
 026,multi,yes,yes
-027,multi,yes,unknown
-028,multi,unknown,unknown
+027,multi,yes,yes
+028,multi,unknown,yes
 029,single,yes,yes
 030,single,unknown,yes
 031,single,yes,yes
@@ -40,8 +40,8 @@
 040,single,unknown,unknown
 041,single,unknown,unknown
 042,multi,unknown,unknown
-043,multi,unknown,unknown
-044,multi,yes,unknown
+043,multi,unknown,yes
+044,multi,yes,yes
 045,single,unknown,unknown
 046,single,no,no
 047,single,unknown,yes
