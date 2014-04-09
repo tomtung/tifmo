@@ -20,6 +20,7 @@ package main.en {
 import scala.annotation.tailrec
 import tifmo.document.{AtLeastQuantifier, AtMostQuantifier, MostQuantifier, RelPartialOrder}
 import tifmo.dcstree.Relation
+import edu.stanford.nlp.semgraph.SemanticGraphCoreAnnotations.BasicDependenciesAnnotation
 
 object parse extends ((String, String) => (Document, Document)) {
 
@@ -113,7 +114,7 @@ object parse extends ((String, String) => (Document, Document)) {
 			var counter = 0
 			for (sentence <- anno.get(classOf[SentencesAnnotation])) {
 
-				def tokeninfo(x: IndexedWord) = {
+				def getTokenPos(x: IndexedWord) = {
 					val xid = counter + x.get(classOf[IndexAnnotation]) - 1
 					val token = doc.tokens(xid)
 					val pos = x.get(classOf[PartOfSpeechAnnotation])
@@ -121,12 +122,48 @@ object parse extends ((String, String) => (Document, Document)) {
 				}
 
 				var edges = (for (e <- sentence.get(classOf[CollapsedDependenciesAnnotation]).edgeIterable) yield {
-					val ptk = tokeninfo(e.getGovernor)
+					val ptk = getTokenPos(e.getGovernor)
 					val rel = e.getRelation.getShortName
 					val spc = e.getRelation.getSpecific
-					val ctk = tokeninfo(e.getDependent)
+					val ctk = getTokenPos(e.getDependent)
 					EdgeInfo(ptk, rel, spc, ctk)
 				}).toSet
+
+				// Maps prep lemma and token of pobj to prep token
+				val prepMap = {
+					val semGraph = sentence.get(classOf[BasicDependenciesAnnotation])
+					val builder = Map.newBuilder[(String, TokenPos), TokenPos]
+
+					for (
+						pobjE <- semGraph.edgeIterable
+						if pobjE.getRelation.getShortName == "pobj"
+					) {
+						val prepTokenPos = getTokenPos(pobjE.getGovernor)
+						val pobjTokenInfo = getTokenPos(pobjE.getDependent)
+
+						builder +=
+							(prepTokenPos.word.lemma, pobjTokenInfo) -> prepTokenPos
+
+						// TODO Should handle conjunction (e.g. as the code commented out as follows),
+						// TODO but it breaks the tree structure and causes error
+//						for(
+//							conjE <- semGraph.outgoingEdgeIterable(pobjE.getGovernor)
+//							if conjE.getRelation.getShortName == "conj";
+//							conjDepTokenPos = getTokenPos(conjE.getDependent)
+//							if conjDepTokenPos.pos == "IN"
+//						) {
+//							builder +=
+//								(conjDepTokenPos.word.lemma, pobjTokenInfo) -> conjDepTokenPos
+//						}
+					}
+
+					builder.result()
+				}
+
+				def edgeInfoToPrepTokenPos(e: EdgeInfo) = {
+					assert(e.relation == "prep")
+					prepMap.get((e.relationSpecific, e.childToken))
+				}
 
 
 				// Helper function: Maps a "RB.*" POS tag to a corresponding "JJ.*" POS tag
@@ -485,7 +522,7 @@ object parse extends ((String, String) => (Document, Document)) {
 				}
 
 				// annotate
-				for (EdgeInfo(ptk, rel, spc, ctk) <- edges) {
+				for (edge @ EdgeInfo(ptk, rel, spc, ctk) <- edges) {
 
 					val pNode = doc.getTokenNode(ptk.token)
 					val cNode = doc.getTokenNode(ctk.token)
@@ -688,18 +725,24 @@ object parse extends ((String, String) => (Document, Document)) {
 							cNode.outRole = ARG
 							if (ctk.word.mypos == "D") {
 								// we should add more rules to recognize
-								 // relations like before, after, since, from, to, ...
+								// relations like before, after, since, from, to, ...
 								pNode.addChild(TIME, cNode)
 							} else if (ctk.word.mypos == "N" && ptk.word.mypos == "N") {
 								if (spc == "as") {
 									pNode.addChild(ARG, cNode)
-								} else if (spc == "of" || spc == "by") {
-									pNode.addChild(MOD, cNode)
 								} else if (spc == null) {
 									cNode.outRole = MOD
 									pNode.addChild(ARG, cNode)
 								} else {
-									pNode.addChild(MOD, cNode)
+									for (
+										prepTokenPos <- edgeInfoToPrepTokenPos(edge);
+										prepNode = doc.getTokenNode(prepTokenPos.token)
+									) {
+										prepNode.outRole = SBJ
+										pNode.addChild(MOD, prepNode)
+
+										prepNode.addChild(OBJ, cNode)
+									}
 								}
 							} else {
 								pNode.addChild(IOBJ, cNode)
