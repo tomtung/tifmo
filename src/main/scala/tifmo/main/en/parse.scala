@@ -161,8 +161,13 @@ object parse extends ((String, String) => (Document, Document)) {
 				}
 
 				def edgeInfoToPrepTokenPos(e: EdgeInfo) = {
-					assert(e.relation == "prep")
-					prepMap.get((e.relationSpecific, e.childToken))
+					if(e.relation == "prep") {
+						prepMap.get((e.relationSpecific, e.childToken))
+					} else if (e.relation == "psubj") {
+						prepMap.get((e.relationSpecific, e.parentToken))
+					} else {
+						None
+					}
 				}
 
 
@@ -311,14 +316,33 @@ object parse extends ((String, String) => (Document, Document)) {
 						} else {
 							val subjEdgeSet = edges.filter(e => e.parentToken == beToken && e.relation.matches("[nc]?subj"))
 							if (subjEdgeSet.size == 1) {
-								val subjEdge @ EdgeInfo(_, _, _, csubj) = subjEdgeSet.head
+								val subjEdge @ EdgeInfo(_, _, _, subj) = subjEdgeSet.head
 								ret = ret - subjEdge
-								for (edgeFromBe @ EdgeInfo(`beToken`, rrel, _, _) <- edges if !rrel.matches("[nc]?subj")) {
-									ret = ret - edgeFromBe + edgeFromBe.copy(parentToken = csubj)
+
+								val otherEdgesFromBe = edges.filter(e => e.parentToken == beToken && e != subjEdge)
+								val edgesToBe = edges.filter(_.childToken == beToken)
+
+								if (
+									edgesToBe.isEmpty && // The "be" token is the root of sentence
+										otherEdgesFromBe.size == 1 && // There's only one other edge from "be"
+										otherEdgesFromBe.head.relation == "prep" && // The other edge from "be" is a preposition
+										otherEdgesFromBe.head.relationSpecific != null &&
+										subj.word.mypos == "N" && otherEdgesFromBe.head.childToken.word.mypos == "N" // The preposition is about relation between nouns
+								) {
+									// In such cases, we need to put the child of "prep" edge at the root
+									// to enable quantifier ALL and NO on the subject token.
+									// Here we introduce a new dependency type "psubj" to denote this.
+									val prepEdge @ EdgeInfo(_, _, prepName, prepChild) = otherEdgesFromBe.head
+									ret = ret - prepEdge + EdgeInfo(prepChild, "psubj", prepName, subj)
+								} else {
+									for (edgeFromBe <- otherEdgesFromBe) {
+										ret = ret - edgeFromBe + edgeFromBe.copy(parentToken = subj)
+									}
+									for (edgeToBe <- edgesToBe) {
+										ret = ret - edgeToBe + edgeToBe.copy(childToken = subj)
+									}
 								}
-								for (edgeToBe @ EdgeInfo(_, _, _, `beToken`) <- edges) {
-									ret = ret - edgeToBe + edgeToBe.copy(childToken = csubj)
-								}
+
 							}
 						}
 					}
@@ -722,13 +746,14 @@ object parse extends ((String, String) => (Document, Document)) {
 							}
 
 						case "prep" =>
-							cNode.outRole = ARG
+							// TODO Should add more rules to recognize relations like before, after, since, from, to, ...
+							// NOTE Changing code for case "prep" might necessitate a similar change in case "psubj"
 							if (ctk.word.mypos == "D") {
-								// we should add more rules to recognize
-								// relations like before, after, since, from, to, ...
+								cNode.outRole = ARG
 								pNode.addChild(TIME, cNode)
 							} else if (ctk.word.mypos == "N" && ptk.word.mypos == "N") {
 								if (spc == "as") {
+									cNode.outRole = ARG
 									pNode.addChild(ARG, cNode)
 								} else if (spc == null) {
 									cNode.outRole = MOD
@@ -741,11 +766,42 @@ object parse extends ((String, String) => (Document, Document)) {
 										prepNode.outRole = SBJ
 										pNode.addChild(MOD, prepNode)
 
+										cNode.outRole = ARG
 										prepNode.addChild(OBJ, cNode)
 									}
 								}
 							} else {
+								cNode.outRole = ARG
 								pNode.addChild(IOBJ, cNode)
+							}
+
+						case "psubj" =>
+							// NOTE Changing code for case "psubj" might necessitate a similar change in case "prep"
+							if (ptk.word.mypos == "D") {
+								cNode.outRole = TIME
+								pNode.addChild(ARG, cNode)
+							} else if (ptk.word.mypos == "N" && ctk.word.mypos == "N") {
+								if (spc == "as") {
+									cNode.outRole = ARG
+									pNode.addChild(ARG, cNode)
+								} else if (spc == null) {
+									cNode.outRole = ARG
+									pNode.addChild(MOD, cNode)
+								} else {
+									for (
+										prepTokenPos <- edgeInfoToPrepTokenPos(edge);
+										prepNode = doc.getTokenNode(prepTokenPos.token)
+									) {
+										prepNode.outRole = OBJ
+										pNode.addChild(ARG, prepNode)
+
+										cNode.outRole = MOD
+										prepNode.addChild(SBJ, cNode)
+									}
+								}
+							} else {
+								cNode.outRole = IOBJ
+								pNode.addChild(ARG, cNode)
 							}
 
 						case "prepc" =>
