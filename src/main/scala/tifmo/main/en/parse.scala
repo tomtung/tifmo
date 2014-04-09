@@ -720,7 +720,8 @@ object parse extends ((String, String) => (Document, Document)) {
 						} else if (ptk.word.mypos == "N") {
 							spc match {
 								case "at_most" =>
-									pNode.selection = SelGeneralizedQuantifier(AtMostQuantifier(ctk.word.lemma))
+									pNode.quantifier = QuantifierALL
+									pNode.selection = SelAtMost(ctk.word.lemma)
 								case "at_least" =>
 									pNode.selection = SelGeneralizedQuantifier(AtLeastQuantifier(ctk.word.lemma))
 								case _ =>

@@ -77,7 +77,7 @@
 077,single,undef,ignore
 078,single,undef,ignore
 079,single,unknown,unknown
-080,single,yes,unknown
+080,single,yes,yes
 081,single,yes,yes
 082,single,yes,yes
 083,single,unknown,yes
