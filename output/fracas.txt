@@ -60,7 +60,7 @@
 060,single,unknown,yes
 061,single,undef,ignore
 062,single,undef,ignore
-063,single,yes,unknown
+063,single,yes,yes
 064,single,unknown,unknown
 065,multi,unknown,unknown
 066,multi,yes,yes

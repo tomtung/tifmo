@@ -723,7 +723,8 @@ object parse extends ((String, String) => (Document, Document)) {
 									pNode.quantifier = QuantifierALL
 									pNode.selection = SelAtMost(ctk.word.lemma)
 								case "at_least" =>
-									pNode.selection = SelGeneralizedQuantifier(AtLeastQuantifier(ctk.word.lemma))
+									pNode.quantifier = QuantifierALL
+									pNode.selection = SelAtLeast(ctk.word.lemma)
 								case _ =>
 									pNode.selection = SelNum(ctk.word.lemma, ARG)
 							}
