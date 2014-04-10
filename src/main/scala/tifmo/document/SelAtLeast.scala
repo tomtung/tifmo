@@ -29,7 +29,7 @@ object SelAtLeast {
 					val cardinal = param.asInstanceOf[String]
 					val selTerm = sel.holder
 					ie.claimNonEmpty(sel)
-					ie.claimSubsume(sel, base)
+          ie.claimNonEmpty(ie.getIN(Set(sel.holder, base.holder)).index)
 					ie.claimRL(sel, RelAtLeast(cardinal), base)
 					ie.foreachSuperset(base, Seq.empty,
 						RuleDo((ie, p, _) => {
