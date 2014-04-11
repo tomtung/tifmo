@@ -1,8 +1,10 @@
+import scalariform.formatter.preferences._
+
 // ------ Basic configurations ------ 
 
 name := "tifmo"
 
-scalaVersion := "2.10.3"
+scalaVersion := "2.10.4"
 
 sbtVersion := "0.13.1"
 
@@ -20,11 +22,24 @@ libraryDependencies ++= Seq(
   "edu.stanford.nlp" % "stanford-corenlp" % "3.3.1" classifier "models"
 ).map(_ withSources() withJavadoc())
 
+
 // This settings is from plugin "sbt-start-script", which makes task "start-script" available
 // "start-script" creates a script "target/start" for running the application without sbt
 // usage: start <class-name> <parameters>
 // e.g. ./target/start tifmo.demo.FraCas input/fracas.xml
 seq(com.typesafe.sbt.SbtStartScript.startScriptForClassesSettings: _*)
+
+
+// This setting enables sbt-scalariform, an sbt plugin adding support for source code formatting using Scalariform
+// It adds the task `scalariformFormat` in the scopes `compile` and `test`, and run this task automatically when compiling
+
+scalariformSettings
+
+ScalariformKeys.preferences := ScalariformKeys.preferences.value
+  .setPreference(AlignParameters, true)
+  .setPreference(IndentPackageBlocks, false)
+  .setPreference(DoubleIndentClassDeclaration, true)
+
 
 
 // ------ Settings related to resource packs ------

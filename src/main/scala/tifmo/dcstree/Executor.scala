@@ -1,8 +1,7 @@
 package tifmo
 
-
 package dcstree {
-	
-	trait Executor
-	
+
+trait Executor
+
 }

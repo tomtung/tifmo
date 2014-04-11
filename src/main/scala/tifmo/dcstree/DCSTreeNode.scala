@@ -1,6 +1,6 @@
 package tifmo.dcstree
 
-import scala.collection.{immutable, mutable}
+import scala.collection.{ immutable, mutable }
 import scala.annotation.tailrec
 
 class DCSTreeNode(val children: Set[(DCSTreeEdge, DCSTreeNode)],
@@ -67,7 +67,7 @@ class DCSTreeNode(val children: Set[(DCSTreeEdge, DCSTreeNode)],
       aprx = if (selection == null) pre else DenotationSelection(selection, pre)
       hfcl = (approx /: rseq.takeWhile(_ != outRole))((d, r) => {
         gm(r) = makePI(d, r)
-        for ((edge@DCSTreeEdgeNormal(rr), n) <- children; if rr == r) {
+        for ((edge @ DCSTreeEdgeNormal(rr), n) <- children; if rr == r) {
           n.downward((this, edge))
         }
         calcr(d, r)
@@ -106,7 +106,7 @@ class DCSTreeNode(val children: Set[(DCSTreeEdge, DCSTreeNode)],
       } else {
         DenotationIN(tmp.map(makeRelabel(_, outRole)))
       }
-      for ((edge@DCSTreeEdgeNormal(rr), n) <- children; if rr == outRole) {
+      for ((edge @ DCSTreeEdgeNormal(rr), n) <- children; if rr == outRole) {
         n.downward((this, edge))
       }
       val halfdash = if (p == null && tmp2.isEmpty) {
@@ -116,7 +116,7 @@ class DCSTreeNode(val children: Set[(DCSTreeEdge, DCSTreeNode)],
       }
       (calcr(halfdash, outRole) /: rseq.dropWhile(_ != outRole).tail)((d, r) => {
         gm(r) = makePI(d, r)
-        for ((edge@DCSTreeEdgeNormal(rr), n) <- children; if rr == r) {
+        for ((edge @ DCSTreeEdgeNormal(rr), n) <- children; if rr == r) {
           n.downward((this, edge))
         }
         calcr(d, r)
@@ -134,7 +134,7 @@ class DCSTreeNode(val children: Set[(DCSTreeEdge, DCSTreeNode)],
       posinega = false
       downFlag = true
       gm(outRole) = if (p == null) output else p._1.germ(p._2.inRole)
-      for ((edge@DCSTreeEdgeNormal(rr), n) <- children; if rr == outRole) {
+      for ((edge @ DCSTreeEdgeNormal(rr), n) <- children; if rr == outRole) {
         n.downwardNega((this, edge))
       }
       val halfdash = if (p == null) {
@@ -145,7 +145,7 @@ class DCSTreeNode(val children: Set[(DCSTreeEdge, DCSTreeNode)],
       calcr(halfdash, outRole)
       (DenotationPI(halfdash, halfdash.roles - outRole) /: rseq.dropWhile(_ != outRole).tail)((d, r) => {
         gm(r) = makePI(d, r)
-        for ((edge@DCSTreeEdgeNormal(rr), n) <- children; if rr == r) {
+        for ((edge @ DCSTreeEdgeNormal(rr), n) <- children; if rr == r) {
           n.downwardNega((this, edge))
         }
         calcr(d, r)
@@ -240,7 +240,7 @@ class DCSTreeNode(val children: Set[(DCSTreeEdge, DCSTreeNode)],
           case DCSTreeEdgeRelation(inRole, relation, false) =>
             "%s / <~%s".format(inRole.toString, relation.toString)
           case DCSTreeEdgeRelation(inRole, relation, true) =>
-	         "%s / %s~>".format(inRole.toString, relation.toString)
+            "%s / %s~>".format(inRole.toString, relation.toString)
           case edge =>
             "%s / %s".format(edge.inRole, edge.toString)
         }) + " / "

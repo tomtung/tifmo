@@ -2,7 +2,7 @@ package tifmo.dcstree
 
 sealed abstract class DCSTreeEdge {
 
-	def inRole: SemRole
+  def inRole: SemRole
 
 }
 

@@ -12,14 +12,14 @@ case class DeclarativePosi(root: DCSTreeNode) extends Declarative {
     var ret = Set(StatementNotEmpty(root.halfcalc): Statement)
     def recurRel(x: DCSTreeNode) {
       for ((DCSTreeEdgeRelation(role, rel, parentToChild), n) <- x.children) {
-	      val (l, r) =
-		      if (parentToChild) {
-			      (x.germ(role), n.output)
-		      } else {
-			      (n.output, x.germ(role))
-		      }
+        val (l, r) =
+          if (parentToChild) {
+            (x.germ(role), n.output)
+          } else {
+            (n.output, x.germ(role))
+          }
 
-	      ret += StatementRelation(rel, l, r)
+        ret += StatementRelation(rel, l, r)
       }
       for ((e, n) <- x.children) recurRel(n)
     }
@@ -30,14 +30,14 @@ case class DeclarativePosi(root: DCSTreeNode) extends Declarative {
         e match {
           case DCSTreeEdgeNormal(r) => recur(n)
           case DCSTreeEdgeQuantifier(r, qt) =>
-	          ret += StatementNotEmpty(x.germ(x.rseq.last))
-	          if (r == x.rseq.last) {
-	            qt match {
-	              case QuantifierALL => ret += StatementSubsume(n.output, x.germ(r))
-	              case QuantifierNO => ret += StatementDisjoint(n.output, x.germ(r))
-	            }
-	          }
-          case _ : DCSTreeEdgeRelation =>
+            ret += StatementNotEmpty(x.germ(x.rseq.last))
+            if (r == x.rseq.last) {
+              qt match {
+                case QuantifierALL => ret += StatementSubsume(n.output, x.germ(r))
+                case QuantifierNO => ret += StatementDisjoint(n.output, x.germ(r))
+              }
+            }
+          case _: DCSTreeEdgeRelation =>
         }
       }
     }
@@ -90,7 +90,7 @@ case class DeclarativeSubsume(sub: DCSTreeNode, sup: DCSTreeNode) extends Declar
     } else {
       val tmpsub = if (crs == sub.approx.roles) sub.approx else DenotationPI(sub.approx, crs)
       val tmpsup = if (crs == sup.approx.roles) sup.approx else DenotationPI(sup.approx, crs)
-      Set(StatementSubsume(tmpsub, tmpsup):Statement)
+      Set(StatementSubsume(tmpsub, tmpsup): Statement)
     }
   }
 

@@ -30,17 +30,17 @@ class Document(val id: String,
   }
 
   def allRelations: Set[Relation] = {
-	  val builder = Set.newBuilder[Relation]
+    val builder = Set.newBuilder[Relation]
 
-	  def findRelations(root: TokenNode) {
-		  if (root.relation != null) {
-			  builder += root.relation
-		  }
-		  root.children.foreach(c => findRelations(c._2))
-	  }
+    def findRelations(root: TokenNode) {
+      if (root.relation != null) {
+        builder += root.relation
+      }
+      root.children.foreach(c => findRelations(c._2))
+    }
 
-	  allRootNodes.foreach(findRelations)
-	  builder.result()
+    allRootNodes.foreach(findRelations)
+    builder.result()
   }
 
   def allContentWords[T <: WordBase] = {
@@ -147,7 +147,7 @@ class Document(val id: String,
         tokenmap(x) = tokenmap.getOrElse(x, Set.empty[TokenBase]) ++ tokenpool
       }
     }
-    
+
     for (nodes <- corefnodes.values) {
       for (s <- nodes.subsets(2)) {
         val a = s.head
@@ -155,7 +155,7 @@ class Document(val id: String,
         ret += DeclarativeSubsume(a, b)
         ret += DeclarativeSubsume(b, a)
       }
-      
+
       for (n <- nodes) {
         val fil = nodes.filter(x => {
           !tokenmap(n.token).contains(x.token)
@@ -169,4 +169,4 @@ class Document(val id: String,
   }
 
 }
-	
+

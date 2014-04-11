@@ -11,9 +11,6 @@ import tifmo.main.en.EnWord
 import tifmo.main.en.TIME
 import tifmo.main.en.EnSimilarityMikolov13
 
-import scala.collection.mutable
-import scala.util.Sorting
-
 object RTE {
   def main(args: Array[String]) {
     if (args.length != 1) {
@@ -25,39 +22,37 @@ object RTE {
     val f = xml.XML.loadFile(rte_xml)
 
     for (p <- (f \ "pair")) {
-      
+
       val id = (p \ "@id").text
-      
+
       val task = (p \ "@task").text
-      
-      val gold_label = if (
-        (p \ "@value").text == "TRUE" 
-          || (p \ "@entailment").text == "ENTAILMENT" 
-          || (p \ "@entailment").text == "YES"
-      ) {
+
+      val gold_label = if ((p \ "@value").text == "TRUE"
+        || (p \ "@entailment").text == "ENTAILMENT"
+        || (p \ "@entailment").text == "YES") {
         "Y"
       } else {
         "N"
       }
-      
+
       val t = normalize((p \ "t").text.trim)
       val h = normalize((p \ "h").text.trim)
       val (tdoc, hdoc) = parse(t, h)
-      
+
       val prem = tdoc.makeDeclaratives
       val hypo = hdoc.makeDeclaratives
-      
+
       val ie = new IEngine
-      
+
       prem.flatMap(_.toStatements).foreach(ie.claimStatement(_))
       hypo.flatMap(_.toStatements).foreach(ie.checkStatement(_))
-      
+
       System.err.println("id: " + id + " gold: " + gold_label)
       System.err.println("TEXT:")
       System.err.println(" " + t)
       System.err.println("HYPO:")
       System.err.println(" " + h)
-      
+
       // add linguistic knowledge
       val res = new EnResources
       val words = tdoc.allContentWords[EnWord] ++ hdoc.allContentWords[EnWord]
@@ -82,29 +77,29 @@ object RTE {
           }
         }
       }
-      
-      val proven = (x:IEngine) => hypo.flatMap(_.toStatements).forall(x.checkStatement(_))
-      
+
+      val proven = (x: IEngine) => hypo.flatMap(_.toStatements).forall(x.checkStatement(_))
+
       if (proven(ie)) {
-        
+
         System.err.println("Proven.")
         println(id + "," + task + "," + gold_label + ",1.0")
-        
+
       } else {
-        
+
         val ae = new AEngine(prem)
         hypo.foreach(ae.addGoal(_))
-        
+
         val otf = new OnTheFly(ie, ae)
-        
+
         val sim = new EnSimilarityMikolov13(res, 0.7f)
-        
-        val score = (x:PathAlignment) => {
+
+        val score = (x: PathAlignment) => {
           // evaluate path alignment
-          
+
           val PathAlignment(psub, psup, soft) = x
-          if (psup.rnrs.exists(x => x._1 == TIME || x._3 == TIME) 
-                && !psub.rnrs.exists(x => x._1 == TIME || x._3 == TIME)) {
+          if (psup.rnrs.exists(x => x._1 == TIME || x._3 == TIME)
+            && !psub.rnrs.exists(x => x._1 == TIME || x._3 == TIME)) {
             // time role unmatch, filtered.
             0.0
           } else {
@@ -113,8 +108,8 @@ object RTE {
             if (wsub.isEmpty || wsup.isEmpty) {
               // filtered.
               0.0
-            } else if (wsup.exists(x => (x.isNamedEntity || x.mypos == "D") 
-                && !wsub.exists(y => res.synonym(y, x) || res.hyponym(y, x)))) {
+            } else if (wsup.exists(x => (x.isNamedEntity || x.mypos == "D")
+              && !wsub.exists(y => res.synonym(y, x) || res.hyponym(y, x)))) {
               // time or named entity unmatch, filtered.
               0.0
             } else {
@@ -123,23 +118,23 @@ object RTE {
             }
           }
         }
-        
+
         val (ret, rec) = otf.tryKnowledge(score, 0.1, proven)
-        
+
         if (ret) {
-          
+
           if (rec.isEmpty) {
-            
+
             System.err.println("Proven.")
             println(id + "," + task + "," + gold_label + ",1.0")
-            
+
           } else {
-            
+
             System.err.println("Proven with on-the-fly knowledge.")
             println(id + "," + task + "," + gold_label + "," + rec.last._2)
-            
-            var necessary = Nil:List[(String, String, Double)]
-            
+
+            var necessary = Nil: List[(String, String, Double)]
+
             var tmpie = new IEngine
             tmpie.load(ie.dump())
             def loop() {
@@ -170,23 +165,23 @@ object RTE {
               }
             }
             loop()
-            
+
             System.err.println("ON THE FLY:")
             for ((sub, sup, scr) <- necessary) {
               System.err.println(" score: " + scr)
               System.err.println("  subPath: " + sub)
               System.err.println("  supPath: " + sup)
             }
-            
+
           }
-          
+
         } else {
-          
+
           System.err.println("Not proven.")
           println(id + "," + task + "," + gold_label + ",0.0")
-          
+
         }
-        
+
       }
     }
   }

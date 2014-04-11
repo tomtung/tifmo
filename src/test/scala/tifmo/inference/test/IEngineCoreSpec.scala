@@ -2,7 +2,7 @@ package tifmo.inference.test
 
 import org.scalatest._
 import tifmo.inference._
-import tifmo.dcstree.{Executor, SemRole, Relation}
+import tifmo.dcstree.{ Executor, SemRole, Relation }
 
 class IEngineCoreSpec extends FlatSpec with Matchers {
 
@@ -441,7 +441,6 @@ class IEngineCoreSpec extends FlatSpec with Matchers {
     ie.hasContradiction shouldBe false
   }
 
-
   it should """infer that "Bᵣ×qʳ{∥}(A,B)" and "A" are disjoint (axiom 25)""" in {
     val ie = new IEngineCore()
 
@@ -661,10 +660,10 @@ class IEngineCoreSpec extends FlatSpec with Matchers {
         args should be theSameInstanceAs customEmptySeq
         p.subset should be theSameInstanceAs termIndex1
         p.superset match {
-          case `w` => flag1W += 1
+          case `w`          => flag1W += 1
           case `termIndex1` => flag1Self += 1
           case `termIndex2` => flag12 += 1
-          case _ => fail()
+          case _            => fail()
         }
       }))
     ie.foreachSubset(termIndex2, customEmptySeq,
@@ -675,7 +674,7 @@ class IEngineCoreSpec extends FlatSpec with Matchers {
         p.subset match {
           case `termIndex2` => flag2Self += 1
           case `termIndex1` => flag21 += 1
-          case _ => fail()
+          case _            => fail()
         }
       }))
     ie.ifSubsume(termIndex1, termIndex2, customEmptySeq,
@@ -701,7 +700,7 @@ class IEngineCoreSpec extends FlatSpec with Matchers {
 
     val termIndex1, termIndex2 = ie.new1DTerm()
 
-	  ie.claimDisjoint(termIndex1, termIndex2)
+    ie.claimDisjoint(termIndex1, termIndex2)
     ie.explore()
 
     var flag1To2, flag1ToSelf, flag1And2, flag1AndSelf = 0
@@ -799,7 +798,7 @@ class IEngineCoreSpec extends FlatSpec with Matchers {
         p.compt match {
           case `termIndex1` => flag3From1 += 1
           case `termIndex2` => flag3From2 += 1
-          case _ => fail()
+          case _            => fail()
         }
       }))
 
@@ -827,22 +826,16 @@ class IEngineCoreSpec extends FlatSpec with Matchers {
     val termIndex5 = ie.getCP(Set((termIndex4.holder, null), (termIndex3.holder, IOBJ))).index
     ie.explore()
 
-    var
-    flag1For4, flag1For5,
-    flag2For4, flag2For5,
-    flag3For5With12, flag3For5With4,
-    flag4For5, flag4From12,
-    flag5From123, flag5From34,
-    flag12, flag123, flag34 = 0
+    var flag1For4, flag1For5, flag2For4, flag2For5, flag3For5With12, flag3For5With4, flag4For5, flag4From12, flag5From123, flag5From34, flag12, flag123, flag34 = 0
 
     ie.foreachMkCP(termIndex1, customEmptySeq,
       RuleDo((i, p, args) => {
         i should be theSameInstanceAs ie
         args should be theSameInstanceAs customEmptySeq
         p match {
-          case IEPredCP(`termIndex4`, `indexRoleSet12`) => flag1For4 += 1
+          case IEPredCP(`termIndex4`, `indexRoleSet12`)  => flag1For4 += 1
           case IEPredCP(`termIndex5`, `indexRoleSet123`) => flag1For5 += 1
-          case _ => fail()
+          case _                                         => fail()
         }
       }))
 
@@ -852,9 +845,9 @@ class IEngineCoreSpec extends FlatSpec with Matchers {
         i should be theSameInstanceAs ie
         args should be theSameInstanceAs customEmptySeq
         p match {
-          case IEPredCP(`termIndex4`, `indexRoleSet12`) => flag2For4 += 1
+          case IEPredCP(`termIndex4`, `indexRoleSet12`)  => flag2For4 += 1
           case IEPredCP(`termIndex5`, `indexRoleSet123`) => flag2For5 += 1
-          case _ => fail()
+          case _                                         => fail()
         }
       }))
 
@@ -865,8 +858,8 @@ class IEngineCoreSpec extends FlatSpec with Matchers {
         p.head should be theSameInstanceAs termIndex5
         p.comp match {
           case `indexRoleSet123` => flag3For5With12 += 1
-          case `indexRoleSet34` => flag3For5With4 += 1
-          case _ => fail()
+          case `indexRoleSet34`  => flag3For5With4 += 1
+          case _                 => fail()
         }
       }))
 
@@ -893,8 +886,8 @@ class IEngineCoreSpec extends FlatSpec with Matchers {
         p.head should be theSameInstanceAs termIndex5
         p.comp match {
           case `indexRoleSet123` => flag5From123 += 1
-          case `indexRoleSet34` => flag5From34 += 1
-          case _ => fail()
+          case `indexRoleSet34`  => flag5From34 += 1
+          case _                 => fail()
         }
       }))
 

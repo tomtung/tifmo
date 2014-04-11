@@ -1,8 +1,8 @@
 package tifmo.document
 
-import tifmo.dcstree.{SemRole, Quantifier, Relation, Selection}
+import tifmo.dcstree.{ SemRole, Quantifier, Relation, Selection }
 
-import scala.collection.{mutable, immutable}
+import scala.collection.{ mutable, immutable }
 
 class TokenNode(val token: Token) {
 
