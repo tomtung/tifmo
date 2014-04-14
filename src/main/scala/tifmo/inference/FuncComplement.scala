@@ -1,6 +1,4 @@
-package tifmo
-
-package inference {
+package tifmo.inference
 
 import RAConversion._
 
@@ -16,11 +14,14 @@ object FuncComplement extends IEFunction {
   def applyFunc(ie: IEngineCore, tms: Seq[TermIndex], param: Any) {
     assert(param == null)
     tms match {
-      case Seq(h, a, tot) => {
+      case Seq(h, a, tot) =>
+        // h ⊂ tot
         ie.claimSubsume(h, tot, Debug_SimpleRuleTrace("FuncComplement", ie.getNewPredID()))
+        // h ∥ a
         ie.claimDisjoint(h, a, Debug_SimpleRuleTrace("FuncComplement", ie.getNewPredID()))
+        // h is a superset of all subsets of tot that are disjoint with a
         ie.foreachDisjoint(a, Seq(tot, h), rComp1)
-      }
+
       case _ => throw new Exception("FuncComplement error!")
     }
   }
@@ -29,9 +30,9 @@ object FuncComplement extends IEFunction {
 private[inference] object rComp1 extends RuleDo[IEPredDisjoint] {
   def apply(ie: IEngineCore, pred: IEPredDisjoint, args: Seq[RuleArg]) {
     args match {
-      case Seq(RuleArg(tot: TermIndex), RuleArg(h: TermIndex)) => {
+      case Seq(RuleArg(tot: TermIndex), RuleArg(h: TermIndex)) =>
         ie.ifSubsume(pred.b, tot, Seq(h), rComp0)
-      }
+
       case _ => throw new Exception("rComp1 error!")
     }
   }
@@ -40,12 +41,10 @@ private[inference] object rComp1 extends RuleDo[IEPredDisjoint] {
 private[inference] object rComp0 extends RuleDo[IEPredSubsume] {
   def apply(ie: IEngineCore, pred: IEPredSubsume, args: Seq[RuleArg]) {
     args match {
-      case Seq(RuleArg(h: TermIndex)) => {
+      case Seq(RuleArg(h: TermIndex)) =>
         ie.claimSubsume(pred.subset, h, Debug_SimpleRuleTrace("FuncComplement", ie.getNewPredID()))
-      }
+
       case _ => throw new Exception("rComp0 error!")
     }
   }
-}
-
 }

@@ -1,11 +1,7 @@
-package tifmo
-
-package dcstree {
+package tifmo.dcstree
 
 sealed abstract class Quantifier
 
-object QuantifierALL extends Quantifier with Serializable
+case object QuantifierALL extends Quantifier with Serializable
 
-object QuantifierNO extends Quantifier with Serializable
-
-}
+case object QuantifierNO extends Quantifier with Serializable

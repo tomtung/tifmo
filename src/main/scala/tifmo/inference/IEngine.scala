@@ -86,8 +86,8 @@ class IEngine extends IEngineCore {
    * Get an inference engine term from a denotation.
    */
   def getTerm(denotation: Denotation) = {
-    def recur(x: Denotation): Term = dcache.getOrElseUpdate(x, {
-      x match {
+    def recur(denotation: Denotation): Term = dcache.getOrElseUpdate(denotation, {
+      denotation match {
         case DenotationW(rs) => getW(Dimension(rs)._1).holder
         case DenotationWordSign(rs, wd, sgn) => getWordSign(rs, wd, sgn)
         case DenotationIN(x) => getIN(x.map(recur(_)))
