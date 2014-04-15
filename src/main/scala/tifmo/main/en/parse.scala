@@ -282,6 +282,38 @@ object parse extends ((String, String) => (Document, Document)) {
         edges = fixEdges(edges)
       }
 
+      // Recognize quantifier "at most" and "at least" + cardinal number
+      // As a result, "at_most" and "at_least" will be stored in the "relationSpecific" field of the "num" edge
+      edges = {
+        var ret = edges
+
+        for (
+          numEdge @ EdgeInfo(_, "num", null, numToken) <- edges;
+          qmodEdge @ EdgeInfo(`numToken`, "quantmod", null, atToken) <- edges if atToken.word.lemma == "at";
+          mweEdge @ EdgeInfo(`atToken`, "mwe", null, mostOrLeastToken) <- edges if Set("most", "least").contains(mostOrLeastToken.word.lemma)
+        ) {
+          ret = ret - numEdge - qmodEdge - mweEdge +
+            numEdge.copy(relationSpecific = "at_" + mostOrLeastToken.word.lemma)
+        }
+
+        ret
+      }
+
+      // Drop "at least" in other contexts because the system cannot handle them properly.
+      // This is just a temporary ad hoc workaround.
+      edges = {
+        var ret = edges
+
+        for (
+          advmodEdge @ EdgeInfo(_, "advmod", null, atToken) <- edges if atToken.word.lemma == "at";
+          pobjEdge @ EdgeInfo(`atToken`, "pobj", null, leastToken) <- edges if leastToken.word.lemma == "least"
+        ) {
+          ret = ret - advmodEdge - pobjEdge
+        }
+
+        ret
+      }
+
       // copula
       edges = {
         var ret = edges
@@ -428,23 +460,6 @@ object parse extends ((String, String) => (Document, Document)) {
         for (e @ EdgeInfo(ptk @ TokenPos(_, "JJ"), _, _, ctk) <- edges; if ctk.word.lemma == "most") {
           ret = ret - e + e.copy(parentToken = ptk.copy(pos = "JJS"))
         }
-        ret
-      }
-
-      // Recognize quantifier "at most" and "at least" + cardinal number
-      // As a result, "at_most" and "at_least" will be stored in the "relationSpecific" field of the "num" edge
-      edges = {
-        var ret = edges
-
-        for (
-          numEdge @ EdgeInfo(_, "num", null, numToken) <- edges;
-          qmodEdge @ EdgeInfo(`numToken`, "quantmod", null, atToken) <- edges if atToken.word.lemma == "at";
-          mweEdge @ EdgeInfo(`atToken`, "mwe", null, mostOrLeastToken) <- edges if Set("most", "least").contains(mostOrLeastToken.word.lemma)
-        ) {
-          ret = ret - numEdge - qmodEdge - mweEdge +
-            numEdge.copy(relationSpecific = "at_" + mostOrLeastToken.word.lemma)
-        }
-
         ret
       }
 
@@ -623,6 +638,15 @@ object parse extends ((String, String) => (Document, Document)) {
                 pNode.quantifier = QuantifierALL
               } else {
                 pNode.selection = SelSup(EnWordNet.stem(ctk.word.lemma, ctk.word.mypos), ARG)
+              }
+            } else if (ptk.word.mypos == "N" && ctk.word.lemma == "few") {
+              val isAFew = edges.exists(e => e.parentToken == ptk && e.relation == "det" && e.childToken.word.lemma == "a")
+              if (isAFew) {
+                pNode.selection = SelAFew
+                pNode.quantifier = QuantifierALL
+              } else {
+                pNode.selection = SelFew
+                pNode.quantifier = QuantifierALL
               }
             } else {
               cNode.outRole = ARG
