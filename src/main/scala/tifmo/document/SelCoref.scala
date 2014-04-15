@@ -31,7 +31,7 @@ private[document] object SelCorefFunc extends IEFunction {
 
   def headDim(tms: Seq[Term], param: Any) = tms(1).dim
 
-  def applyFunc(ie: IEngineCore, tms: Seq[TermIndex], param: Any) {
+  override def applyFunc(ie: IEngineCore, tms: Seq[TermIndex], param: Any) {
     tms match {
       case Seq(h, a) => {
         ie.claimSubsume(h, a, Debug_SimpleRuleTrace("SelCorefFunc", ie.getNewPredID()))

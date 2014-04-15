@@ -21,7 +21,9 @@ abstract class IEFunction extends Serializable {
    * @param tms Input terms.
    * @param param Any other parameter.
    */
-  def applyFunc(ie: IEngineCore, tms: Seq[TermIndex], param: Any): Unit
+  def applyFunc(ie: IEngineCore, tms: Seq[TermIndex], param: Any) {
+    // Default empty implementation
+  }
 }
 
 }

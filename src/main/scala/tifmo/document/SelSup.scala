@@ -84,7 +84,7 @@ private[document] object SelSupFunc extends IEFunction {
 
   def headDim(tms: Seq[Term], param: Any) = tms(1).dim
 
-  def applyFunc(ie: IEngineCore, tms: Seq[TermIndex], param: Any) {
+  override def applyFunc(ie: IEngineCore, tms: Seq[TermIndex], param: Any) {
     val name = param.asInstanceOf[String]
     tms match {
       case Seq(h, a) => {

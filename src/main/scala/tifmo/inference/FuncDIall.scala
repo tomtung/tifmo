@@ -15,7 +15,7 @@ object FuncDIall extends IEFunction {
     Dimension(tms(1).dim.decrease(r))._1
   }
 
-  def applyFunc(ie: IEngineCore, tms: Seq[TermIndex], param: Any) {
+  override def applyFunc(ie: IEngineCore, tms: Seq[TermIndex], param: Any) {
     val r = param.asInstanceOf[SemRole]
     tms match {
       case Seq(h, a, b) =>

@@ -23,7 +23,7 @@ package document {
  */
 case class RelPartialOrder(name: String) extends Relation {
 
-  def execute[T](ex: Executor, a: T, b: T) {
+  override def execute[T](ex: Executor, a: T, b: T) {
     (ex, a, b) match {
       case (ie: IEngineCore, xa: TermIndex, xb: TermIndex) => {
         assert(xa.dim == xb.dim)
@@ -39,7 +39,7 @@ private[document] object FuncPartialOrder extends IEFunction {
 
   def headDim(tms: Seq[Term], param: Any) = param.asInstanceOf[(String, Dimension)]._2
 
-  def applyFunc(ie: IEngineCore, tms: Seq[TermIndex], param: Any) {
+  override def applyFunc(ie: IEngineCore, tms: Seq[TermIndex], param: Any) {
     val name = param.asInstanceOf[(String, Dimension)]._1
     ie.foreachARLX(tms.head, Seq(name), rFuncPO3)
     ie.foreachXRLB(tms.head, Seq(name), rFuncPO2)

@@ -19,7 +19,7 @@ object FuncNegation extends IEFunction {
 
   def headDim(tms: Seq[Term], param: Any) = tms(1).dim
 
-  def applyFunc(ie: IEngineCore, tms: Seq[TermIndex], param: Any) {
+  override def applyFunc(ie: IEngineCore, tms: Seq[TermIndex], param: Any) {
     assert(param == null)
     tms match {
       case Seq(h, a) => {
@@ -33,7 +33,7 @@ object FuncNegation extends IEFunction {
 
 private[inference] object RelNegation extends Relation {
 
-  def execute[T](ex: Executor, a: T, b: T) {
+  override def execute[T](ex: Executor, a: T, b: T) {
     (ex, a, b) match {
       case (ie: IEngineCore, xa: TermIndex, xb: TermIndex) => {
         ie.foreachSuperset(xb, Seq(xa), rRelNeg1)

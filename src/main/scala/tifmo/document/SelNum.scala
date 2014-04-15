@@ -86,7 +86,7 @@ private[document] object SelNumFunc extends IEFunction {
 
   def headDim(tms: Seq[Term], param: Any) = tms(1).dim
 
-  def applyFunc(ie: IEngineCore, tms: Seq[TermIndex], param: Any) {
+  override def applyFunc(ie: IEngineCore, tms: Seq[TermIndex], param: Any) {
     val num = param.asInstanceOf[String]
     tms match {
       case Seq(h, a) => {
@@ -99,9 +99,7 @@ private[document] object SelNumFunc extends IEFunction {
   }
 }
 
-private[document] case class RelNum(num: String) extends Relation {
-  def execute[T](ex: Executor, a: T, b: T) {}
-}
+private[document] case class RelNum(num: String) extends Relation
 
 private[document] object rSelNumFunc2 extends RuleDo[IEPredNonEmpty] {
   def apply(ie: IEngineCore, pred: IEPredNonEmpty, args: Seq[RuleArg]) {

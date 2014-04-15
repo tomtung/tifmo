@@ -1,9 +1,6 @@
 package tifmo.document
 
-import tifmo.dcstree.{ Executor, Relation }
+import tifmo.dcstree.Relation
 
-case class RelMark(marker: Any) extends Relation {
-  override def execute[T](ex: Executor, sel: T, base: T): Unit = {
-    // This relation is just a marker, do nothing
-  }
-}
+// This relation is just a marker, do nothing
+case class RelMark(marker: Any) extends Relation

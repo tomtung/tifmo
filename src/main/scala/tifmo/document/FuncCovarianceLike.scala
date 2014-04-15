@@ -5,11 +5,11 @@ import tifmo.inference._
 /**
  * `tms = Seq(B, A)` means that `B = F(param, A)`, such that
  * for each `A' ⊂ A`, if `B' = F(param, A')`, then `B' ⊂ B`
- *
- * Note: for the moment we assume A and B to have the same dimension.
- * Could introduce an extra parameter if necessary.
  */
-object FuncCovariance extends IEFunction {
+trait FuncCovarianceLike extends IEFunction {
+
+  def getMark(ie: IEngineCore, tms: Seq[TermIndex], param: Any): Any
+
   override def applyFunc(ie: IEngineCore, tms: Seq[TermIndex], param: Any) {
     tms match {
       case Seq(ft, t) =>
@@ -31,6 +31,4 @@ object FuncCovariance extends IEFunction {
         )
     }
   }
-
-  override def headDim(tms: Seq[Term], param: Any): Dimension = tms(1).dim
 }

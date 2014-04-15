@@ -11,7 +11,7 @@ object FuncSingle extends IEFunction {
 
   def headDim(tms: Seq[Term], param: Any) = param.asInstanceOf[Dimension]
 
-  def applyFunc(ie: IEngineCore, tms: Seq[TermIndex], param: Any) {
+  override def applyFunc(ie: IEngineCore, tms: Seq[TermIndex], param: Any) {
     ie.foreachMkPI(tms.head, Seq.empty[RuleArg], rSingle2)
     ie.foreachSubset(tms.head, Seq.empty[RuleArg], rSingle1)
   }
