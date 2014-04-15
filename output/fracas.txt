@@ -24,8 +24,8 @@
 024,single,yes,yes
 025,single,yes,yes
 026,multi,yes,yes
-027,multi,yes,yes
-028,multi,unknown,yes
+027,multi,yes,unknown
+028,multi,unknown,unknown
 029,single,yes,yes
 030,single,unknown,yes
 031,single,yes,yes
@@ -56,7 +56,7 @@
 056,single,unknown,yes
 057,single,yes,yes
 058,single,unknown,yes
-059,single,yes,yes
+059,single,yes,unknown
 060,single,unknown,yes
 061,single,undef,ignore
 062,single,undef,ignore
@@ -135,7 +135,7 @@
 135,multi,yes,unknown
 136,multi,unknown,unknown
 137,multi,yes,unknown
-138,multi,yes,yes
+138,multi,yes,unknown
 139,single,yes,yes
 140,single,yes,unknown
 141,single,unknown,yes
