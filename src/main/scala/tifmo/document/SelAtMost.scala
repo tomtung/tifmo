@@ -8,7 +8,7 @@ case class SelAtMost(cardinal: String) extends Selection {
   override def execute[T](ex: Executor, x: T): T = {
     (ex, x) match {
       case (ie: IEngineCore, tm: Term) =>
-        val sel = ie.getFunc(FuncCovariance, Seq(null, tm), cardinal)
+        val sel = ie.getFunc(FuncCovariance, Seq(null, tm), this)
         ie.claimNonEmpty(sel.index)
         sel.asInstanceOf[T]
       case (ae: AEngine, toProve: Function1[_, _]) =>
@@ -16,3 +16,4 @@ case class SelAtMost(cardinal: String) extends Selection {
     }
   }
 }
+
