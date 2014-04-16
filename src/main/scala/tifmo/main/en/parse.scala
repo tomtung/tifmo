@@ -639,6 +639,9 @@ object parse extends ((String, String) => (Document, Document)) {
               } else {
                 pNode.selection = SelSup(EnWordNet.stem(ctk.word.lemma, ctk.word.mypos), ARG)
               }
+            } else if (ptk.word.mypos == "N" && ctk.word.lemma == "many") {
+              pNode.selection = SelMany
+              pNode.quantifier = QuantifierALL
             } else if (ptk.word.mypos == "N" && ctk.word.lemma == "few") {
               val isAFew = edges.exists(e => e.parentToken == ptk && e.relation == "det" && e.childToken.word.lemma == "a")
               if (isAFew) {
