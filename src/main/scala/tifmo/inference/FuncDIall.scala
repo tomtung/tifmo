@@ -70,7 +70,7 @@ private[inference] object rDI0 extends RuleDo[IEPredSubsume] {
     def isTermIndexSemRolePair(o: Any) = {
       o.isInstanceOf[(_, _)] && {
         val pair = o.asInstanceOf[(_, _)]
-        pair._1.isInstanceOf[TermIndex] && pair._2.isInstanceOf[SemRole]
+        pair._1.isInstanceOf[TermIndex] && (pair._2 == null || pair._2.isInstanceOf[SemRole])
       }
     }
 
