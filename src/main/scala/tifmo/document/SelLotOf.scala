@@ -4,12 +4,12 @@ import tifmo.dcstree.{ Declarative, Executor, Selection }
 import tifmo.inference._
 import tifmo.onthefly.AEngine
 
-case object SelMany extends Selection {
+case object SelLotOf extends Selection {
 
   override def execute[T](ex: Executor, x: T): T = {
     (ex, x) match {
       case (ie: IEngineCore, tm: Term) =>
-        ie.getFunc(FuncSelMany, Seq(null, tm), null).asInstanceOf[T]
+        ie.getFunc(FuncSelLotOf, Seq(null, tm), null).asInstanceOf[T]
       case (ae: AEngine, toProve: Function1[_, _]) =>
         ((d: Declarative) => {}).asInstanceOf[T]
       case _ =>
@@ -19,7 +19,7 @@ case object SelMany extends Selection {
 
 }
 
-private[document] object FuncSelMany extends IEFunction with FuncContravarianceLike {
+private[document] object FuncSelLotOf extends IEFunction with FuncContravarianceLike {
   override def applyFunc(ie: IEngineCore, tms: Seq[TermIndex], param: Any) {
     tms match {
       case Seq(h, a) =>

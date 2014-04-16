@@ -27,9 +27,9 @@
 027,multi,yes,unknown
 028,multi,unknown,yes
 029,single,yes,yes
-030,single,unknown,yes
-031,single,yes,yes
-032,single,unknown,yes
+030,single,unknown,unknown
+031,single,yes,unknown
+032,single,unknown,unknown
 033,single,unknown,unknown
 034,multi,unknown,unknown
 035,multi,unknown,unknown
@@ -43,9 +43,9 @@
 043,multi,unknown,unknown
 044,multi,yes,yes
 045,single,unknown,unknown
-046,single,no,no
-047,single,unknown,yes
-048,single,yes,yes
+046,single,no,unknown
+047,single,unknown,unknown
+048,single,yes,unknown
 049,multi,yes,unknown
 050,multi,unknown,unknown
 051,multi,unknown,unknown

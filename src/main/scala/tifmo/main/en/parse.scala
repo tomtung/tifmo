@@ -429,10 +429,10 @@ object parse extends ((String, String) => (Document, Document)) {
         for (ofEdge @ EdgeInfo(ptk, "prep", "of", ctk) <- edges) {
           val (doCollapse, reverseRelationOp) =
             ptk.word.lemma match {
-              case "some" | "one" | "lot" =>
+              case "some" | "one" =>
                 (true, None)
-              case "most" =>
-                (true, Some("advmod"))
+              case "most" | "lot" | "many" | "few" =>
+                (true, Some("amod"))
               case "all" | "each" | "none" =>
                 (true, Some("det"))
               case lemma if lemma.matches("-?[0-9\\.]+") =>
@@ -639,8 +639,8 @@ object parse extends ((String, String) => (Document, Document)) {
               } else {
                 pNode.selection = SelSup(EnWordNet.stem(ctk.word.lemma, ctk.word.mypos), ARG)
               }
-            } else if (ptk.word.mypos == "N" && ctk.word.lemma == "many") {
-              pNode.selection = SelMany
+            } else if (ptk.word.mypos == "N" && Set("many", "lot").contains(ctk.word.lemma)) {
+              pNode.selection = SelLotOf
               pNode.quantifier = QuantifierALL
             } else if (ptk.word.mypos == "N" && ctk.word.lemma == "few") {
               val isAFew = edges.exists(e => e.parentToken == ptk && e.relation == "det" && e.childToken.word.lemma == "a")
