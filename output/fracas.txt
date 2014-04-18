@@ -24,7 +24,7 @@
 024,single,yes,yes
 025,single,yes,yes
 026,multi,yes,yes
-027,multi,yes,unknown
+027,multi,yes,yes
 028,multi,unknown,yes
 029,single,yes,yes
 030,single,unknown,unknown
@@ -207,8 +207,8 @@
 207,single,unknown,unknown
 208,multi,yes,unknown
 209,multi,no,unknown
-210,multi,no,unknown
-211,multi,no,unknown
+210,multi,no,yes
+211,multi,no,yes
 212,multi,yes,unknown
 213,multi,undef,ignore
 214,multi,yes,unknown

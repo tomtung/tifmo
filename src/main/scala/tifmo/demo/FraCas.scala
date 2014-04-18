@@ -1,11 +1,10 @@
 package tifmo.demo
 
-import tifmo.inference.{ IEPredRL, IEPredSubsume, RuleDo, IEngine }
-import tifmo.main.en.{ ARG, parse, EnWord }
+import tifmo.inference.{ RuleDo, IEngine, IEPredSubsume, IEPredRL }
+import tifmo.main.en.{ ARG, EnWord, parse }
 import mylib.res.en.EnWordNet
 import tifmo.document.{ Document, RelPartialOrder }
-import tifmo.dcstree.{ SemRole, DenotationWordSign, DenotationPI, StatementSubsume }
-import scala.collection.immutable.Set
+import tifmo.dcstree._
 
 object FraCas {
   def main(args: Array[String]) {
@@ -75,28 +74,41 @@ object FraCas {
     // TODO Refactor so that common semantic knowledge is re-usable
 
     // Adding the following heuristic:
-    // For each statements "A[ARG] ⊂ B[ARG]" in the premise, if both A and B are denotation for words,
-    // we also claim "A ⊂ B"
+    // For each statements "A[ARG] ⊂ B[ARG]" in the premise,
+    // if both A and B are "coherent" (as recursively defined by isCoherent() function)
+    // regarding the common subset of their role sets, we also claim "A ⊂ B"
+
+    def isCoherent(denotation: Denotation, roles: Set[SemRole]): Boolean = {
+      denotation match {
+        case DenotationWordSign(wordRoles, _, true) => roles.forall(wordRoles)
+
+        case DenotationIN(intersected) => intersected.exists(isCoherent(_, roles))
+
+        case DenotationCP(factors) => factors.exists(isCoherent(_, roles))
+
+        case DenotationPI(projected, projectedRoles) => roles.forall(projectedRoles) && isCoherent(projected, roles)
+
+        case _ => false
+      }
+    }
+
+    def projectedIndex(denotation: Denotation, roles: Set[SemRole]) = {
+      val t = ie.getTerm(denotation)
+      if (denotation.roles == roles) {
+        t
+      } else {
+        ie.getPI(t, roles)
+      }
+    }.index
+
     val argSingletonSet: Set[SemRole] = Set(ARG)
     for (
-      StatementSubsume(
-        DenotationPI(subWord @ DenotationWordSign(_, _, true), `argSingletonSet`),
-        DenotationPI(supWord @ DenotationWordSign(_, _, true), `argSingletonSet`)
-        ) <- premStatements
+      StatementSubsume(DenotationPI(sub, `argSingletonSet`), DenotationPI(sup, `argSingletonSet`)) <- premStatements;
+      commonRoles = sub.roles intersect sup.roles if isCoherent(sub, commonRoles) && isCoherent(sup, commonRoles)
     ) {
-      val commonRoles = subWord.roles intersect supWord.roles
-      def projectedIndex(d: DenotationWordSign) = {
-        val t = ie.getTerm(d)
-        if (d.roles == commonRoles) {
-          t
-        } else {
-          ie.getPI(t, commonRoles)
-        }
-      }.index
-
       ie.claimSubsume(
-        projectedIndex(subWord),
-        projectedIndex(supWord)
+        projectedIndex(sub, commonRoles),
+        projectedIndex(sup, commonRoles)
       )
     }
 
