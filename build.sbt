@@ -4,11 +4,11 @@ import scalariform.formatter.preferences._
 
 name := "tifmo"
 
-scalaVersion := "2.10.4"
+scalaVersion := "2.11.0"
 
-sbtVersion := "0.13.1"
+sbtVersion := "0.13.2"
 
-scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")
+scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature", "-Xlint")
 
 fork in run := true
 
@@ -17,7 +17,8 @@ outputStrategy := Some(StdoutOutput)
 javaOptions += "-Xmx3G"
 
 libraryDependencies ++= Seq(
-  "org.scalatest" %% "scalatest" % "2.0" % "test",
+  "org.scala-lang.modules" %% "scala-xml" % "1.0.1",
+  "org.scalatest" %% "scalatest" % "2.1.3" % "test",
   "edu.stanford.nlp" % "stanford-corenlp" % "3.3.1",
   "edu.stanford.nlp" % "stanford-corenlp" % "3.3.1" classifier "models"
 ).map(_ withSources() withJavadoc())
