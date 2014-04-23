@@ -6,43 +6,60 @@ sealed abstract class Declarative {
 
 case class DeclarativePosi(root: DCSTreeNode) extends Declarative {
 
-  val toStatements = {
+  val toStatements: Set[Statement] = {
     root.upward()
     root.downward(null)
-    var ret = Set(StatementNotEmpty(root.halfcalc): Statement)
-    def recurRel(x: DCSTreeNode) {
-      for ((DCSTreeEdgeRelation(role, rel, parentToChild), n) <- x.children) {
+
+    val builder = Set.newBuilder[Statement]
+
+    def recurRel(parentNode: DCSTreeNode) {
+      for ((DCSTreeEdgeRelation(role, rel, parentToChild), childNode) <- parentNode.children) {
         val (l, r) =
           if (parentToChild) {
-            (x.germ(role), n.output)
+            (parentNode.germ(role), childNode.output)
           } else {
-            (n.output, x.germ(role))
+            (childNode.output, parentNode.germ(role))
           }
 
-        ret += StatementRelation(rel, l, r)
+        builder += StatementRelation(rel, l, r)
       }
-      for ((e, n) <- x.children) recurRel(n)
+
+      for ((_, childNode) <- parentNode.children) {
+        recurRel(childNode)
+      }
     }
     recurRel(root)
-    def recur(x: DCSTreeNode) {
-      val rs = x.rseq.dropWhile(_ != x.outRole).toSet
-      for ((e, n) <- x.children; if rs.contains(e.inRole)) {
-        e match {
-          case DCSTreeEdgeNormal(r) => recur(n)
+
+    var hasQuantifierNo = false
+    def recur(parentNode: DCSTreeNode) {
+      val rs = parentNode.rseq.dropWhile(_ != parentNode.outRole).toSet
+      for ((edge, childNode) <- parentNode.children; if rs.contains(edge.inRole)) {
+        edge match {
+          case DCSTreeEdgeNormal(_) => recur(childNode)
           case DCSTreeEdgeQuantifier(r, qt) =>
-            ret += StatementNotEmpty(x.germ(x.rseq.last))
-            if (r == x.rseq.last) {
+            if (r == parentNode.rseq.last) {
               qt match {
-                case QuantifierALL => ret += StatementSubsume(n.output, x.germ(r))
-                case QuantifierNO => ret += StatementDisjoint(n.output, x.germ(r))
+                case QuantifierALL =>
+                  builder += StatementNotEmpty(parentNode.germ(parentNode.rseq.last))
+                  builder += StatementSubsume(childNode.output, parentNode.germ(r))
+                case QuantifierNO =>
+                  builder += StatementDisjoint(childNode.output, parentNode.germ(r))
+                  hasQuantifierNo = true
               }
+            } else {
+              builder += StatementNotEmpty(parentNode.germ(parentNode.rseq.last))
             }
           case _: DCSTreeEdgeRelation =>
         }
       }
     }
+
     recur(root)
-    ret
+    if (!hasQuantifierNo) {
+      builder += StatementNotEmpty(root.halfcalc)
+    }
+
+    builder.result()
   }
 
 }
