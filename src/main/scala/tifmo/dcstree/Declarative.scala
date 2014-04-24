@@ -41,6 +41,7 @@ case class DeclarativePosi(root: DCSTreeNode) extends Declarative {
               qt match {
                 case QuantifierALL =>
                   builder += StatementNotEmpty(parentNode.germ(parentNode.rseq.last))
+                  builder += StatementNotEmpty(childNode.output)
                   builder += StatementSubsume(childNode.output, parentNode.germ(r))
                 case QuantifierNO =>
                   builder += StatementDisjoint(childNode.output, parentNode.germ(r))

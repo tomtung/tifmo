@@ -89,7 +89,7 @@
 089,single,yes,yes
 090,single,yes,unknown
 091,single,unknown,yes
-092,single,yes,unknown
+092,single,yes,yes
 093,single,yes,yes
 094,single,unknown,unknown
 095,single,unknown,unknown
