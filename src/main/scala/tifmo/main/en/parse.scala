@@ -314,6 +314,21 @@ object parse extends ((String, String) => (Document, Document)) {
         ret
       }
 
+      // Remove existential "there" when the noun is followed by a prepositional phrase
+      edges = {
+        var ret = edges
+
+        for (
+          explEdge @ EdgeInfo(beToken, "expl", null, thereToken) <- edges if beToken.word.lemma == "be" && thereToken.word.lemma == "there";
+          EdgeInfo(`beToken`, "nsubj", null, nounToken) <- edges if nounToken.word.mypos == "N";
+          prepEdge @ EdgeInfo(`nounToken`, "prep", _, _) <- edges
+        ) {
+          ret = ret - explEdge - prepEdge + prepEdge.copy(parentToken = beToken)
+        }
+
+        ret
+      }
+
       // copula
       edges = {
         var ret = edges
