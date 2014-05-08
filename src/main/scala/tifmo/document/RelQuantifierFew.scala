@@ -36,6 +36,7 @@ case object RelQuantifierFew extends Relation {
           }))
         }))
 
+      case _ => // Nothing
     }
   }
 }

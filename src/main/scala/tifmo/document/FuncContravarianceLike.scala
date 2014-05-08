@@ -24,6 +24,7 @@ trait FuncContravarianceLike extends IEFunction {
                   case RelMark(`mark`) =>
                     val ftsup = p.a
                     ie.claimSubsume(ftsup, ft)
+                  case _ => // Nothing
                 }
               })
             )

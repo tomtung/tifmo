@@ -24,6 +24,7 @@ trait FuncCovarianceLike extends IEFunction {
                   case RelMark(`mark`) =>
                     val ftsub = p.a
                     ie.claimSubsume(ftsub, ft)
+                  case _ => // Nothing
                 }
               })
             )
