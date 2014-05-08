@@ -663,8 +663,7 @@ object parse extends ((String, String) => (Document, Document)) {
                 pNode.selection = SelAFew
                 pNode.quantifier = QuantifierALL
               } else {
-                pNode.selection = SelFew
-                pNode.quantifier = QuantifierALL
+                pNode.relation = RelQuantifierFew
               }
             } else {
               cNode.outRole = ARG
