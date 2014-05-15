@@ -24,12 +24,12 @@
 024,single,yes,yes
 025,single,yes,yes
 026,multi,yes,yes
-027,multi,yes,yes
+027,multi,yes,unknown
 028,multi,unknown,unknown
 029,single,yes,yes
-030,single,unknown,unknown
+030,single,unknown,yes
 031,single,yes,unknown
-032,single,unknown,unknown
+032,single,unknown,yes
 033,single,unknown,unknown
 034,multi,unknown,unknown
 035,multi,unknown,unknown
@@ -318,7 +318,7 @@
 318,multi,no,unknown
 319,multi,yes,unknown
 320,single,yes,unknown
-321,multi,yes,yes
+321,multi,yes,unknown
 322,single,yes,unknown
 323,multi,yes,unknown
 324,single,yes,unknown

@@ -2,7 +2,7 @@ package tifmo.document
 
 import tifmo.dcstree.Relation
 
-case object RelQuantifierFew
+case class RelQuantifierAtMost(cardinal: String)
   extends Relation
   with RelDownDownEntailing
   with RelConservative

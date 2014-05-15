@@ -655,13 +655,11 @@ object parse extends ((String, String) => (Document, Document)) {
                 pNode.selection = SelSup(EnWordNet.stem(ctk.word.lemma, ctk.word.mypos), ARG)
               }
             } else if (ptk.word.mypos == "N" && Set("many", "lot").contains(ctk.word.lemma)) {
-              pNode.selection = SelLotOf
-              pNode.quantifier = QuantifierALL
+              pNode.relation = RelQuantifierLotOf
             } else if (ptk.word.mypos == "N" && ctk.word.lemma == "few") {
               val isAFew = edges.exists(e => e.parentToken == ptk && e.relation == "det" && e.childToken.word.lemma == "a")
               if (isAFew) {
-                pNode.selection = SelAFew
-                pNode.quantifier = QuantifierALL
+                pNode.relation = RelQuantifierAFew
               } else {
                 pNode.relation = RelQuantifierFew
               }
@@ -750,11 +748,9 @@ object parse extends ((String, String) => (Document, Document)) {
             } else if (ptk.word.mypos == "N") {
               spc match {
                 case "at_most" =>
-                  pNode.quantifier = QuantifierALL
-                  pNode.selection = SelAtMost(ctk.word.lemma)
+                  pNode.relation = RelQuantifierAtMost(ctk.word.lemma)
                 case "at_least" =>
-                  pNode.quantifier = QuantifierALL
-                  pNode.selection = SelAtLeast(ctk.word.lemma)
+                  pNode.relation = RelQuantifierAtLeast(ctk.word.lemma)
                 case _ =>
                   pNode.selection = SelNum(ctk.word.lemma, ARG)
               }

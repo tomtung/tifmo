@@ -2,7 +2,8 @@ package tifmo.document
 
 import tifmo.dcstree.Relation
 
-case object RelQuantifierFew
+object RelQuantifierAFew
   extends Relation
-  with RelDownDownEntailing
+  with RelUpUpEntailing
+  with RelWithNonEmptyIntersection
   with RelConservative
