@@ -4,7 +4,8 @@ import tifmo.dcstree.Relation
 
 case object RelQuantifierAFew
   extends Relation
-  with RelUpUpEntailing
+  with RelLeftUpEntailing
+  with RelRightUpEntailing
   with RelWithNonEmptyIntersection
   with RelConservative
-
+  with RelEntailedBySubsumption

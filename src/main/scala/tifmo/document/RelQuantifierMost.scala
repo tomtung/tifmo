@@ -2,9 +2,9 @@ package tifmo.document
 
 import tifmo.dcstree.Relation
 
-case object RelQuantifierLotOf
+object RelQuantifierMost
   extends Relation
-  with RelLeftUpEntailing
   with RelRightUpEntailing
   with RelWithNonEmptyIntersection
   with RelConservative
+  with RelEntailedBySubsumption

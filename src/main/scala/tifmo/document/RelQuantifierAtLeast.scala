@@ -4,6 +4,7 @@ import tifmo.dcstree.Relation
 
 case class RelQuantifierAtLeast(cardinal: String)
   extends Relation
-  with RelUpUpEntailing
+  with RelLeftUpEntailing
+  with RelRightUpEntailing
   with RelWithNonEmptyIntersection
   with RelConservative

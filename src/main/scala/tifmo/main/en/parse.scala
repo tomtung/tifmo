@@ -649,8 +649,7 @@ object parse extends ((String, String) => (Document, Document)) {
           case "amod" =>
             if (ptk.word.mypos == "N" && ctk.pos == "JJS") {
               if (ctk.word.lemma == "most") {
-                pNode.selection = SelMost
-                pNode.quantifier = QuantifierALL
+                pNode.relation = RelQuantifierMost
               } else {
                 pNode.selection = SelSup(EnWordNet.stem(ctk.word.lemma, ctk.word.mypos), ARG)
               }

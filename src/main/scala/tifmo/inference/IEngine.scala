@@ -148,6 +148,7 @@ class IEngine extends IEngineCore {
       }
       case StatementRelation(rel, a, b) => {
         val (xa, xb) = (getTerm(a), getTerm(b))
+        rel.preCheck(this, xa.index, xb.index)
         xa.hasARLX(rel, xb)
       }
     }
