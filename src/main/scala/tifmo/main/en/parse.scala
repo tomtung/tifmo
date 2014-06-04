@@ -649,18 +649,26 @@ object parse extends ((String, String) => (Document, Document)) {
           case "amod" =>
             if (ptk.word.mypos == "N" && ctk.pos == "JJS") {
               if (ctk.word.lemma == "most") {
-                pNode.relation = RelQuantifierMost
+                // pNode.relation = RelQuantifierMost
+                pNode.quantifier = QuantifierALL
+                pNode.selection = SelQuantifierMost
               } else {
                 pNode.selection = SelSup(EnWordNet.stem(ctk.word.lemma, ctk.word.mypos), ARG)
               }
             } else if (ptk.word.mypos == "N" && Set("many", "lot").contains(ctk.word.lemma)) {
-              pNode.relation = RelQuantifierLotOf
+              // pNode.relation = RelQuantifierLotOf
+              pNode.quantifier = QuantifierALL
+              pNode.selection = SelQuantifierLotOf
             } else if (ptk.word.mypos == "N" && ctk.word.lemma == "few") {
               val isAFew = edges.exists(e => e.parentToken == ptk && e.relation == "det" && e.childToken.word.lemma == "a")
               if (isAFew) {
-                pNode.relation = RelQuantifierAFew
+                // pNode.relation = RelQuantifierAFew
+                pNode.quantifier = QuantifierALL
+                pNode.selection = SelQuantifierAFew
               } else {
-                pNode.relation = RelQuantifierFew
+                // pNode.relation = RelQuantifierFew
+                pNode.quantifier = QuantifierALL
+                pNode.selection = SelQuantifierFew
               }
             } else {
               cNode.outRole = ARG
@@ -747,9 +755,13 @@ object parse extends ((String, String) => (Document, Document)) {
             } else if (ptk.word.mypos == "N") {
               spc match {
                 case "at_most" =>
-                  pNode.relation = RelQuantifierAtMost(ctk.word.lemma)
+                  // pNode.relation = RelQuantifierAtMost(ctk.word.lemma)
+                  pNode.quantifier = QuantifierALL
+                  pNode.selection = SelQuantifierAtMost(ctk.word.lemma)
                 case "at_least" =>
-                  pNode.relation = RelQuantifierAtLeast(ctk.word.lemma)
+                  // pNode.relation = RelQuantifierAtLeast(ctk.word.lemma)
+                  pNode.quantifier = QuantifierALL
+                  pNode.selection = SelQuantifierAtLeast(ctk.word.lemma)
                 case _ =>
                   pNode.selection = SelNum(ctk.word.lemma, ARG)
               }
