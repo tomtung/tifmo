@@ -666,9 +666,9 @@ object parse extends ((String, String) => (Document, Document)) {
                 pNode.quantifier = QuantifierALL
                 pNode.selection = SelQuantifierAFew
               } else {
-                // pNode.relation = RelQuantifierFew
-                pNode.quantifier = QuantifierALL
-                pNode.selection = SelQuantifierFew
+                pNode.relation = RelQuantifierFew
+                // pNode.quantifier = QuantifierALL
+                // pNode.selection = SelQuantifierFew
               }
             } else {
               cNode.outRole = ARG
@@ -755,9 +755,9 @@ object parse extends ((String, String) => (Document, Document)) {
             } else if (ptk.word.mypos == "N") {
               spc match {
                 case "at_most" =>
-                  // pNode.relation = RelQuantifierAtMost(ctk.word.lemma)
-                  pNode.quantifier = QuantifierALL
-                  pNode.selection = SelQuantifierAtMost(ctk.word.lemma)
+                  pNode.relation = RelQuantifierAtMost(ctk.word.lemma)
+                // pNode.quantifier = QuantifierALL
+                // pNode.selection = SelQuantifierAtMost(ctk.word.lemma)
                 case "at_least" =>
                   // pNode.relation = RelQuantifierAtLeast(ctk.word.lemma)
                   pNode.quantifier = QuantifierALL
