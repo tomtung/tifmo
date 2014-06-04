@@ -51,11 +51,11 @@ object FraCas {
           }
 
         println("%s,%s,%s,%s".format(id, sm, fracas_answer, answer))
-        System.out.flush();
+        System.out.flush()
         if (fracas_answer != answer) {
           System.err.println(id + " T: " + t)
           System.err.println(id + " H: " + h)
-          System.err.flush();
+          System.err.flush()
         }
       }
     }
