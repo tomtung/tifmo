@@ -471,6 +471,28 @@ object parse extends ((String, String) => (Document, Document)) {
         ret
       }
 
+      // If an adjective is modified by a determiner but doesn't modify a noun,
+      // recognize it as an nound instead
+      edges = {
+        var ret = edges
+        for (EdgeInfo(adjTokenPos @ TokenPos(_, "JJ"), "det", _, TokenPos(_, "DT")) <- ret) {
+          if (ret.find(e => e.childToken == adjTokenPos && e.relation == "amod").isEmpty) {
+            val updatedAdjTokenPos = {
+              adjTokenPos.token.word = adjTokenPos.token.word.asInstanceOf[EnWord].copy(mypos = "N")
+              adjTokenPos.copy(pos =
+                if (adjTokenPos.word.isNamedEntity) {
+                  "NNP"
+                } else {
+                  "NN"
+                }
+              )
+            }
+            replaceTokenInfo(ret)(adjTokenPos, updatedAdjTokenPos)
+          }
+        }
+        ret
+      }
+
       // most JJ
       edges = {
         var ret = edges

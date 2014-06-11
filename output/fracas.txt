@@ -46,7 +46,7 @@
 046,single,no,unknown
 047,single,unknown,unknown
 048,single,yes,unknown
-049,multi,yes,unknown
+049,multi,yes,yes
 050,multi,unknown,unknown
 051,multi,unknown,unknown
 052,multi,unknown,unknown
@@ -62,7 +62,7 @@
 062,single,undef,ignore
 063,single,yes,yes
 064,single,unknown,unknown
-065,multi,unknown,unknown
+065,multi,unknown,yes
 066,multi,yes,yes
 067,multi,yes,yes
 068,multi,yes,yes
