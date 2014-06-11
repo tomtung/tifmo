@@ -6,7 +6,7 @@ import mylib.res.en.EnStopWords
 
 package main.en {
 
-case class EnWord(lemma: String, mypos: String, ner: String) extends WordBase {
+case class EnWord(lemma: String, mypos: String, ner: String, isSingleton: Boolean) extends WordBase {
 
   override def toString = lemma.replaceAll("[^a-zA-Z0-9]", "_") + "_" + mypos
 

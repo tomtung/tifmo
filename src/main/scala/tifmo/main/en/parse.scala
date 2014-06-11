@@ -90,7 +90,9 @@ object parse extends ((String, String) => (Document, Document)) {
       }
       // work around for "each"
       val nner = if (lemma == "each") "O" else ner
-      ret.word = EnWord(lemma, mypos, nner)
+
+      // Treat named-entities that are labeled as singular nouns as singletons by default
+      ret.word = EnWord(lemma, mypos, nner, nner != "O" && (pos == "NN" || pos == "NNP"))
 
       ret
     }
@@ -502,6 +504,16 @@ object parse extends ((String, String) => (Document, Document)) {
         ret
       }
 
+      // If a named-entity is modified by a determiner other than "the",
+      // label it as non-singleton
+      {
+        for (
+          EdgeInfo(TokenPos(neToken, _), "det", _, TokenPos(dtToken, "DT")) <- edges if neToken.word.isSingleton && neToken.word.isNamedEntity && dtToken.word.asInstanceOf[EnWord].lemma != "the"
+        ) {
+          neToken.word = neToken.word.asInstanceOf[EnWord].copy(isSingleton = false)
+        }
+      }
+
       // cluster named entity tokens into chunks
       edges = {
         var ret = edges
@@ -567,7 +579,8 @@ object parse extends ((String, String) => (Document, Document)) {
                     headWord
                   } else {
                     val nlemma = (i to neRightBound).map(j => doc.tokens(j).surface).mkString(" ")
-                    EnWord(nlemma, "N", headWord.ner)
+                    // For simplicity, label all multi-word named-entities as singletons
+                    EnWord(nlemma, "N", headWord.ner, isSingleton = true)
                   }
                 doc.tokens(i).word = nword
 
@@ -891,8 +904,7 @@ object parse extends ((String, String) => (Document, Document)) {
             pNode.addChild(MOD, cNode)
 
           case "prt" =>
-            val nword = EnWord(ptk.word.lemma + " " + ctk.word.lemma, ptk.word.mypos, ptk.word.ner)
-            ptk.token.word = nword
+            ptk.token.word = ptk.token.word.asInstanceOf[EnWord].copy(lemma = ptk.word.lemma + " " + ctk.word.lemma)
 
           case "parataxis" =>
             cNode.outRole = ARG

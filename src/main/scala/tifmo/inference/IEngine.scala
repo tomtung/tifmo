@@ -45,7 +45,7 @@ class IEngine extends IEngineCore {
     def updatewdtm(roles: Set[SemRole], word: WordBase) = {
       wdrs(word) = roles
       val ret = newTerm(Dimension(roles)._1).holder
-      if (word.isNamedEntity) claimFunc(FuncSingle, Seq(ret.index), ret.dim, Debug_SimpleRuleTrace("Named Entity", getNewPredID()))
+      if (word.isSingleton) claimFunc(FuncSingle, Seq(ret.index), ret.dim, Debug_SimpleRuleTrace("Named Entity", getNewPredID()))
       val ws = DenotationWordSign(roles, word, true)
       wspool += ws
       if (roles.size >= 2) for (r <- roles) dcache(DenotationPI(ws, Set(r))) = getPI(ret, Set(r))
