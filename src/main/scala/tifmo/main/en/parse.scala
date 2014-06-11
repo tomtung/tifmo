@@ -105,6 +105,8 @@ object parse extends ((String, String) => (Document, Document)) {
     }
     case class EdgeInfo(parentToken: TokenPos, relation: String, relationSpecific: String, childToken: TokenPos)
 
+    val docPos = anno.get(classOf[TokensAnnotation]).iterator.map(_.get(classOf[PartOfSpeechAnnotation])).toIndexedSeq
+
     var counter = 0
     for (sentence <- anno.get(classOf[SentencesAnnotation])) {
 
@@ -484,77 +486,94 @@ object parse extends ((String, String) => (Document, Document)) {
         val finish = counter + sentence.get(classOf[TokensAnnotation]).size
 
         @tailrec
-        def scan(i: Int) {
+        def mergeNeChunks(i: Int) {
           if (i < finish) {
-            val theword = doc.tokens(i).word.asInstanceOf[EnWord]
-            if (theword.ner == "O") {
-              scan(i + 1)
+            val headWord = doc.tokens(i).word.asInstanceOf[EnWord]
+            if (headWord.ner == "O") {
+              mergeNeChunks(i + 1)
             } else {
-              val tmpmax = {
-                def sameNE(tk: Token) = {
-                  val tkword = tk.word.asInstanceOf[EnWord]
-                  tkword.ner == theword.ner && (theword.mypos != "D" || tkword.lemma == theword.lemma)
+
+              val neRightBound = {
+
+                val sameNeAsHead: Token => Boolean = {
+                  val maxBound = (i until finish).takeWhile(j => {
+                    val tk = doc.tokens(j)
+                    tk.surface.length > 0 && (
+                      !tk.surface.head.isLower ||
+                      Set("DT", "CC", "IN").contains(docPos(tk.id))
+                    )
+                  }).lastOption.getOrElse(i)
+                  def impl(tk: Token) = {
+                    val tkword = tk.word.asInstanceOf[EnWord]
+                    tkword.ner == headWord.ner && tk.id <= maxBound && (headWord.mypos != "D" || tkword.lemma == headWord.lemma)
+                  }
+                  impl
                 }
-                var tmp = Set.empty[Int]
-                var cachemax = i
+
                 @tailrec
-                def loop() {
-                  for (EdgeInfo(ptk, rel, spc, ctk) <- ret; if rel != "conj" && rel != "prep" && !rel.matches("rel:.*")) {
-                    if (ptk.token.id >= i && ptk.token.id <= cachemax && sameNE(ctk.token)) {
-                      tmp += ctk.token.id
-                    }
-                    if (ctk.token.id >= i && ctk.token.id <= cachemax && sameNE(ptk.token)) {
-                      tmp += ptk.token.id
+                def boundRight(prevBound: Int): Int = {
+                  var newRightBound = prevBound
+
+                  def updateNewBound(tk1: Token, tk2: Token) {
+                    if (tk1.id >= i && tk1.id <= prevBound && sameNeAsHead(tk2)) {
+                      newRightBound = math.max(newRightBound, tk2.id)
                     }
                   }
 
-                  if (!tmp.isEmpty && tmp.max != cachemax) {
-                    cachemax = tmp.max
-                    loop()
+                  for (EdgeInfo(ptk, rel, spc, ctk) <- ret; if rel != "conj" && rel != "prep" && !rel.matches("rel:.*")) {
+                    updateNewBound(ptk.token, ctk.token)
+                    updateNewBound(ctk.token, ptk.token)
+                  }
+
+                  if (newRightBound != prevBound) {
+                    boundRight(newRightBound)
+                  } else {
+                    prevBound
                   }
                 }
 
-                loop()
-                cachemax
+                boundRight(i)
               }
-              assert(tmpmax >= i)
-              if (tmpmax == i) {
-                scan(i + 1)
+
+              assert(neRightBound >= i)
+
+              if (neRightBound == i) {
+                mergeNeChunks(i + 1)
               } else {
                 val nword =
-                  if (theword.mypos == "D") {
-                    theword
+                  if (headWord.mypos == "D") {
+                    headWord
                   } else {
-                    val nlemma = (i to tmpmax).map(j => doc.tokens(j).surface).mkString(" ")
-                    EnWord(nlemma, "N", theword.ner)
+                    val nlemma = (i to neRightBound).map(j => doc.tokens(j).surface).mkString(" ")
+                    EnWord(nlemma, "N", headWord.ner)
                   }
                 doc.tokens(i).word = nword
 
-                (i to tmpmax).find(j => doc.tokens(j).corefID != null) match {
+                (i to neRightBound).find(j => doc.tokens(j).corefID != null) match {
                   case Some(j) => doc.tokens(i).corefID = doc.tokens(j).corefID
                   case None => // Do nothing
                 }
 
                 for (e @ EdgeInfo(TokenPos(pToken, pPos), _, _, TokenPos(cToken, cPos)) <- ret.toList) {
-                  if (pToken.id >= i && pToken.id <= tmpmax) {
+                  if (pToken.id >= i && pToken.id <= neRightBound) {
                     ret -= e
-                    if (!(cToken.id >= i && cToken.id <= tmpmax)) {
+                    if (!(cToken.id >= i && cToken.id <= neRightBound)) {
                       ret = ret + e.copy(parentToken = TokenPos(doc.tokens(i), pPos))
                     }
                   }
-                  if (cToken.id >= i && cToken.id <= tmpmax) {
+                  if (cToken.id >= i && cToken.id <= neRightBound) {
                     ret -= e
-                    if (!(pToken.id >= i && pToken.id <= tmpmax)) {
+                    if (!(pToken.id >= i && pToken.id <= neRightBound)) {
                       ret = ret + e.copy(childToken = TokenPos(doc.tokens(i), cPos))
                     }
                   }
                 }
-                scan(tmpmax + 1)
+                mergeNeChunks(neRightBound + 1)
               }
             }
           }
         }
-        scan(counter)
+        mergeNeChunks(counter)
         ret
       }
 
