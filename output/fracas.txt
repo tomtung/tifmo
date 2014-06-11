@@ -55,7 +55,7 @@
 055,single,yes,yes
 056,single,unknown,unknown
 057,single,yes,yes
-058,single,unknown,yes
+058,single,unknown,unknown
 059,single,yes,yes
 060,single,unknown,unknown
 061,single,undef,ignore

@@ -189,6 +189,20 @@ object parse extends ((String, String) => (Document, Document)) {
           e
       })
 
+      // Ad-hoc fixes of parsing errors (reflected in "dep" relations)
+      edges = {
+        var ret = edges
+        for (depEdge @ EdgeInfo(depP, "dep", _, depCh) <- ret) {
+          if (ret.exists(e => e.parentToken == depCh && e.relation == "nsubj" && e.childToken.pos.startsWith("W")) &&
+            Set("J", "V").contains(depP.word.mypos)) {
+            for (EdgeInfo(`depP`, "nsubj", _, nsubj) <- ret) {
+              ret = ret - depEdge + EdgeInfo(nsubj, "rcmod", null, depCh)
+            }
+          }
+        }
+        ret
+      }
+
       // This hack is for working around a bug in Stanford CoreNLP
       // In sentences like "Tom is fast", "fast" is incorrectly recognized as an adverb
       // Note: this fix also introduces some errors (albeit benign).
