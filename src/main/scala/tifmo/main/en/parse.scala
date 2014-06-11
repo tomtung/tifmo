@@ -1,5 +1,7 @@
 package tifmo.main.en
 
+import edu.stanford.nlp.dcoref.CorefChain
+import edu.stanford.nlp.dcoref.Dictionaries.MentionType
 import tifmo.dcstree._
 import tifmo.document._
 
@@ -14,7 +16,7 @@ import edu.stanford.nlp.pipeline.{ StanfordCoreNLP, Annotation }
 import edu.stanford.nlp.ling.IndexedWord
 import edu.stanford.nlp.ling.CoreAnnotations._
 import edu.stanford.nlp.semgraph.SemanticGraphCoreAnnotations.{ CollapsedDependenciesAnnotation, BasicDependenciesAnnotation }
-import edu.stanford.nlp.dcoref.CorefCoreAnnotations.CorefClusterIdAnnotation
+import edu.stanford.nlp.dcoref.CorefCoreAnnotations.{ CorefChainAnnotation, CorefClusterIdAnnotation }
 
 object parse extends ((String, String) => (Document, Document)) {
 
@@ -930,13 +932,24 @@ object parse extends ((String, String) => (Document, Document)) {
 
   private[this] def addCoreferences(anno: Annotation, doc: Document) {
 
+    def ignoreCoref(c: CorefChain): Boolean = {
+      val startWord = doc.tokens(c.getRepresentativeMention.startIndex - 1).getWord.asInstanceOf[EnWord]
+      def isStartWordIndefiniteDet = startWord.mypos == "O" && Set("a", "an", "some").contains(startWord.lemma)
+      def noPronominalMentions = c.getMentionsInTextualOrder.iterator.forall(_.mentionType != MentionType.PRONOMINAL)
+      isStartWordIndefiniteDet && noPronominalMentions
+    }
+
+    val corefMap = anno.get(classOf[CorefChainAnnotation]).toMap
+
     var counter = 0
     for {
       sentence <- anno.get(classOf[SentencesAnnotation])
       atoken <- sentence.get(classOf[TokensAnnotation])
     } {
       val tmp = atoken.get(classOf[CorefClusterIdAnnotation])
-      if (tmp != null) doc.tokens(counter).corefID = tmp.toString
+      if (tmp != null && !ignoreCoref(corefMap(tmp))) {
+        doc.tokens(counter).corefID = tmp.toString
+      }
       counter += 1
     }
   }
