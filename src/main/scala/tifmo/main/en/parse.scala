@@ -946,11 +946,11 @@ object parse extends ((String, String) => (Document, Document)) {
 
   private[this] def addCoreferences(anno: Annotation, doc: Document) {
 
-    def ignoreCoref(c: CorefChain): Boolean = {
-      val startWord = doc.tokens(c.getRepresentativeMention.startIndex - 1).getWord.asInstanceOf[EnWord]
-      def isStartWordIndefiniteDet = startWord.mypos == "O" && Set("a", "an", "some").contains(startWord.lemma)
-      def noPronominalMentions = c.getMentionsInTextualOrder.iterator.forall(_.mentionType != MentionType.PRONOMINAL)
-      isStartWordIndefiniteDet && noPronominalMentions
+    def onlyIndefiniteMention(c: CorefChain): Boolean = {
+      c.getMentionsInTextualOrder.iterator.map(_.startIndex).forall(i => {
+        val startWord = doc.tokens(i - 1).getWord.asInstanceOf[EnWord]
+        startWord.mypos == "O" && Set("a", "an", "some").contains(startWord.lemma)
+      })
     }
 
     val corefMap = anno.get(classOf[CorefChainAnnotation]).toMap
@@ -961,7 +961,7 @@ object parse extends ((String, String) => (Document, Document)) {
       atoken <- sentence.get(classOf[TokensAnnotation])
     } {
       val tmp = atoken.get(classOf[CorefClusterIdAnnotation])
-      if (tmp != null && !ignoreCoref(corefMap(tmp))) {
+      if (tmp != null && !onlyIndefiniteMention(corefMap(tmp))) {
         doc.tokens(counter).corefID = tmp.toString
       }
       counter += 1
