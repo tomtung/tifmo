@@ -1,6 +1,7 @@
-package tifmo.document
+package tifmo.document.en
 
 import tifmo.dcstree.Relation
+import tifmo.document.{ RelConservative, RelRightUpEntailing, RelWithNonEmptyIntersection }
 
 case object RelQuantifierLotOf
   extends Relation

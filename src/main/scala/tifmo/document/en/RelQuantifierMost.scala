@@ -1,6 +1,7 @@
-package tifmo.document
+package tifmo.document.en
 
 import tifmo.dcstree.Relation
+import tifmo.document.{ RelConservative, RelEntailedBySubsumption, RelRightUpEntailing, RelWithNonEmptyIntersection }
 
 object RelQuantifierMost
   extends Relation

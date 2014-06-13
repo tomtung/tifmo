@@ -7,6 +7,8 @@ import tifmo.document._
 
 import java.util.Properties
 
+import tifmo.document.en._
+
 import scala.collection.JavaConversions._
 import scala.annotation.tailrec
 

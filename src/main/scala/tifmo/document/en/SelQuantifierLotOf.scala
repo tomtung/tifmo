@@ -1,4 +1,6 @@
-package tifmo.document
+package tifmo.document.en
+
+import tifmo.document.{ IEngineCoreSelectionBase, SelWithNonEmptyIntersection }
 
 case object SelQuantifierLotOf
   extends IEngineCoreSelectionBase

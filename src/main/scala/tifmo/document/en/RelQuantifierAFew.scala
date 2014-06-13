@@ -1,6 +1,7 @@
-package tifmo.document
+package tifmo.document.en
 
 import tifmo.dcstree.Relation
+import tifmo.document._
 
 case object RelQuantifierAFew
   extends Relation

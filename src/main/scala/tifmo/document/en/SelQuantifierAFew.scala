@@ -1,4 +1,6 @@
-package tifmo.document
+package tifmo.document.en
+
+import tifmo.document.{ IEngineCoreSelectionBase, SelContravarianceLike, SelNonEmpty, SelSubsumed }
 
 case object SelQuantifierAFew
   extends IEngineCoreSelectionBase
