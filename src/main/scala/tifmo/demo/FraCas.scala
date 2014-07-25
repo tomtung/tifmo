@@ -6,7 +6,7 @@ import mylib.res.en.EnWordNet
 import tifmo.document.{ Document, RelPartialOrder }
 import tifmo.dcstree._
 
-object FraCas {
+object FraCaS {
   def main(args: Array[String]) {
     if (args.length != 1) {
       println("USAGE: tifmo.demo.FraCaS fracas_xml")

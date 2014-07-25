@@ -92,7 +92,9 @@ unpackResources := {
   // `simpleUnpack` and `buildCbdFromPack` are defined in project/Build.scala
   unpackArchive(wordnetDictPack.value, wordnetDict.value)
   buildWordVecCbdFromPack(turian10WordVecPack.value, turian10WordVec.value, 50)
-  buildWordVecCbdFromPack(mikolov13WordVecPack.value, mikolov13WordVec.value, 300)
+  // The following line is commented out
+  // Because this word2vec file is too big to be contained in a GitHub repo
+  // buildWordVecCbdFromPack(mikolov13WordVecPack.value, mikolov13WordVec.value, 300)
 }
 
 // Prepend the task unpackResources to compile

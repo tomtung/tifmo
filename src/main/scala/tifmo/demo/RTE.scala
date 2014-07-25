@@ -4,12 +4,7 @@ import tifmo.inference.IEngine
 import tifmo.onthefly.AEngine
 import tifmo.onthefly.OnTheFly
 import tifmo.onthefly.PathAlignment
-import tifmo.main.en.normalize
-import tifmo.main.en.parse
-import tifmo.main.en.EnResources
-import tifmo.main.en.EnWord
-import tifmo.main.en.TIME
-import tifmo.main.en.EnSimilarityMikolov13
+import tifmo.main.en._
 
 object RTE {
   def main(args: Array[String]) {
@@ -92,7 +87,7 @@ object RTE {
 
         val otf = new OnTheFly(ie, ae)
 
-        val sim = new EnSimilarityMikolov13(res, 0.7f)
+        val sim: EnSimilarity = new EnSimilarityTurian10(res, 0.7f)
 
         val score = (x: PathAlignment) => {
           // evaluate path alignment
