@@ -5,7 +5,7 @@
 This repository is a fork of `https://github.com/tianran/tifmo` by [@tianran](https://github.com/tianran).
 During my internship at [National Institute of Informatics, Japan](http://www.nii.ac.jp/) in 2014, I extended his work to introduce support for generalized quantifiers. The result will be published in [the 28th Pacific Asia Conference on Language, Information and Computing](http://www.arts.chula.ac.th/~ling/paclic28/):
 
-> *Yubing Dong, Ran Tian and Yusuke Miyao.* "Encoding Generalized Quantifiers in Dependency-based Compositional Semantics." Proceedings of the 28th Pacific Asia Conference on Language, Information and Computing. Phuket, Thailand, 2014.
+> *Yubing Dong, Ran Tian and Yusuke Miyao.* "Encoding Generalized Quantifiers in Dependency-based Compositional Semantics." Proceedings of the 28th Pacific Asia Conference on Language, Information and Computing. Phuket, Thailand, 2014. \[[paper](http://www.arts.chula.ac.th/~ling/paclic28/program/pdf/paper%2063.pdf)\]\[[slides](http://www.slideshare.net/yubingdong/encoding-generalized-quantifiers-in-dependencybased-compositional-semantics)\]
 
 # Quick start
 
